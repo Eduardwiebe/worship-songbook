@@ -15,12 +15,14 @@
         "title": "Worship Songbook",
         "width": 1280,
         "height": 800,
+        "minWidth": 1024,
+        "minHeight": 700,
         "resizable": true,
         "fullscreen": false
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; connect-src 'self' https://songbook.lyruma.app ipc: http://ipc.localhost; img-src 'self' https://songbook.lyruma.app data: blob: https://i.ytimg.com; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-src 'self' blob: https://songbook.lyruma.app https://www.youtube-nocookie.com; font-src 'self' data:; object-src 'none'; base-uri 'self'"
     }
   },
   "bundle": {
@@ -38,6 +40,15 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      },
+      "wix": {
+        "language": "de-DE"
+      }
+    },
     "android": {
       "debugApplicationIdSuffix": ".debug"
     },

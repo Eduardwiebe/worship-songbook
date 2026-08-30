@@ -1,4 +1,4 @@
-import { apiFetch, apiUrl } from './apiConfig'
+import { apiFetch, apiUrl, authorizedObjectUrl, isNativeRuntime } from './apiConfig'
 
 export async function getImportedSongs() {
   const response = await apiFetch('/api/songs')
@@ -23,8 +23,13 @@ export async function saveScannedSong(title, pages) {
   const response=await apiFetch('/api/scans',{method:'POST',body:form});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Der Scan konnte nicht verarbeitet werden.');return data
 }
 
-export function openSongPdf(song) {
+export async function openSongPdf(song) {
   if (!song.hasPdf) return
+  if (isNativeRuntime()) {
+    const url = await authorizedObjectUrl(`/api/songs/${song.id}/pdf`)
+    window.open(url, '_blank', 'noopener,noreferrer')
+    return
+  }
   window.open(apiUrl(`/api/songs/${song.id}/pdf`), '_blank', 'noopener,noreferrer')
 }
 
@@ -45,7 +50,16 @@ export async function updateSong(id, changes) {
 
 export async function analyzeSongChords(id) { const r=await apiFetch(`/api/songs/${id}/analyze-chords`,{method:'POST'});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'Akkorde konnten nicht ausgelesen werden.');return data }
 export async function saveSongVariant(id,values) { const r=await apiFetch(`/api/songs/${id}/variants`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(values)});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'Fassung konnte nicht gespeichert werden.');return data }
-export function openSongChart(song,key) { window.open(apiUrl(`/api/songs/${song.id}/chart?key=${encodeURIComponent(key)}`),'_blank','noopener,noreferrer') }
+
+export async function openSongChart(song,key) {
+  const path = `/api/songs/${song.id}/chart?key=${encodeURIComponent(key)}`
+  if (isNativeRuntime()) {
+    const url = await authorizedObjectUrl(path)
+    window.open(url, '_blank', 'noopener,noreferrer')
+    return
+  }
+  window.open(apiUrl(path),'_blank','noopener,noreferrer')
+}
 
 export function songPdfUrl(song) {
   return song?.id ? apiUrl(`/api/songs/${song.id}/pdf`) : ''

@@ -7,7 +7,7 @@ Status for v0.1.0: **workflow stubs only**. No secrets are stored in the reposit
 | Workflow | Runner | Purpose |
 |----------|--------|---------|
 | `web.yml` | `ubuntu-latest` | `npm ci`, `npm run build`, `node --check server.mjs` |
-| `desktop-windows.yml` | `windows-latest` | Tauri build (unsigned or signed later) |
+| `windows-native.yml` | `windows-latest` | Tauri NSIS + MSI (unsigned smoke); see `docs/WINDOWS.md` |
 | `desktop-macos.yml` | `macos-latest` | Tauri build (unsigned or signed later) |
 | `android.yml` | `ubuntu-latest` (+ Android SDK) | Debug APK/AAB later |
 | `ios.yml` | `macos-latest` (+ Xcode) | Archive later |

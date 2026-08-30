@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Windows native build preparation: GitHub Actions `windows-native.yml` (NSIS + MSI, unsigned).
+- Tauri HTTP plugin (scoped to production API) and opener plugin for system-browser links.
+- Authorized media helpers for native Bearer-protected images/PDFs.
+- Docs: `docs/WINDOWS.md` (runner steps, smoke checklist, signing secrets).
+
+### Native authentication
+
 - Native authentication foundation: opaque access + refresh tokens alongside web cookie sessions.
 - Endpoints: `/api/auth/native/login|refresh|logout|me`.
 - Bearer acceptance on existing protected API routes; `X-Songbook-Band` for native band scope.

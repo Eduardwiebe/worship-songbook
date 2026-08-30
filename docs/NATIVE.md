@@ -85,7 +85,7 @@ Creates a temporary user, exercises login/refresh/logout/expiry/Bearer API acces
 
 ## Desktop / mobile readiness
 
-See also `docs/CI.md` and `docs/MOBILE_PERMISSIONS.md`.
+See `docs/CI.md` and `docs/WINDOWS.md`. Windows builds use `.github/workflows/windows-native.yml` (`workflow_dispatch`).
 
 Still needed for real native apps:
 

@@ -1,11 +1,7 @@
 /**
- * Central API base for Web and Native (Tauri) clients.
- *
- * Web (same origin via nginx): empty string → relative /api/...
- * Native: VITE_API_BASE or default production host.
- *
- * Native auth: Authorization Bearer + optional X-Songbook-Band.
- * Web auth: session cookies only (credentials: include).
+ * Native-aware fetch transport.
+ * Web: browser fetch (same-origin cookies).
+ * Native: @tauri-apps/plugin-http (bypasses WebView CORS; scoped in capabilities).
  */
 
 import {
@@ -22,6 +18,7 @@ import {
 const DEFAULT_NATIVE_API = 'https://songbook.lyruma.app'
 
 let refreshPromise = null
+let nativeFetchImpl = null
 
 export function isNativeRuntime() {
   if (typeof window === 'undefined') return false
@@ -41,6 +38,32 @@ export function apiUrl(path = '') {
   return `${base}${normalized}`
 }
 
+export function toApiPath(urlOrPath = '') {
+  if (!urlOrPath) return ''
+  if (urlOrPath.startsWith('/')) return urlOrPath.split('#')[0]
+  try {
+    const parsed = new URL(urlOrPath, getApiBase() || window.location.origin)
+    return `${parsed.pathname}${parsed.search}`
+  } catch {
+    return String(urlOrPath).split('#')[0]
+  }
+}
+
+async function resolveNativeFetch() {
+  if (nativeFetchImpl) return nativeFetchImpl
+  const mod = await import('@tauri-apps/plugin-http')
+  nativeFetchImpl = mod.fetch
+  return nativeFetchImpl
+}
+
+async function transportFetch(url, options = {}) {
+  if (isNativeRuntime()) {
+    const nativeFetch = await resolveNativeFetch()
+    return nativeFetch(url, options)
+  }
+  return fetch(url, options)
+}
+
 function buildHeaders(options = {}, { withBearer = true } = {}) {
   const headers = new Headers(options.headers || {})
   if (isNativeRuntime() && withBearer) {
@@ -56,11 +79,10 @@ async function refreshNativeAccessToken() {
   const refreshToken = await loadRefreshToken()
   if (!refreshToken) return false
 
-  const response = await fetch(apiUrl('/api/auth/native/refresh'), {
+  const response = await transportFetch(apiUrl('/api/auth/native/refresh'), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ refreshToken }),
-    credentials: 'omit',
   })
 
   if (!response.ok) {
@@ -101,7 +123,7 @@ export async function apiFetch(path, options = {}) {
 
   if (native && !skipAuth) await ensureFreshNativeToken()
 
-  let response = await fetch(apiUrl(path), {
+  let response = await transportFetch(apiUrl(path), {
     ...opts,
     headers: buildHeaders(opts, { withBearer: native && !skipAuth }),
   })
@@ -109,7 +131,7 @@ export async function apiFetch(path, options = {}) {
   if (native && !skipAuth && response.status === 401) {
     const refreshed = await (refreshPromise || refreshNativeAccessToken())
     if (refreshed) {
-      response = await fetch(apiUrl(path), {
+      response = await transportFetch(apiUrl(path), {
         ...opts,
         headers: buildHeaders(opts, { withBearer: true }),
       })
@@ -117,6 +139,18 @@ export async function apiFetch(path, options = {}) {
   }
 
   return response
+}
+
+/** Fetch authenticated binary/media and return a blob: URL (native) or plain API URL (web). */
+export async function authorizedObjectUrl(pathOrUrl) {
+  const path = toApiPath(pathOrUrl)
+  if (!path) return ''
+  if (!isNativeRuntime()) return apiUrl(path)
+
+  const response = await apiFetch(path)
+  if (!response.ok) throw new Error('Medium konnte nicht geladen werden.')
+  const blob = await response.blob()
+  return URL.createObjectURL(blob)
 }
 
 export function discardNativeAccessToken() {

@@ -1,14 +1,40 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "enables the default permissions",
-  "windows": [
-    "main"
-  ],
+  "description": "Minimal desktop capabilities for Worship Songbook",
+  "windows": ["main"],
   "permissions": [
     "core:default",
     "allow-secure-set",
     "allow-secure-get",
-    "allow-secure-delete"
+    "allow-secure-delete",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://songbook.lyruma.app" },
+        { "url": "https://songbook.lyruma.app/**" }
+      ]
+    },
+    {
+      "identifier": "opener:default",
+      "allow": [
+        { "url": "https://lyruma.studio" },
+        { "url": "https://lyruma.studio/**" },
+        { "url": "https://lyruma.app" },
+        { "url": "https://lyruma.app/**" },
+        { "url": "https://*.lyruma.studio" },
+        { "url": "https://*.lyruma.studio/**" },
+        { "url": "https://songbook.lyruma.app" },
+        { "url": "https://songbook.lyruma.app/**" },
+        { "url": "https://www.paypal.com" },
+        { "url": "https://www.paypal.com/**" },
+        { "url": "https://paypal.com" },
+        { "url": "https://paypal.com/**" },
+        { "url": "https://github.com" },
+        { "url": "https://github.com/**" },
+        { "url": "https://www.instagram.com" },
+        { "url": "https://www.instagram.com/**" }
+      ]
+    }
   ]
 }
