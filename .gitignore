@@ -1,0 +1,76 @@
+# Runtime data, uploads, and private content — never commit.
+data/
+backups/
+pdfs/
+uploads/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+
+# Local backups and archives created during maintenance.
+*.bak
+*.bak-*
+*.bak*
+*.tar.gz
+*.zip
+*.7z
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
+*.cer
+*.crt
+secrets/
+credentials/
+signing/
+
+# Dependencies and build output
+node_modules/
+app/node_modules/
+app/dist/
+dist/
+build/
+target/
+app/src-tauri/target/
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs and temp
+*.log
+logs/
+tmp/
+temp/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# IDE / editor
+.idea/
+.vscode/
+*.code-workspace
+
+# Native / Tauri generated
+app/src-tauri/gen/
+*.app
+*.dmg
+*.AppImage
+*.msi
+*.exe
+*.apk
+*.aab
+*.ipa
+
+# Optional local notes
+*.local.md
+PRIVATE*

@@ -1,0 +1,17 @@
+# Desktop build placeholders — enable when signing secrets and platform runners are ready.
+# See docs/CI.md. Do not store certificates in this repository.
+
+name: CI Desktop (placeholder)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  note:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Placeholder
+        run: |
+          echo "Use windows-latest / macos-latest with Tauri action when ready."
+          echo "Required secrets are documented in docs/CI.md."
+          exit 0
