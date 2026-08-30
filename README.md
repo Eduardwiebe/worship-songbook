@@ -45,8 +45,10 @@ User-generated content (imported SongSelect/CCLI PDFs, scans, profile photos, ba
 
 API calls go through a central helper (`app/src/apiConfig.js`):
 
-- **Web:** relative `/api/...` (same origin)
-- **Native (planned):** `VITE_API_BASE` or default `https://songbook.lyruma.app`
+- **Web:** relative `/api/...` (same origin) with cookie sessions
+- **Native (Tauri):** `VITE_API_BASE` or default `https://songbook.lyruma.app` with Bearer access tokens + OS keyring refresh storage
+
+Details: [docs/NATIVE.md](docs/NATIVE.md).
 
 ## Developer installation
 

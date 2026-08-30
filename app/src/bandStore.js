@@ -1,4 +1,5 @@
-import { apiFetch, apiUrl } from './apiConfig'
+import { apiFetch, apiUrl, isNativeRuntime } from './apiConfig'
+import { persistSelectedBand } from './nativeSession'
 
 async function request(path,options={}){
   const response=await apiFetch(path,options)
@@ -24,11 +25,17 @@ export const updateBand=(id,values)=>
 export const deleteBand=id=>
   request(`/api/bands/${id}`,{method:'DELETE'})
 
-export const selectBand=id=>
-  request(`/api/bands/${id}/select`,{method:'POST'})
+export const selectBand=async id=>{
+  const result=await request(`/api/bands/${id}/select`,{method:'POST'})
+  if(isNativeRuntime()) await persistSelectedBand(id)
+  return result
+}
 
-export const selectPersonal=()=>
-  request('/api/bands/personal/select',{method:'POST'})
+export const selectPersonal=async ()=>{
+  const result=await request('/api/bands/personal/select',{method:'POST'})
+  if(isNativeRuntime()) await persistSelectedBand('')
+  return result
+}
 
 export const getBandMembers=id=>
   request(`/api/bands/${id}/members`)

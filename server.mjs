@@ -169,7 +169,12 @@ const transposeRoot=(root,shift,targetKey)=>{const value=pitchMap[root];return v
 const transposeText=(text,sourceKey,targetKey)=>{const shift=pitchMap[targetKey]-pitchMap[sourceKey];return text.split('\n').map(line=>isChordLine(line)?line.replace(chordPattern,(full,root,suffix)=>{const slash=suffix.match(/\/(Cis|Des|Dis|Es|Fis|Ges|Gis|As|Ais|C#|Db|D#|Eb|F#|Gb|G#|Ab|A#|Bb|[CDEFGABH])$/);let nextSuffix=suffix;if(slash)nextSuffix=suffix.slice(0,-slash[0].length)+'/'+transposeRoot(slash[1],shift,targetKey);return transposeRoot(root,shift,targetKey)+nextSuffix}):line).join('\n')}
 const auth=createAuth(db,json)
 const cookieValue=(req,name)=>String(req.headers.cookie||'').split(';').map(value=>value.trim()).find(value=>value.startsWith(`${name}=`))?.slice(name.length+1)||''
-const selectedBand=(req,user)=>{const id=cookieValue(req,'songbook_band');return id&&db.prepare('SELECT b.* FROM bands b JOIN band_members m ON m.band_id=b.id WHERE b.id=? AND m.user_id=?').get(id,user.id)}
+const selectedBand=(req,user)=>{
+  const fromCookie=cookieValue(req,'songbook_band')
+  const fromHeader=String(req.headers['x-songbook-band']||'').trim()
+  const id=fromCookie||fromHeader
+  return id&&db.prepare('SELECT b.* FROM bands b JOIN band_members m ON m.band_id=b.id WHERE b.id=? AND m.user_id=?').get(id,user.id)
+}
 const bandCookie=(id,maxAge=2592000)=>`songbook_band=${id}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${maxAge}`
 
 http.createServer(async (req,res) => { try {

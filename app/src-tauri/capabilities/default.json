@@ -6,6 +6,9 @@
     "main"
   ],
   "permissions": [
-    "core:default"
+    "core:default",
+    "allow-secure-set",
+    "allow-secure-get",
+    "allow-secure-delete"
   ]
 }

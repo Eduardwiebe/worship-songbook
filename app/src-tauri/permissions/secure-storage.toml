@@ -1,0 +1,14 @@
+[[permission]]
+identifier = "allow-secure-set"
+description = "Allow storing secrets in the OS keyring"
+commands.allow = ["secure_set"]
+
+[[permission]]
+identifier = "allow-secure-get"
+description = "Allow reading secrets from the OS keyring"
+commands.allow = ["secure_get"]
+
+[[permission]]
+identifier = "allow-secure-delete"
+description = "Allow deleting secrets from the OS keyring"
+commands.allow = ["secure_delete"]

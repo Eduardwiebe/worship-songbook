@@ -10,7 +10,7 @@ import { analyzeSongChords, deleteSong, getImportedSongs, hasSongPdf, openSongCh
 import { createSet, deleteSet, getSets, saveSet } from './setStore'
 import { deleteMember, getTeam, memberPhoto, saveMember } from './teamStore'
 import { createAppointment, deleteAppointment, getAppointments } from './scheduleStore'
-import { changePassword, deleteProfilePhoto, getCurrentUser, login, logout, profilePhotoUrl, register, updateProfile, uploadProfilePhoto } from './authStore'
+import { changePassword, deleteProfilePhoto, getCurrentUser, login, logout, onNativeAuthFailure, profilePhotoUrl, register, updateProfile, uploadProfilePhoto } from './authStore'
 import { approveBandJoinRequest, bandLogoUrl, createBand, createBandInvite, deleteBand, deleteBandLogo, getBands, getBandInvites, getBandJoinRequests, getBandMembers, getMyJoinRequests, joinBandByCode, rejectBandJoinRequest, requestBandJoin, searchBands, selectBand, selectPersonal, updateBand, uploadBandLogo } from './bandStore'
 import Onboarding from './onboarding/Onboarding'
 import { getOnboarding, resetOnboarding, dismissOnboarding } from './onboardingStore'
@@ -40,6 +40,7 @@ function App() {
   const navigate = useNavigate()
 
   useEffect(()=>{getCurrentUser().then(({user})=>setUser(user)).catch(()=>setUser(null)).finally(()=>setAuthLoading(false))},[])
+  useEffect(()=>{onNativeAuthFailure(()=>setUser(null))},[])
   useEffect(() => {
     if(!user||user.mustChangePassword)return
     if(!onboarding?.completed||onboarding?.manualRestart)return

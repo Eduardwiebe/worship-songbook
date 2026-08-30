@@ -8,84 +8,87 @@ Author: Eduard Wiebe
 
 ## API base
 
-All client HTTP calls must go through `app/src/apiConfig.js`:
+All client HTTP calls go through `app/src/apiConfig.js`:
 
 | Environment | API base |
 |-------------|----------|
 | Web (production / same origin) | `''` → relative `/api/...` |
 | Native (Tauri) | `VITE_API_BASE` or default `https://songbook.lyruma.app` |
 
-Helpers: `getApiBase()`, `apiUrl(path)`, `apiFetch(path, options)` (always `credentials: 'include'` unless overridden).
+Helpers: `getApiBase()`, `apiUrl(path)`, `apiFetch(path, options)`.
 
-## Authentication assessment (critical)
+Native `apiFetch` also attaches:
 
-The **web** app uses HttpOnly session cookies:
+- `Authorization: Bearer <accessToken>` when logged in
+- `X-Songbook-Band: <bandId>` when a band is selected (cookie band selection does not work cross-origin)
 
-- Cookie flags: `HttpOnly; Secure; SameSite=Strict; Path=/`
-- CSRF guard: mutating requests require `Origin` host to match `Host` (`auth.mjs` `safeOrigin`)
-- Band selection uses a second cookie with the same flags
+## Authentication
 
-### Why cookie auth is unreliable for bundled Tauri apps
+### What works in the browser today
 
-A typical Tauri desktop/mobile shell loads the UI from a **local asset origin** (e.g. `tauri://localhost` / custom scheme), then calls `https://songbook.lyruma.app/api/...`.
+- Login/register set HttpOnly session cookie `songbook_session`
+- Flags: `HttpOnly; Secure; SameSite=Strict; Path=/`
+- Band selection cookie `songbook_band` with the same flags
+- Mutating cookie-authenticated requests require `Origin` host === `Host` (CSRF guard)
+- Credentials: `include` on same-origin fetches
 
-That is a **cross-site** request relative to the API host:
+### Why cookies fail in typical Tauri WebViews
 
-1. **`SameSite=Strict`** session cookies set by `songbook.lyruma.app` are **not** sent on cross-site fetches from the WebView origin.
-2. Even if cookies were set/sent, **CSRF Origin checks** reject mutations when `Origin` is the WebView scheme/host, not `songbook.lyruma.app`.
-3. Cookie jar / partition behavior differs across **Windows WebView2**, **macOS WKWebView**, **Android WebView**, and **iOS WKWebView**.
-4. Loading the remote site full-frame (`https://songbook.lyruma.app` inside the WebView) can make cookies work but defeats offline packaging and blurs “native app” vs browser.
+Bundled UI origin ≠ `https://songbook.lyruma.app`:
 
-**Conclusion:** Do **not** rely on the current cookie session for native clients without a dedicated auth design. Do **not** weaken `SameSite=Strict` or CSRF checks for web security.
+1. `SameSite=Strict` cookies are not sent on cross-site API calls
+2. CSRF Origin check rejects mutations from `tauri://` / custom schemes
+3. Cookie jars differ across WebView2 / WKWebView / Android WebView
 
-### Planned native auth layer (not implemented in v0.1.0)
+**Do not weaken** cookie `SameSite` or CSRF for web.
 
-Minimal secure migration path (web login unchanged):
+### Native token auth (implemented)
 
-1. Add optional **Bearer access token + refresh token** endpoints alongside cookie sessions.
-2. Web continues to use cookies; native stores tokens in **platform secure storage** (Keychain / Credential Manager / Keystore).
-3. `apiFetch` attaches `Authorization: Bearer …` when a native token is present.
-4. CSRF Origin check remains for cookie-authenticated browser requests; token auth uses separate validation.
-5. Document token lifetimes, rotation, and revocation (sessions table or dedicated token table).
+Web remains cookie-only. Native uses opaque tokens:
 
-Until that lands: native builds may show the UI, but **login against production is not considered working**.
+| Token | Lifetime | Storage (server) | Client |
+|-------|----------|------------------|--------|
+| Access | 15 minutes | SHA-256 hash in `native_access_tokens` | memory only |
+| Refresh | 30 days | SHA-256 hash in `native_refresh_tokens` | OS keyring via Tauri `secure_*` commands |
 
-## Desktop (Windows / macOS)
+Endpoints:
 
-Prepared: Tauri 2 config, icons placeholder, npm scripts.
+- `POST /api/auth/native/login` → access + refresh
+- `POST /api/auth/native/refresh` → rotation (old refresh revoked)
+- `POST /api/auth/native/logout` → revoke family
+- `GET /api/auth/native/me` → Bearer required
 
-This Linux host cannot produce signed Windows/macOS installers in-place. Use GitHub Actions runners (`windows-latest`, `macos-latest`) later. See `docs/CI.md`.
+Protected `/api/*` accepts **cookie session OR** `Authorization: Bearer`.
 
-Still needed later:
+Refresh rotation and logout are server-side revocable. Tokens are never logged by the API. Raw tokens are not stored in SQLite.
 
-- Platform toolchain verification (`tauri info`)
-- Real `tauri build` on each OS
-- Code signing certificates (never commit)
-- Installer smoke tests (login blocked until token auth)
+### Secure storage (Tauri)
 
-## Mobile (Android / iOS)
+Rust commands in `app/src-tauri/src/lib.rs` use the `keyring` crate:
 
-Tauri 2 mobile structure is supported by the toolchain; project is prepared at the config level.
+- `secure_set` / `secure_get` / `secure_delete`
+- Service id: `studio.lyruma.worshipsongbook`
 
-Still needed later:
+Frontend: `app/src/secureStorage.js` + `app/src/nativeSession.js`.
 
-- `tauri android init` / `tauri ios init` on a machine with Android SDK / Xcode
-- Permission planning (enable only when features need them):
+If keyring is unavailable at runtime, refresh tokens fall back to **process memory only** (not localStorage). That fallback is for broken toolchains — not a production claim.
 
-| Feature | Likely permission / capability |
-|---------|--------------------------------|
-| PDF import / save | filesystem / document picker |
-| Scan pages | camera |
-| Share charts | share sheet |
-| External legal links | open URL |
-| Push (future) | notifications — **not** enabled now |
+**Not runtime-verified on this Linux server for Windows/macOS/iOS/Android builds.**
 
-Do not add unused permissions.
+## Automated tests
 
-## Regression rule
+```bash
+node scripts/test-native-auth.mjs
+```
 
-Native work must not break web:
+Creates a temporary user, exercises login/refresh/logout/expiry/Bearer API access, then deletes the user.
 
-- Relative API base on web
-- Cookie auth unchanged
-- `npm run build` and live `/api/health` remain green
+## Desktop / mobile readiness
+
+See also `docs/CI.md` and `docs/MOBILE_PERMISSIONS.md`.
+
+Still needed for real native apps:
+
+- Platform `tauri build` on Windows / macOS / Android / iOS runners
+- Signing secrets (never in git)
+- End-to-end login smoke inside each WebView against production API

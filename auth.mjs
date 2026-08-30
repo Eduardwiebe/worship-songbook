@@ -3,6 +3,9 @@ import { Readable } from 'node:stream'
 import { readFile, writeFile, unlink } from 'node:fs/promises'
 
 const COOKIE = 'songbook_session'
+const ACCESS_TTL_MS = 15 * 60 * 1000
+const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000
+
 const hashToken = token => createHash('sha256').update(token).digest('hex')
 const passwordHash = password => {
   const salt = randomBytes(16).toString('hex')
@@ -23,6 +26,12 @@ const publicUser = user => ({
   updatedAt: user.updated_at,
 })
 const cookie = (token, maxAge = 2592000) => `${COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${maxAge}`
+const newOpaqueToken = () => randomBytes(32).toString('base64url')
+const bearerFromReq = req => {
+  const header = String(req.headers.authorization || '')
+  const match = /^Bearer\s+(\S+)$/i.exec(header)
+  return match?.[1] || ''
+}
 
 export function initializeAuth(db) {
   db.exec(`CREATE TABLE IF NOT EXISTS users (
@@ -34,6 +43,27 @@ export function initializeAuth(db) {
   CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at TEXT NOT NULL,
     created_at TEXT NOT NULL, FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+  CREATE TABLE IF NOT EXISTS native_refresh_tokens (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    revoked_at TEXT,
+    device_name TEXT,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+  CREATE TABLE IF NOT EXISTS native_access_tokens (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    refresh_id TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    revoked_at TEXT,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY(refresh_id) REFERENCES native_refresh_tokens(id) ON DELETE CASCADE
   );`)
   for (const definition of ['profile_path TEXT', 'profile_mime TEXT']) {
     try { db.exec(`ALTER TABLE users ADD COLUMN ${definition}`) } catch {}
@@ -52,7 +82,10 @@ export function initializeAuth(db) {
       db.prepare('UPDATE team SET owner_id=? WHERE owner_id IS NULL').run(admin.id)
       db.prepare('UPDATE appointments SET owner_id=? WHERE owner_id IS NULL').run(admin.id)
     }
-  db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(new Date().toISOString())
+  const now = new Date().toISOString()
+  db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(now)
+  db.prepare('DELETE FROM native_access_tokens WHERE expires_at < ? OR revoked_at IS NOT NULL').run(now)
+  db.prepare('DELETE FROM native_refresh_tokens WHERE expires_at < ?').run(now)
 }
 
 export function createAuth(db, json) {
@@ -63,10 +96,49 @@ export function createAuth(db, json) {
     return db.prepare(`SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id
       WHERE s.token_hash=? AND s.expires_at>?`).get(hashToken(raw), new Date().toISOString()) || null
   }
+  const readBearer = req => {
+    const raw = bearerFromReq(req)
+    if (!raw) return null
+    return db.prepare(`SELECT u.* FROM native_access_tokens t
+      JOIN users u ON u.id=t.user_id
+      WHERE t.token_hash=? AND t.expires_at>? AND t.revoked_at IS NULL`).get(hashToken(raw), new Date().toISOString()) || null
+  }
+  const resolveUser = req => readSession(req) || readBearer(req)
   const makeSession = (res, userId) => {
-    const token = randomBytes(32).toString('base64url'); const now = new Date(); const expires = new Date(now.getTime() + 2592000e3)
+    const token = newOpaqueToken(); const now = new Date(); const expires = new Date(now.getTime() + 2592000e3)
     db.prepare('INSERT INTO sessions VALUES (?,?,?,?)').run(hashToken(token), userId, expires.toISOString(), now.toISOString())
     res.setHeader('set-cookie', cookie(token)); return token
+  }
+  const issueNativeTokens = (userId, deviceName = '') => {
+    const now = new Date()
+    const refreshId = randomUUID()
+    const accessId = randomUUID()
+    const refreshToken = newOpaqueToken()
+    const accessToken = newOpaqueToken()
+    const refreshExpires = new Date(now.getTime() + REFRESH_TTL_MS)
+    const accessExpires = new Date(now.getTime() + ACCESS_TTL_MS)
+    db.prepare(`INSERT INTO native_refresh_tokens
+      (id,user_id,token_hash,created_at,expires_at,revoked_at,device_name)
+      VALUES (?,?,?,?,?,NULL,?)`).run(
+      refreshId, userId, hashToken(refreshToken), now.toISOString(), refreshExpires.toISOString(), deviceName || null,
+    )
+    db.prepare(`INSERT INTO native_access_tokens
+      (id,user_id,refresh_id,token_hash,created_at,expires_at,revoked_at)
+      VALUES (?,?,?,?,?,?,NULL)`).run(
+      accessId, userId, refreshId, hashToken(accessToken), now.toISOString(), accessExpires.toISOString(),
+    )
+    return {
+      accessToken,
+      refreshToken,
+      tokenType: 'Bearer',
+      expiresIn: Math.floor(ACCESS_TTL_MS / 1000),
+      refreshExpiresAt: refreshExpires.toISOString(),
+    }
+  }
+  const revokeRefreshFamily = refreshId => {
+    const now = new Date().toISOString()
+    db.prepare('UPDATE native_refresh_tokens SET revoked_at=? WHERE id=? AND revoked_at IS NULL').run(now, refreshId)
+    db.prepare('UPDATE native_access_tokens SET revoked_at=? WHERE refresh_id=? AND revoked_at IS NULL').run(now, refreshId)
   }
   const safeOrigin = req => {
     const origin = req.headers.origin
@@ -74,21 +146,106 @@ export function createAuth(db, json) {
     try { return new URL(origin).host === req.headers.host } catch { return false }
   }
   const uniqueError = error => String(error?.message || '').includes('UNIQUE')
+  const isNativeAuthPath = pathname => pathname.startsWith('/api/auth/native/')
+  const openPaths = new Set([
+    '/api/health',
+    '/api/auth/login',
+    '/api/auth/register',
+    '/api/auth/native/login',
+    '/api/auth/native/refresh',
+  ])
 
   return {
     publicUser,
+    resolveUser,
     authenticate(req, res, url) {
-      const open = ['/api/health', '/api/auth/login', '/api/auth/register']
-      if (!url.pathname.startsWith('/api/') || open.includes(url.pathname)) return { open: true, user: null }
-      if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && !safeOrigin(req)) { json(res, 403, {error:'Ungültige Anfrage'}); return null }
-      const user = readSession(req)
+      if (!url.pathname.startsWith('/api/') || openPaths.has(url.pathname)) return { open: true, user: null }
+
+      const hasBearer = Boolean(bearerFromReq(req))
+      // Cookie sessions need same-origin CSRF protection. Bearer tokens do not use cookies.
+      if (!hasBearer && !['GET', 'HEAD', 'OPTIONS'].includes(req.method) && !safeOrigin(req)) {
+        json(res, 403, {error:'Ungültige Anfrage'}); return null
+      }
+
+      const user = resolveUser(req)
       if (!user) { json(res, 401, {error:'Bitte anmelden'}); return null }
-      const allowed = ['/api/auth/me','/api/auth/logout','/api/auth/change-password']
-      if (user.must_change_password && !allowed.includes(url.pathname)) { json(res, 428, {error:'Passwortänderung erforderlich',code:'PASSWORD_CHANGE_REQUIRED'}); return null }
+
+      const allowed = [
+        '/api/auth/me', '/api/auth/logout', '/api/auth/change-password',
+        '/api/auth/native/me', '/api/auth/native/logout',
+      ]
+      if (user.must_change_password && !allowed.includes(url.pathname)) {
+        json(res, 428, {error:'Passwortänderung erforderlich',code:'PASSWORD_CHANGE_REQUIRED'}); return null
+      }
       return {open:false,user}
     },
     async route(req, res, url, bodyJson) {
       if (!url.pathname.startsWith('/api/auth/')) return false
+
+      // --- Native token endpoints (no cookie CSRF Origin gate) ---
+      if (isNativeAuthPath(url.pathname)) {
+        if (req.method === 'POST' && url.pathname === '/api/auth/native/login') {
+          const b = await bodyJson(req)
+          const identifier = String(b.identifier || '').trim()
+          const password = String(b.password || '')
+          const deviceName = String(b.deviceName || '').trim().slice(0, 80)
+          const key = `native:${req.socket.remoteAddress}:${identifier.toLowerCase()}`
+          const now = Date.now()
+          const state = attempts.get(key) || {count:0, since:now}
+          if (now - state.since > 900000) { state.count = 0; state.since = now }
+          if (state.count >= 8) return json(res, 429, {error:'Zu viele Versuche. Bitte später erneut versuchen.'})
+          const user = db.prepare('SELECT * FROM users WHERE username=? COLLATE NOCASE OR email=? COLLATE NOCASE').get(identifier, identifier)
+          if (!user || !passwordMatches(password, user.password_hash)) {
+            state.count++; attempts.set(key, state)
+            return json(res, 401, {error:'Anmeldedaten sind nicht korrekt.'})
+          }
+          attempts.delete(key)
+          const tokens = issueNativeTokens(user.id, deviceName)
+          return json(res, 200, { user: publicUser(user), ...tokens })
+        }
+
+        if (req.method === 'POST' && url.pathname === '/api/auth/native/refresh') {
+          const b = await bodyJson(req)
+          const refreshToken = String(b.refreshToken || '')
+          if (!refreshToken) return json(res, 400, {error:'Refresh Token fehlt.'})
+          const nowIso = new Date().toISOString()
+          const row = db.prepare(`SELECT * FROM native_refresh_tokens
+            WHERE token_hash=? AND expires_at>?`).get(hashToken(refreshToken), nowIso)
+          if (!row || row.revoked_at) return json(res, 401, {error:'Refresh Token ungültig.'})
+          const user = db.prepare('SELECT * FROM users WHERE id=?').get(row.user_id)
+          if (!user) return json(res, 401, {error:'Refresh Token ungültig.'})
+          revokeRefreshFamily(row.id)
+          const tokens = issueNativeTokens(user.id, row.device_name || '')
+          return json(res, 200, { user: publicUser(user), ...tokens })
+        }
+
+        if (req.method === 'POST' && url.pathname === '/api/auth/native/logout') {
+          const b = await bodyJson(req).catch(() => ({}))
+          const refreshToken = String(b.refreshToken || '')
+          const accessRaw = bearerFromReq(req)
+          if (refreshToken) {
+            const row = db.prepare('SELECT id FROM native_refresh_tokens WHERE token_hash=?').get(hashToken(refreshToken))
+            if (row) revokeRefreshFamily(row.id)
+          }
+          if (accessRaw) {
+            const now = new Date().toISOString()
+            const access = db.prepare('SELECT refresh_id FROM native_access_tokens WHERE token_hash=?').get(hashToken(accessRaw))
+            if (access?.refresh_id) revokeRefreshFamily(access.refresh_id)
+            else db.prepare('UPDATE native_access_tokens SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL').run(now, hashToken(accessRaw))
+          }
+          return json(res, 200, {ok:true})
+        }
+
+        if (req.method === 'GET' && url.pathname === '/api/auth/native/me') {
+          const user = readBearer(req)
+          if (!user) return json(res, 401, {error:'Bitte anmelden'})
+          return json(res, 200, {user: publicUser(user)})
+        }
+
+        return json(res, 404, {error:'Nicht gefunden'})
+      }
+
+      // --- Web cookie auth endpoints (unchanged CSRF Origin gate) ---
       if (!['GET','HEAD','OPTIONS'].includes(req.method) && !safeOrigin(req))
         return json(res,403,{error:'Ungültige Anfrage'})
 
@@ -111,7 +268,7 @@ export function createAuth(db, json) {
         if(!user||!passwordMatches(password,user.password_hash)){state.count++;attempts.set(key,state);return json(res,401,{error:'Anmeldedaten sind nicht korrekt.'})}
         attempts.delete(key); makeSession(res,user.id); return json(res,200,{user:publicUser(user)})
       }
-      const user=readSession(req); if(!user)return json(res,401,{error:'Bitte anmelden'})
+      const user=resolveUser(req); if(!user)return json(res,401,{error:'Bitte anmelden'})
 
       if(req.method==='GET'&&url.pathname==='/api/auth/photo'){
         const row=db.prepare('SELECT profile_path,profile_mime FROM users WHERE id=?').get(user.id)
