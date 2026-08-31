@@ -1,0 +1,162 @@
+name: iOS Native Simulator
+
+# Builds Tauri iOS for the iPhone Simulator (unsigned / no App Store export).
+# Linux hosts cannot run `tauri ios` — this workflow must use macos-latest.
+# Physical device signing is intentionally omitted (see docs/IOS.md).
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'ios-sim-v*'
+
+permissions:
+  contents: read
+
+jobs:
+  ios-simulator:
+    runs-on: macos-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Record runner / Xcode
+        run: |
+          set -euo pipefail
+          echo "uname -m: $(uname -m)"
+          echo "uname -a: $(uname -a)"
+          sw_vers || true
+          xcodebuild -version
+          xcrun simctl list devices available | head -80 || true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios-sim,aarch64-apple-ios
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri -> target
+
+      - name: Install frontend dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Show Tauri CLI (ios must exist on macOS)
+        working-directory: app
+        run: |
+          npx tauri --version
+          npx tauri ios --help | head -40
+
+      - name: Initialize iOS project if missing
+        working-directory: app
+        env:
+          CI: 'true'
+        run: |
+          set -euo pipefail
+          if [ -d src-tauri/gen/apple ]; then
+            echo "gen/apple already present — skip init"
+            find src-tauri/gen/apple -maxdepth 3 \( -name '*.xcodeproj' -o -name '*.xcworkspace' \) -print
+          else
+            echo "Running tauri ios init --ci"
+            npx tauri ios init --ci
+          fi
+
+      - name: Summarize Xcode project metadata
+        working-directory: app
+        run: |
+          set -euo pipefail
+          echo "=== apple tree (depth 3) ==="
+          find src-tauri/gen/apple -maxdepth 3 -print | head -120
+          PBX=$(find src-tauri/gen/apple -name project.pbxproj | head -1 || true)
+          if [ -n "${PBX}" ]; then
+            echo "pbxproj=$PBX"
+            rg -n "PRODUCT_BUNDLE_IDENTIFIER|IPHONEOS_DEPLOYMENT_TARGET|PRODUCT_NAME|MARKETING_VERSION|CURRENT_PROJECT_VERSION" "$PBX" | head -40 || true
+          fi
+          echo "tauri identifier / iOS minimum:"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          c=json.loads(Path('src-tauri/tauri.conf.json').read_text())
+          print('productName', c.get('productName'))
+          print('identifier', c.get('identifier'))
+          print('version', c.get('version'))
+          print('iOS', c.get('bundle',{}).get('iOS'))
+          PY
+
+      - name: Build iOS Simulator (aarch64-sim, debug)
+        working-directory: app
+        env:
+          CI: 'true'
+          VITE_API_BASE: https://songbook.lyruma.app
+        run: npx tauri ios build --debug --target aarch64-sim -v
+
+      - name: Collect simulator artifacts
+        id: collect
+        working-directory: app
+        run: |
+          set -euo pipefail
+          OUT="$GITHUB_WORKSPACE/ios-sim-artifacts"
+          mkdir -p "$OUT"
+          # Common Tauri / cargo-mobile output locations
+          find src-tauri -type d -name '*.app' 2>/dev/null | head -40 | tee "$OUT/app-paths.txt" || true
+          find src-tauri/gen/apple -type d -name '*.app' 2>/dev/null | head -40 || true
+          find src-tauri -type f \( -name '*.app' -o -name '*.ipa' \) 2>/dev/null | head -20 || true
+          # Copy any .app bundles found under gen/apple or target
+          while IFS= read -r APP; do
+            BASE=$(basename "$APP")
+            DEST="$OUT/$BASE"
+            if [ ! -e "$DEST" ]; then
+              ditto "$APP" "$DEST"
+              echo "copied $APP -> $DEST"
+            fi
+          done < <(find src-tauri -type d -name '*.app' 2>/dev/null | head -20)
+          # Always keep the Xcode project for Mac device follow-up
+          if [ -d src-tauri/gen/apple ]; then
+            ditto src-tauri/gen/apple "$OUT/gen-apple"
+          fi
+          # Record architecture of first executable
+          BIN=$(find "$OUT" -type f -path '*.app/Contents/MacOS/*' 2>/dev/null | head -1 || true)
+          # iOS .app uses different layout
+          if [ -z "${BIN}" ]; then
+            BIN=$(find "$OUT" -type f -path '*.app/*' -perm +111 ! -name '*.dylib' 2>/dev/null | head -1 || true)
+          fi
+          {
+            echo "date_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "runner=$(uname -m)"
+            echo "head_sha=${GITHUB_SHA}"
+            echo "vite_api_base=https://songbook.lyruma.app"
+            echo "target=aarch64-sim"
+            python3 -c 'import json;print("version="+json.load(open("src-tauri/tauri.conf.json"))["version"])'
+            if [ -n "${BIN}" ]; then
+              echo "binary=$BIN"
+              file "$BIN" || true
+              lipo -info "$BIN" 2>/dev/null || true
+            else
+              echo "binary=NOT_FOUND_IN_COLLECT_DIR"
+              echo "=== search under src-tauri ==="
+              find src-tauri -type d -name '*.app' -print 2>/dev/null | head -40
+            fi
+          } | tee "$OUT/ios-simulator-diagnosis.txt"
+          ls -la "$OUT" | tee -a "$OUT/ios-simulator-diagnosis.txt"
+          # Fail if no .app was produced
+          if ! find "$OUT" -type d -name '*.app' | grep -q .; then
+            echo "FATAL: no .app artifact collected after simulator build"
+            exit 1
+          fi
+
+      - name: Upload iOS simulator artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Worship-Songbook-iOS-Simulator
+          if-no-files-found: error
+          path: ios-sim-artifacts/
