@@ -1,0 +1,5 @@
+# Rebuilt by `tauri ios build` / Xcode — do not commit
+/build/
+/Externals/
+*.xcuserstate
+xcuserdata/

@@ -60,8 +60,10 @@ Thumbs.db
 .vscode/
 *.code-workspace
 
-# Native / Tauri generated
-app/src-tauri/gen/
+# Native / Tauri generated (keep committed Xcode project under gen/apple)
+app/src-tauri/gen/schemas/
+app/src-tauri/gen/apple/build/
+app/src-tauri/gen/apple/Externals/
 *.app
 *.dmg
 *.AppImage
