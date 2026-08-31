@@ -60,15 +60,119 @@ jobs:
           find app/src-tauri/target/release/bundle -maxdepth 3 \( -name '*.app' -o -name '*.dmg' \) -print 2>/dev/null || true
           echo "=== sizes ==="
           find app/src-tauri/target/release/bundle -maxdepth 3 \( -name '*.app' -o -name '*.dmg' \) -exec du -sh {} \; 2>/dev/null || true
-          echo "=== mach-o arch (if lipo available) ==="
           BIN=$(find app/src-tauri/target/release/bundle/macos -type f -path '*.app/Contents/MacOS/*' ! -name '.*' 2>/dev/null | head -1 || true)
           if [ -n "${BIN}" ]; then
             echo "binary=$BIN"
             file "$BIN" || true
             lipo -info "$BIN" 2>/dev/null || true
+            ls -la "$BIN"
           else
             echo "No MacOS binary found for lipo probe"
+            exit 1
           fi
+
+      - name: Validate DMG + codesign + Gatekeeper assess
+        id: validate
+        run: |
+          set -uo pipefail
+          APP_SRC=$(echo app/src-tauri/target/release/bundle/macos/*.app)
+          DMG=$(echo app/src-tauri/target/release/bundle/dmg/*.dmg)
+          REPORT=macos-gatekeeper-diagnosis.txt
+          {
+            echo "Worship Songbook macOS CI diagnosis"
+            echo "date_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "runner=$(uname -m) $(sw_vers -productVersion 2>/dev/null || true)"
+            echo "app_src=$APP_SRC"
+            echo "dmg=$DMG"
+            echo
+            echo "=== SHA256 DMG ==="
+            shasum -a 256 "$DMG"
+            echo
+            echo "=== hdiutil imageinfo ==="
+            hdiutil imageinfo "$DMG" || true
+            echo
+            echo "=== hdiutil verify ==="
+            set +e
+            hdiutil verify "$DMG"
+            VERIFY_RC=$?
+            set -e
+            echo "hdiutil_verify_exit=$VERIFY_RC"
+            if [ "$VERIFY_RC" -ne 0 ]; then
+              echo "FATAL: DMG failed hdiutil verify (structurally damaged)"
+              exit 1
+            fi
+            echo
+            MOUNT=$(mktemp -d /tmp/wsb-dmg.XXXXXX)
+            echo "=== hdiutil attach ==="
+            ATTACH_OUT=$(hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT" "$DMG")
+            echo "$ATTACH_OUT"
+            APP_DMG=$(find "$MOUNT" -maxdepth 2 -name '*.app' -type d | head -1)
+            echo "app_in_dmg=$APP_DMG"
+            if [ -z "$APP_DMG" ]; then
+              echo "FATAL: no .app inside DMG"
+              hdiutil detach "$MOUNT" || true
+              exit 1
+            fi
+            echo
+            echo "=== DMG bundle listing ==="
+            ls -la "$MOUNT"
+            find "$APP_DMG" -print | sort
+            BIN="$APP_DMG/Contents/MacOS/worship-songbook"
+            echo
+            echo "=== executable ==="
+            ls -la "$BIN"
+            file "$BIN"
+            lipo -info "$BIN"
+            plutil -p "$APP_DMG/Contents/Info.plist" | head -40
+            echo
+            echo "=== codesign -dv (raw app from build) ==="
+            set +e
+            codesign -dv --verbose=4 "$APP_SRC" 2>&1
+            echo "codesign_dv_raw_exit=$?"
+            echo
+            echo "=== codesign --verify --deep --strict (raw app) ==="
+            codesign --verify --deep --strict --verbose=4 "$APP_SRC" 2>&1
+            echo "codesign_verify_raw_exit=$?"
+            echo
+            echo "=== codesign -dv (app from DMG) ==="
+            codesign -dv --verbose=4 "$APP_DMG" 2>&1
+            echo "codesign_dv_dmg_exit=$?"
+            echo
+            echo "=== codesign --verify --deep --strict (app from DMG) ==="
+            codesign --verify --deep --strict --verbose=4 "$APP_DMG" 2>&1
+            echo "codesign_verify_dmg_exit=$?"
+            echo
+            echo "=== spctl --assess (raw app, no quarantine) ==="
+            spctl --assess --type execute --verbose=4 "$APP_SRC" 2>&1
+            echo "spctl_raw_exit=$?"
+            echo
+            echo "=== spctl --assess (app from DMG, no quarantine) ==="
+            spctl --assess --type execute --verbose=4 "$APP_DMG" 2>&1
+            echo "spctl_dmg_exit=$?"
+            echo
+            echo "=== quarantine simulation on a COPY of raw app ==="
+            COPY=$(mktemp -d /tmp/wsb-q.XXXXXX)/Worship\ Songbook.app
+            ditto "$APP_SRC" "$COPY"
+            # Diagnostic only: simulate browser download quarantine. Not a product workaround.
+            xattr -w com.apple.quarantine "0081;$(printf '%x' "$(date +%s)");CI;00000000-0000-0000-0000-000000000000" "$COPY"
+            echo "xattr after quarantine set:"
+            xattr -l "$COPY" || true
+            echo
+            echo "=== spctl --assess (quarantined copy) ==="
+            spctl --assess --type execute --verbose=4 "$COPY" 2>&1
+            echo "spctl_quarantine_exit=$?"
+            echo
+            echo "=== open attempt notes ==="
+            echo "Do not disable Gatekeeper. Unsigned+quarantined apps often show German dialog:"
+            echo "  '… ist beschädigt und kann nicht geöffnet werden.'"
+            echo "That wording is Gatekeeper rejection, not proof of zlib/DMG corruption."
+            set -e
+            hdiutil detach "$MOUNT" || hdiutil detach "$MOUNT" -force || true
+            echo
+            echo "=== conclusion hints ==="
+            echo "If hdiutil verify=0 and bundle complete and arch=arm64,"
+            echo "and codesign verify fails / spctl rejects → Gatekeeper/signing, not damaged DMG."
+          } | tee "$REPORT"
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
@@ -78,3 +182,4 @@ jobs:
           path: |
             app/src-tauri/target/release/bundle/macos/*.app
             app/src-tauri/target/release/bundle/dmg/*.dmg
+            macos-gatekeeper-diagnosis.txt
