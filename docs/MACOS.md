@@ -12,18 +12,34 @@ The git tag `v0.1.0` remains the **web baseline**. macOS work lives in later com
 
 ## DEVELOPMENT / UNSIGNED TEST BUILD
 
-**This macOS build is an unsigned development / smoke-test build.**
+**This macOS build is a development / smoke-test build.**
 
 | Rule | Detail |
 |------|--------|
 | Audience | Internal development and manual smoke-test only |
 | Public distribution | **Not** intended — do not ship this build to end users |
-| Gatekeeper | Gatekeeper / “unidentified developer” warnings on unsigned apps are **expected** |
-| Signing / notarization | **Not** enabled in CI |
-| Self-signed | Self-signed certificates are **not** a public trust / distribution solution |
+| Bundle signing in CI | **Ad-hoc** only (`bundle.macOS.signingIdentity: "-"`) — seals `_CodeSignature` / resources |
+| Developer ID / notarization | **Not** enabled |
+| Gatekeeper | After ad-hoc seal, expect “unidentified developer” / Open Anyway — **not** “beschädigt”, if quarantine is set |
+| Self-signed CA certs | **Not** a public trust / distribution solution |
 | Validation | Do **not** claim “macOS validated” until a human smoke-test on a real Mac passes |
 
-**Do not** automate Gatekeeper disablement, SIP changes, or other OS security workarounds.
+**Do not** automate Gatekeeper disablement, SIP changes, or `xattr -d com.apple.quarantine` as a product fix.
+
+### “ist beschädigt” diagnosis (2026-08-31)
+
+| Check | Result on CI |
+|-------|----------------|
+| Local GitHub Artifact vs Smoke-Kopie DMG | Byte-identical (SHA256 matched for run `33370068659`) |
+| `hdiutil verify` | **Pass** — DMG not corrupted |
+| Bundle completeness | Complete (Info.plist, MacOS binary +x, icon.icns) |
+| Architecture | **arm64 only** |
+| Without `signingIdentity` | Mach-O only `adhoc,linker-signed`; `codesign --verify --deep --strict` → **fail** (`code has no resources but signature indicates they must be present`) |
+| Effect | Gatekeeper shows misleading **“beschädigt”** on Apple Silicon for that incomplete signature |
+
+**Fix applied:** set `signingIdentity` to `-` so Tauri runs full ad-hoc `codesign` on the `.app` (and DMG contents). CI now **fails the job** if `codesign --verify` still fails.
+
+Ad-hoc ≠ public distribution. Public opens still need Apple Developer ID + notarization (separate decision).
 
 ---
 

@@ -51,6 +51,7 @@
     },
     "macOS": {
       "minimumSystemVersion": "10.15",
+      "signingIdentity": "-",
       "dmg": {
         "appPosition": {
           "x": 180,

@@ -132,7 +132,8 @@ jobs:
             echo
             echo "=== codesign --verify --deep --strict (raw app) ==="
             codesign --verify --deep --strict --verbose=4 "$APP_SRC" 2>&1
-            echo "codesign_verify_raw_exit=$?"
+            VERIFY_RAW=$?
+            echo "codesign_verify_raw_exit=$VERIFY_RAW"
             echo
             echo "=== codesign -dv (app from DMG) ==="
             codesign -dv --verbose=4 "$APP_DMG" 2>&1
@@ -140,7 +141,8 @@ jobs:
             echo
             echo "=== codesign --verify --deep --strict (app from DMG) ==="
             codesign --verify --deep --strict --verbose=4 "$APP_DMG" 2>&1
-            echo "codesign_verify_dmg_exit=$?"
+            VERIFY_DMG=$?
+            echo "codesign_verify_dmg_exit=$VERIFY_DMG"
             echo
             echo "=== spctl --assess (raw app, no quarantine) ==="
             spctl --assess --type execute --verbose=4 "$APP_SRC" 2>&1
@@ -163,15 +165,20 @@ jobs:
             echo "spctl_quarantine_exit=$?"
             echo
             echo "=== open attempt notes ==="
-            echo "Do not disable Gatekeeper. Unsigned+quarantined apps often show German dialog:"
+            echo "Do not disable Gatekeeper. Broken linker-only signatures often show German dialog:"
             echo "  '… ist beschädigt und kann nicht geöffnet werden.'"
-            echo "That wording is Gatekeeper rejection, not proof of zlib/DMG corruption."
+            echo "Ad-hoc bundle signing (signingIdentity '-') seals resources; Developer ID + notarization"
+            echo "are still required for public distribution without Gatekeeper friction."
             set -e
             hdiutil detach "$MOUNT" || hdiutil detach "$MOUNT" -force || true
             echo
-            echo "=== conclusion hints ==="
-            echo "If hdiutil verify=0 and bundle complete and arch=arm64,"
-            echo "and codesign verify fails / spctl rejects → Gatekeeper/signing, not damaged DMG."
+            echo "=== hard checks ==="
+            if [ "$VERIFY_RAW" -ne 0 ] || [ "$VERIFY_DMG" -ne 0 ]; then
+              echo "FATAL: codesign --verify failed (bundle signature incomplete)."
+              echo "Ensure tauri.conf.json bundle.macOS.signingIdentity is '-' for ad-hoc CI builds."
+              exit 1
+            fi
+            echo "codesign_verify_ok=1"
           } | tee "$REPORT"
 
       - name: Upload macOS artifacts
