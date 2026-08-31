@@ -59,28 +59,10 @@ import {
 } from '../songStore'
 
 import './onboarding.css'
+import { useI18n } from '../i18n'
 
-const appointmentTypes={
-  rehearsal:'Bandprobe',
-  planning:'Planungstreffen',
-  soundcheck:'Technik & Soundcheck',
-  other:'Sonstiger Termin',
-}
-
-const roleOptions = [
-  'Gesang',
-  'Akustikgitarre',
-  'E-Gitarre',
-  'Bass',
-  'Piano / Keys',
-  'Schlagzeug',
-  'Percussion',
-  'Bläser',
-  'Streicher',
-  'Technik',
-  'Licht',
-  'Organisation',
-]
+const appointmentTypeKeys=['rehearsal','planning','soundcheck','other']
+const roleOptionKeys=['vocals','acoustic','electric','bass','keys','drums','percussion','brass','strings','sound','lights','org']
 
 function Button({
   children,
@@ -102,13 +84,14 @@ function Button({
 }
 
 function Progress({current,total,label}) {
+  const { t } = useI18n()
   const percentage=Math.round((current/total)*100)
 
   return (
     <>
       <div className="onboarding-topline">
         <span>{label}</span>
-        <span>Schritt {current} von {total}</span>
+        <span>{t('ob.stepOf', { current, total })}</span>
       </div>
 
       <div className="onboarding-progress">
@@ -148,8 +131,11 @@ function StartChoice({icon:Icon,title,text,onClick}) {
 }
 
 export default function Onboarding({state,onState}) {
+  const { t } = useI18n()
   const step=Number(state?.step)||0
   const mode=state?.mode||''
+  const roleOptions = roleOptionKeys.map((key) => t(`team.role.${key}`))
+  const appointmentTypes = Object.fromEntries(appointmentTypeKeys.map((key) => [key, t(`appointments.types.${key}`)]))
 
   const [busy,setBusy]=useState(false)
   const [error,setError]=useState('')
@@ -177,7 +163,7 @@ export default function Onboarding({state,onState}) {
 
   const [appointments,setAppointments]=useState([])
   const [appointmentType,setAppointmentType]=useState('rehearsal')
-  const [appointmentTitle,setAppointmentTitle]=useState('Bandprobe')
+  const [appointmentTitle,setAppointmentTitle]=useState('')
   const [appointmentDate,setAppointmentDate]=useState('')
   const [appointmentTime,setAppointmentTime]=useState('19:30')
   const [appointmentLocation,setAppointmentLocation]=useState('')
@@ -189,6 +175,10 @@ export default function Onboarding({state,onState}) {
   const [bandResults,setBandResults]=useState([])
   const [,setJoinRequests]=useState([])
   const [inviteCode,setInviteCode]=useState('')
+
+  useEffect(()=>{
+    setAppointmentTitle(current=>current||t('appointments.types.rehearsal'))
+  },[t])
 
   useEffect(()=>{
     Promise.all([
@@ -273,7 +263,7 @@ export default function Onboarding({state,onState}) {
     event.preventDefault()
 
     if(bandName.trim().length<2){
-      setError('Bitte gib einen Bandnamen ein.')
+      setError(t('ob.err.bandName'))
       return
     }
 
@@ -370,7 +360,7 @@ export default function Onboarding({state,onState}) {
     event.preventDefault()
 
     if(memberName.trim().length<2){
-      setError('Bitte gib den Namen des Bandmitglieds ein.')
+      setError(t('ob.err.memberName'))
       return
     }
 
@@ -419,7 +409,7 @@ export default function Onboarding({state,onState}) {
     event.preventDefault()
 
     if(!setTitle.trim()){
-      setError('Bitte gib dem Set einen Namen.')
+      setError(t('ob.err.setName'))
       return
     }
 
@@ -461,12 +451,12 @@ export default function Onboarding({state,onState}) {
     event.preventDefault()
 
     if(!activeSet){
-      setError('Für einen Termin wird zunächst ein Set benötigt.')
+      setError(t('ob.err.needSet'))
       return
     }
 
     if(!appointmentTitle.trim()||!appointmentDate){
-      setError('Bitte Titel und Datum des Termins eintragen.')
+      setError(t('ob.err.appointment'))
       return
     }
 
@@ -491,7 +481,7 @@ export default function Onboarding({state,onState}) {
       )
 
       setAppointmentType('rehearsal')
-      setAppointmentTitle('Bandprobe')
+      setAppointmentTitle(t('appointments.types.rehearsal'))
       setAppointmentDate('')
       setAppointmentTime('19:30')
       setAppointmentNotes('')
@@ -528,7 +518,7 @@ export default function Onboarding({state,onState}) {
 
     if(invalid){
       setError(
-        `${invalid.name}: Bitte nur PDFs bis maximal 20 MB auswählen.`
+        t('import.onlyPdf', { name: invalid.name })
       )
       return
     }
@@ -581,7 +571,7 @@ export default function Onboarding({state,onState}) {
     }
 
     if(pdfItems.some(item=>!item.title.trim())){
-      setError('Bitte für jede PDF einen Songtitel eintragen.')
+      setError(t('ob.err.pdfTitles'))
       return
     }
 
@@ -592,7 +582,7 @@ export default function Onboarding({state,onState}) {
       const payload=pdfItems.map(item=>({
         song:{
           title:item.title.trim(),
-          artist:'Importierte PDF',
+          artist: t('import.artistDefault'),
           key:'–',
           bpm:'–',
           duration:'–',
@@ -613,7 +603,7 @@ export default function Onboarding({state,onState}) {
       })
     }catch(e){
       setError(
-        `Import fehlgeschlagen: ${e.message||'Bitte erneut versuchen.'}`
+        t('ob.err.importRetry', { error: e.message||t('ob.err.retry') })
       )
     }finally{
       setBusy(false)
@@ -622,7 +612,7 @@ export default function Onboarding({state,onState}) {
 
   const runBandSearch=async()=>{
     if(bandSearch.trim().length<3){
-      setError('Bitte mindestens drei Zeichen eingeben.')
+      setError(t('ob.err.searchMin'))
       return
     }
 
@@ -670,7 +660,7 @@ export default function Onboarding({state,onState}) {
 
   const useInviteCode=async()=>{
     if(!inviteCode.trim()){
-      setError('Bitte Einladungscode eingeben.')
+      setError(t('ob.err.inviteCode'))
       return
     }
 
@@ -725,7 +715,7 @@ export default function Onboarding({state,onState}) {
       }
 
       if(current?.status==='rejected')
-        setError('Die Bandleitung hat die Anfrage abgelehnt.')
+        setError(t('ob.requestRejected'))
     }catch(e){
       setError(e.message)
     }finally{
@@ -759,18 +749,15 @@ export default function Onboarding({state,onState}) {
           </div>
 
           <p className="onboarding-eyebrow">
-            Worship Songbook
+            {t('brand.songbook')}
           </p>
 
-          <h1>Herzlich willkommen.</h1>
+<h1>{t('ob.welcomeTitle')}</h1>
 
-          <p>
-            Wir richten dein Songbook gemeinsam ein.
-            Das dauert nur wenige Minuten.
-          </p>
+<p>{t('ob.welcomeBody')}</p>
 
           <Button onClick={()=>persist({step:1})}>
-            Los geht's
+{t('ob.letsGo')}
             <ArrowRight size={18}/>
           </Button>
         </section>
@@ -787,35 +774,35 @@ export default function Onboarding({state,onState}) {
         <section className="onboarding-card">
           <button className="onboarding-back" onClick={back}>
             <ArrowLeft size={18}/>
-            Zurück
+            {t('common.back')}
           </button>
 
           <StepHeader
             icon={Music2}
-            eyebrow="Dein Start"
-            title="Wie möchtest du beginnen?"
-            text="Wähle den Weg, der zu dir passt."
+eyebrow={t('ob.yourStart')}
+            title={t('ob.howStart')}
+            text={t('ob.choosePath')}
           />
 
           <div className="onboarding-choices">
             <StartChoice
               icon={Users}
-              title="Neue Band anlegen"
-              text="Ich leite oder gründe eine Band."
+title={t('ob.mode.create')}
+              text={t('ob.mode.createDetail')}
               onClick={()=>chooseMode('create')}
             />
 
             <StartChoice
               icon={Search}
-              title="Bestehende Band finden"
-              text="Ich bin bereits Mitglied einer Band."
+title={t('ob.findExisting')}
+              text={t('ob.mode.joinDetail')}
               onClick={()=>chooseMode('join')}
             />
 
             <StartChoice
               icon={Music2}
-              title="Persönliches Songbook"
-              text="Ich möchte zunächst ohne Band starten."
+title={t('ob.mode.personal')}
+              text={t('ob.mode.personalDetail')}
               onClick={()=>chooseMode('personal')}
             />
           </div>
@@ -834,14 +821,14 @@ export default function Onboarding({state,onState}) {
           <Progress
             current={1}
             total={5}
-            label="Band einrichten"
+label={t('ob.setupBand')}
           />
 
           <StepHeader
             icon={Users}
-            eyebrow="Deine Band"
-            title={activeBand ? 'Deine Band prüfen.' : 'Wie heißt deine Band?'}
-            text="Name, Beschreibung und Logo kannst du später jederzeit ändern."
+eyebrow={t('ob.yourBand')}
+            title={activeBand ? t('ob.bandCheckTitle') : t('ob.bandNameTitle')}
+            text={t('ob.bandNameHint')}
           />
 
           <form
@@ -849,22 +836,22 @@ export default function Onboarding({state,onState}) {
             onSubmit={saveBand}
           >
             <label>
-              <span>Bandname *</span>
+<span>{t('ob.bandNameRequired')}</span>
               <input
                 value={bandName}
                 onChange={event=>setBandName(event.target.value)}
-                placeholder="Name deiner Band"
+placeholder={t('bands.namePlaceholder')}
                 maxLength={80}
                 autoFocus
               />
             </label>
 
             <label>
-              <span>Beschreibung</span>
+<span>{t('bands.description')}</span>
               <textarea
                 value={bandDescription}
                 onChange={event=>setBandDescription(event.target.value)}
-                placeholder="Optional, z. B. Worship-Team unserer Gemeinde"
+placeholder={t('bands.descriptionPlaceholder')}
                 maxLength={300}
                 rows={3}
               />
@@ -879,21 +866,18 @@ export default function Onboarding({state,onState}) {
                 />
 
                 {bandLogoPreview
-                  ? <img src={bandLogoPreview} alt="Band-Logo"/>
+? <img src={bandLogoPreview} alt={t('bands.logo')}/>
                   : <>
                       <ImagePlus size={27}/>
-                      <strong>Band-Logo</strong>
-                      <small>Optional</small>
+<strong>{t('bands.logo')}</strong>
+                      <small>{t('ob.optional')}</small>
                     </>
                 }
               </label>
 
               <div>
-                <strong>Logo deiner Band</strong>
-                <p>
-                  JPG, PNG oder WebP. Du kannst das Logo auch später
-                  in der Bandverwaltung hochladen.
-                </p>
+<strong>{t('ob.bandLogoLabel')}</strong>
+<p>{t('ob.bandLogoHelp')}</p>
               </div>
             </div>
 
@@ -904,19 +888,17 @@ export default function Onboarding({state,onState}) {
             }
 
             <footer className="onboarding-actions">
-              <Button variant="secondary" onClick={back}>
-                Zurück
-              </Button>
+              <Button variant="secondary" onClick={back}>{t('common.back')}</Button>
 
               <Button
                 type="submit"
                 disabled={busy||bandName.trim().length<2}
               >
-                {busy
-                  ? 'Speichert …'
+{busy
+                  ? t('common.saving')
                   : activeBand
-                    ? 'Änderungen speichern'
-                    : 'Band anlegen'
+                    ? t('songs.saveChanges')
+                    : t('ob.createBand')
                 }
 
                 {!busy&&<ArrowRight size={18}/>}
@@ -938,14 +920,14 @@ export default function Onboarding({state,onState}) {
           <Progress
             current={2}
             total={5}
-            label="Band einrichten"
+            label={t('ob.setupBand')}
           />
 
           <StepHeader
             icon={UserRound}
-            eyebrow="Dein Team"
-            title="Wer gehört zu deiner Band?"
-            text="Füge die wichtigsten Mitglieder hinzu. Weitere Personen kannst du später jederzeit ergänzen."
+eyebrow={t('ob.teamTitle')}
+            title={t('ob.whoTeam')}
+            text={t('ob.teamHint')}
           />
 
           {team.length>0&&
@@ -969,7 +951,7 @@ export default function Onboarding({state,onState}) {
                     <small>
                       {member.roles?.length
                         ? member.roles.join(' · ')
-                        : 'Noch keine Aufgabe hinterlegt'
+                        : t('team.noRoleStored')
                       }
                     </small>
                   </div>
@@ -993,27 +975,27 @@ export default function Onboarding({state,onState}) {
                 />
 
                 {memberPhotoPreview
-                  ? <img src={memberPhotoPreview} alt="Profilbild"/>
+? <img src={memberPhotoPreview} alt={t('team.photo')}/>
                   : <>
                       <Camera size={23}/>
-                      <small>Foto</small>
+<small>{t('ob.photo')}</small>
                     </>
                 }
               </label>
 
               <label className="onboarding-grow">
-                <span>Name des Mitglieds *</span>
+<span>{t('ob.memberName')}</span>
                 <input
                   value={memberName}
                   onChange={event=>setMemberName(event.target.value)}
-                  placeholder="Vor- und Nachname"
+placeholder={t('team.namePlaceholder')}
                   maxLength={100}
                 />
               </label>
             </div>
 
             <div className="onboarding-field-block">
-              <span>Instrumente und Aufgaben</span>
+<span>{t('team.roles')}</span>
 
               <div className="onboarding-role-options">
                 {roleOptions.map(role=>
@@ -1044,7 +1026,7 @@ export default function Onboarding({state,onState}) {
                   checked={isLeader}
                   onChange={e=>setIsLeader(e.target.checked)}
                 />
-                Bandleitung
+                {t('ob.bandLeadShort')}
               </label>
 
               <label>
@@ -1053,7 +1035,7 @@ export default function Onboarding({state,onState}) {
                   checked={isOrganizer}
                   onChange={e=>setIsOrganizer(e.target.checked)}
                 />
-                Organisation
+                {t('team.organizer')}
               </label>
 
               <label>
@@ -1062,7 +1044,7 @@ export default function Onboarding({state,onState}) {
                   checked={isTechnician}
                   onChange={e=>setIsTechnician(e.target.checked)}
                 />
-                Technik
+                {t('ob.techShort')}
               </label>
 
               <label>
@@ -1071,7 +1053,7 @@ export default function Onboarding({state,onState}) {
                   checked={isDesigner}
                   onChange={e=>setIsDesigner(e.target.checked)}
                 />
-                Gestaltung / Medien
+                {t('ob.designShort')}
               </label>
             </div>
 
@@ -1087,22 +1069,22 @@ export default function Onboarding({state,onState}) {
               disabled={busy||memberName.trim().length<2}
             >
               <Plus size={17}/>
-              {busy
-                ? 'Speichert …'
-                : 'Mitglied hinzufügen'
+{busy
+                ? t('common.saving')
+                : t('ob.addMember')
               }
             </button>
           </form>
 
           <footer className="onboarding-actions">
             <Button variant="secondary" onClick={back}>
-              Zurück
+              {t('common.back')}
             </Button>
 
             <Button onClick={finishTeam}>
-              {team.length
-                ? 'Weiter'
-                : 'Ohne Mitglieder weiter'
+{team.length
+                ? t('common.next')
+                : t('ob.skipMembers')
               }
               <ArrowRight size={18}/>
             </Button>
@@ -1122,25 +1104,25 @@ export default function Onboarding({state,onState}) {
           <Progress
             current={3}
             total={5}
-            label="Band einrichten"
+            label={t('ob.setupBand')}
           />
 
           <StepHeader
             icon={ListMusic}
-            eyebrow="Erste Planung"
-            title="Was plant ihr als Nächstes?"
-            text="Lege ein erstes Set an. Songs und weitere Details kommen anschließend."
+eyebrow={t('ob.firstPlan')}
+            title={t('ob.whatNext')}
+            text={t('ob.setHint')}
           />
 
           {sets.length>0&&
             <div className="onboarding-existing">
               <CheckCircle2 size={20}/>
               <div>
-                <strong>
-                  {sets.length} {sets.length===1 ? 'Set' : 'Sets'} bereits vorhanden
+<strong>
+                  {t('ob.setsExist', { count: sets.length })}
                 </strong>
                 <span>
-                  Du kannst trotzdem ein weiteres Set anlegen oder diesen Schritt überspringen.
+                  {t('ob.setsExistMore')}
                 </span>
               </div>
             </div>
@@ -1151,17 +1133,17 @@ export default function Onboarding({state,onState}) {
             onSubmit={saveFirstSet}
           >
             <label>
-              <span>Name des Sets *</span>
+<span>{t('ob.setNameRequired')}</span>
               <input
                 value={setTitle}
                 onChange={e=>setSetTitle(e.target.value)}
-                placeholder="Name des Sets"
+placeholder={t('sets.name')}
                 maxLength={120}
               />
             </label>
 
             <label>
-              <span>Datum</span>
+<span>{t('sets.date')}</span>
               <input
                 type="date"
                 value={setDate}
@@ -1176,9 +1158,7 @@ export default function Onboarding({state,onState}) {
             }
 
             <footer className="onboarding-actions">
-              <Button variant="secondary" onClick={back}>
-                Zurück
-              </Button>
+              <Button variant="secondary" onClick={back}>{t('common.back')}</Button>
 
               <div className="onboarding-action-group">
                 <button
@@ -1186,14 +1166,14 @@ export default function Onboarding({state,onState}) {
                   className="onboarding-text-button"
                   onClick={skipSet}
                 >
-                  Später
+                  {t('ob.later')}
                 </button>
 
                 <Button
                   type="submit"
                   disabled={busy||!setTitle.trim()}
                 >
-                  {busy ? 'Speichert …' : 'Set anlegen'}
+{busy ? t('common.saving') : t('sets.create')}
                   {!busy&&<ArrowRight size={18}/>}
                 </Button>
               </div>
@@ -1218,34 +1198,31 @@ export default function Onboarding({state,onState}) {
           <Progress
             current={4}
             total={5}
-            label="Band einrichten"
+            label={t('ob.setupBand')}
           />
 
           <StepHeader
             icon={CalendarDays}
-            eyebrow="Proben und Termine"
-            title="Wann trefft ihr euch?"
-            text="Plane die ersten Bandproben oder Vorbereitungstermine."
+eyebrow={t('ob.appointmentsEyebrow')}
+            title={t('ob.whenMeet')}
+            text={t('ob.appointmentsHint')}
           />
 
           {!activeSet
             ? <div className="onboarding-existing onboarding-warning">
                 <CalendarDays size={20}/>
                 <div>
-                  <strong>Noch kein Set vorhanden</strong>
-                  <span>
-                    Termine werden im aktuellen Songbook einem Set zugeordnet.
-                    Du kannst diesen Schritt überspringen und später ein Set anlegen.
-                  </span>
+<strong>{t('ob.noSetYet')}</strong>
+<span>{t('ob.noSetWarn')}</span>
                 </div>
               </div>
 
             : <>
                 <div className="onboarding-set-context">
-                  <small>Zugehöriges Set</small>
+<small>{t('appointments.relatedSet')}</small>
                   <strong>{activeSet.title}</strong>
                   <span>
-                    {activeSet.date||'Datum noch offen'}
+{activeSet.date||t('ob.dateOpen')}
                   </span>
                 </div>
 
@@ -1259,7 +1236,7 @@ export default function Onboarding({state,onState}) {
                           <strong>{item.title}</strong>
                           <span>
                             {item.date}
-                            {item.time ? ` · ${item.time} Uhr` : ''}
+                            {item.time ? ` · ${t('common.timeSuffix', { time: item.time })}` : ''}
                           </span>
 
                           {item.location&&
@@ -1278,7 +1255,7 @@ export default function Onboarding({state,onState}) {
                   onSubmit={saveAppointment}
                 >
                   <label>
-                    <span>Art des Termins</span>
+<span>{t('appointments.typeLabel')}</span>
 
                     <select
                       value={appointmentType}
@@ -1300,17 +1277,17 @@ export default function Onboarding({state,onState}) {
                   </label>
 
                   <label>
-                    <span>Titel *</span>
+<span>{t('ob.titleRequired')}</span>
                     <input
                       value={appointmentTitle}
                       onChange={e=>setAppointmentTitle(e.target.value)}
-                      placeholder="Bandprobe"
+placeholder={t('appointments.types.rehearsal')}
                     />
                   </label>
 
                   <div className="onboarding-form-columns">
                     <label>
-                      <span>Datum *</span>
+<span>{t('ob.dateRequired')}</span>
                       <input
                         type="date"
                         value={appointmentDate}
@@ -1319,7 +1296,7 @@ export default function Onboarding({state,onState}) {
                     </label>
 
                     <label>
-                      <span>Uhrzeit</span>
+<span>{t('appointments.time')}</span>
                       <input
                         type="time"
                         value={appointmentTime}
@@ -1329,20 +1306,20 @@ export default function Onboarding({state,onState}) {
                   </div>
 
                   <label>
-                    <span>Ort</span>
+<span>{t('appointments.location')}</span>
                     <input
                       value={appointmentLocation}
                       onChange={e=>setAppointmentLocation(e.target.value)}
-                      placeholder="Proberaum, Kirche …"
+placeholder={t('appointments.locationPlaceholder')}
                     />
                   </label>
 
                   <label>
-                    <span>Notizen</span>
+<span>{t('appointments.notes')}</span>
                     <textarea
                       value={appointmentNotes}
                       onChange={e=>setAppointmentNotes(e.target.value)}
-                      placeholder="Was soll geprobt oder vorbereitet werden?"
+placeholder={t('appointments.notesPlaceholder')}
                       rows={3}
                     />
                   </label>
@@ -1363,9 +1340,9 @@ export default function Onboarding({state,onState}) {
                     }
                   >
                     <Plus size={17}/>
-                    {busy
-                      ? 'Speichert …'
-                      : 'Termin hinzufügen'
+{busy
+                      ? t('common.saving')
+                      : t('ob.addAppointment')
                     }
                   </button>
                 </form>
@@ -1374,13 +1351,13 @@ export default function Onboarding({state,onState}) {
 
           <footer className="onboarding-actions">
             <Button variant="secondary" onClick={back}>
-              Zurück
+              {t('common.back')}
             </Button>
 
             <Button onClick={continueAfterAppointments}>
-              {relatedAppointments.length
-                ? 'Weiter'
-                : 'Später'
+{relatedAppointments.length
+                ? t('common.next')
+                : t('ob.later')
               }
               <ArrowRight size={18}/>
             </Button>
@@ -1400,14 +1377,14 @@ export default function Onboarding({state,onState}) {
           <Progress
             current={5}
             total={5}
-            label="Band einrichten"
+            label={t('ob.setupBand')}
           />
 
           <StepHeader
             icon={Music2}
-            eyebrow="Deine Bibliothek"
-            title="Jetzt fehlen nur noch eure Songs."
-            text="Importiere direkt die ersten PDFs oder erledige das später im Songbook."
+eyebrow={t('ob.library')}
+            title={t('ob.songsMissing')}
+            text={t('ob.songsHint')}
           />
 
           <label className="onboarding-pdf-drop">
@@ -1422,10 +1399,8 @@ export default function Onboarding({state,onState}) {
             />
 
             <Upload size={29}/>
-            <strong>PDFs auswählen</strong>
-            <span>
-              Mehrere Dateien möglich · je maximal 20 MB
-            </span>
+<strong>{t('ob.choosePdfs')}</strong>
+<span>{t('ob.pdfLimit')}</span>
           </label>
 
           {pdfItems.length>0&&
@@ -1447,7 +1422,7 @@ export default function Onboarding({state,onState}) {
                           e.target.value
                         )
                       }
-                      aria-label={`Titel von ${item.file.name}`}
+aria-label={t('import.titleOf', { file: item.file.name })}
                     />
 
                     <small>
@@ -1460,7 +1435,7 @@ export default function Onboarding({state,onState}) {
                   <button
                     type="button"
                     onClick={()=>removePdf(item.id)}
-                    aria-label="PDF entfernen"
+aria-label={t('ob.removePdf')}
                   >
                     <Trash2 size={17}/>
                   </button>
@@ -1477,15 +1452,15 @@ export default function Onboarding({state,onState}) {
 
           <footer className="onboarding-actions">
             <Button variant="secondary" onClick={back}>
-              Zurück
+              {t('common.back')}
             </Button>
 
             <Button onClick={importPdfs} disabled={busy}>
-              {busy
-                ? 'Importiert …'
+{busy
+                ? t('ob.importing')
                 : pdfItems.length
-                  ? `${pdfItems.length} ${pdfItems.length===1?'Song':'Songs'} importieren`
-                  : 'Später'
+                  ? t('import.nSongs', { count: pdfItems.length })
+                  : t('ob.later')
               }
 
               {!busy&&<ArrowRight size={18}/>}
@@ -1506,23 +1481,20 @@ export default function Onboarding({state,onState}) {
           <Progress
             current={1}
             total={2}
-            label="Band beitreten"
+label={t('ob.joinEyebrow')}
           />
 
           <StepHeader
             icon={Search}
-            eyebrow="Bestehende Band"
-            title="Finde deine Band."
-            text="Suche nach dem Bandnamen oder verwende einen Einladungscode deiner Bandleitung."
+eyebrow={t('ob.existingBand')}
+            title={t('ob.joinTitle')}
+            text={t('ob.joinHint')}
           />
 
           <div className="join-method-grid">
             <section className="join-method">
-              <strong>Band suchen</strong>
-              <p>
-                Suche nach dem Namen. Der Beitritt wird anschließend
-                von der Bandleitung bestätigt.
-              </p>
+<strong>{t('bands.search')}</strong>
+<p>{t('ob.joinSearchHint')}</p>
 
               <div className="join-search-row">
                 <input
@@ -1534,7 +1506,7 @@ export default function Onboarding({state,onState}) {
                       runBandSearch()
                     }
                   }}
-                  placeholder="Bandname"
+placeholder={t('bands.name')}
                 />
 
                 <button
@@ -1542,8 +1514,8 @@ export default function Onboarding({state,onState}) {
                   onClick={runBandSearch}
                   disabled={busy||bandSearch.trim().length<3}
                 >
-                  <Search size={18}/>
-                  Suchen
+<Search size={18}/>
+                  {t('common.search')}
                 </button>
               </div>
 
@@ -1568,7 +1540,7 @@ export default function Onboarding({state,onState}) {
                         disabled={busy}
                         onClick={()=>sendJoinRequest(band)}
                       >
-                        Anfrage senden
+{t('bands.sendRequest')}
                       </button>
                     </article>
                   )}
@@ -1576,23 +1548,18 @@ export default function Onboarding({state,onState}) {
               }
 
               {bandResults.length===0 && bandSearch.length>=3 && !busy&&
-                <small className="join-hint">
-                  Nach der Suche erscheinen hier passende Bands.
-                </small>
+<small className="join-hint">{t('ob.joinSearchEmpty')}</small>
               }
             </section>
 
             <div className="join-or">
-              <span>oder</span>
+<span>{t('ob.or')}</span>
             </div>
 
             <section className="join-method">
-              <strong>Einladungscode</strong>
+<strong>{t('bands.inviteCode')}</strong>
 
-              <p>
-                Mit einem gültigen Einladungscode kannst du der Band
-                direkt beitreten.
-              </p>
+<p>{t('ob.inviteHelp')}</p>
 
               <div className="join-code-row">
                 <input
@@ -1613,7 +1580,7 @@ export default function Onboarding({state,onState}) {
                   onClick={useInviteCode}
                   disabled={busy||!inviteCode.trim()}
                 >
-                  Beitreten
+{t('bands.join')}
                 </button>
               </div>
             </section>
@@ -1627,7 +1594,7 @@ export default function Onboarding({state,onState}) {
 
           <footer className="onboarding-actions">
             <Button variant="secondary" onClick={back}>
-              Zurück
+              {t('common.back')}
             </Button>
           </footer>
         </section>
@@ -1646,22 +1613,14 @@ export default function Onboarding({state,onState}) {
               <CheckCircle2 size={38}/>
             </div>
 
-            <p className="onboarding-eyebrow">
-              Band beigetreten
-            </p>
+<p className="onboarding-eyebrow">{t('ob.joinedEyebrow')}</p>
 
-            <h1>
-              Willkommen bei {state?.data?.joinedBandName||'deiner Band'}.
-            </h1>
+<h1>{t('ob.welcomeBand', { name: state?.data?.joinedBandName||t('ob.yourBandFallback') })}</h1>
 
-            <p>
-              Deine Mitgliedschaft wurde bestätigt.
-              Der gemeinsame Bandbereich steht dir jetzt direkt
-              im normalen Songbook zur Verfügung.
-            </p>
+<p>{t('ob.joinedBody')}</p>
 
             <Button onClick={finish} disabled={busy}>
-              Songbook öffnen
+{t('ob.openSongbook')}
               <ArrowRight size={18}/>
             </Button>
           </section>
@@ -1676,21 +1635,11 @@ export default function Onboarding({state,onState}) {
             <Clock3 size={31}/>
           </div>
 
-          <p className="onboarding-eyebrow">
-            Beitrittsanfrage
-          </p>
+<p className="onboarding-eyebrow">{t('ob.requestEyebrow')}</p>
 
-          <h1>Anfrage gesendet.</h1>
+<h1>{t('ob.requestSent')}</h1>
 
-          <p>
-            Deine Anfrage für
-            {' '}
-            <strong>
-              {state?.data?.joinBandName||'die Band'}
-            </strong>
-            {' '}
-            wartet auf Bestätigung durch die Bandleitung.
-          </p>
+<p>{t('ob.requestBody', { name: state?.data?.joinBandName||t('ob.theBand') })}</p>
 
           {error&&
             <p className="onboarding-error">
@@ -1702,7 +1651,7 @@ export default function Onboarding({state,onState}) {
             onClick={refreshJoinStatus}
             disabled={busy}
           >
-            {busy ? 'Prüft …' : 'Status prüfen'}
+{busy ? t('ob.checking') : t('ob.checkStatus')}
           </Button>
 
           <button
@@ -1710,7 +1659,7 @@ export default function Onboarding({state,onState}) {
             className="onboarding-text"
             onClick={back}
           >
-            Andere Band auswählen
+{t('ob.otherBand')}
           </button>
         </section>
       </main>
@@ -1725,20 +1674,16 @@ export default function Onboarding({state,onState}) {
             <CheckCircle2 size={38}/>
           </div>
 
-          <p className="onboarding-eyebrow">
-            Mitgliedschaft bestätigt
-          </p>
+<p className="onboarding-eyebrow">{t('ob.memberConfirmed')}</p>
 
           <h1>
-            Willkommen bei {state?.data?.joinedBandName||'deiner Band'}.
+            {t('ob.welcomeBand', { name: state?.data?.joinedBandName||t('ob.yourBandFallback') })}
           </h1>
 
-          <p>
-            Die Bandleitung hat deinen Beitritt bestätigt.
-          </p>
+<p>{t('ob.memberConfirmedBody')}</p>
 
           <Button onClick={finish} disabled={busy}>
-            Songbook öffnen
+            {t('ob.openSongbook')}
             <ArrowRight size={18}/>
           </Button>
         </section>
@@ -1755,16 +1700,14 @@ export default function Onboarding({state,onState}) {
         <section className="onboarding-card">
           <StepHeader
             icon={Music2}
-            eyebrow="Persönliches Songbook"
-            title="Du kannst direkt loslegen."
-            text="Du brauchst keine Band. Sets und Songs kannst du anschließend in deinem persönlichen Songbook verwalten."
+eyebrow={t('ob.mode.personal')}
+            title={t('ob.personalReady')}
+            text={t('ob.mode.personalBody')}
           />
 
           <div className="onboarding-preview">
-            <strong>Persönlicher Bereich ausgewählt</strong>
-            <span>
-              Du kannst später jederzeit zusätzlich eine Band anlegen oder einer bestehenden Band beitreten.
-            </span>
+<strong>{t('ob.personalSelected')}</strong>
+<span>{t('ob.personalLater')}</span>
           </div>
 
           {error&&
@@ -1775,11 +1718,11 @@ export default function Onboarding({state,onState}) {
 
           <footer className="onboarding-actions">
             <Button variant="secondary" onClick={back}>
-              Zurück
+              {t('common.back')}
             </Button>
 
             <Button onClick={finish} disabled={busy}>
-              {busy ? 'Bitte warten …' : 'Songbook öffnen'}
+{busy ? t('common.pleaseWait') : t('ob.openSongbook')}
               {!busy&&<ArrowRight size={18}/>}
             </Button>
           </footer>
@@ -1799,14 +1742,13 @@ export default function Onboarding({state,onState}) {
         </div>
 
         <p className="onboarding-eyebrow">
-          Einrichtung abgeschlossen
+          {t('ob.finishEyebrow')}
         </p>
 
-        <h1>Dein Songbook ist bereit.</h1>
+        <h1>{t('ob.readyTitle')}</h1>
 
         <p>
-          Deine Einrichtung wurde gespeichert.
-          Beim nächsten Login öffnet sich direkt Worship Songbook.
+          {t('ob.finishSaved')}
         </p>
 
         {error&&
@@ -1816,7 +1758,7 @@ export default function Onboarding({state,onState}) {
         }
 
         <Button onClick={finish} disabled={busy}>
-          {busy ? 'Bitte warten …' : 'Songbook öffnen'}
+          {busy ? t('common.pleaseWait') : t('ob.openSongbook')}
           {!busy&&<ArrowRight size={18}/>}
         </Button>
       </section>

@@ -1,8 +1,9 @@
 import { apiFetch, apiUrl, authorizedObjectUrl, isNativeRuntime } from './apiConfig'
+import { tStatic } from './i18n'
 
 export async function getImportedSongs() {
   const response = await apiFetch('/api/songs')
-  if (!response.ok) throw new Error('Songbibliothek konnte nicht geladen werden.')
+  if (!response.ok) throw new Error(tStatic('err.songsLoad'))
   return response.json()
 }
 
@@ -13,14 +14,14 @@ export async function saveImportedSongs(items) {
   const response = await apiFetch('/api/songs', {method: 'POST', body: form})
   if (!response.ok) {
     const result = await response.json().catch(() => ({}))
-    throw new Error(result.error || 'Server-Import fehlgeschlagen.')
+    throw new Error(result.error || tStatic('err.songsImport'))
   }
   return response.json()
 }
 
 export async function saveScannedSong(title, pages) {
   const form=new FormData();form.set('title',title);pages.forEach((page,index)=>form.append('pages',page.file,`scan-${index+1}.jpg`))
-  const response=await apiFetch('/api/scans',{method:'POST',body:form});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Der Scan konnte nicht verarbeitet werden.');return data
+  const response=await apiFetch('/api/scans',{method:'POST',body:form});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||tStatic('err.songsScan'));return data
 }
 
 export async function openSongPdf(song) {
@@ -39,17 +40,17 @@ export function hasSongPdf(song) {
 
 export async function deleteSong(id) {
   const response = await apiFetch(`/api/songs/${id}`, {method: 'DELETE'})
-  if (!response.ok) throw new Error('Song konnte nicht gelöscht werden.')
+  if (!response.ok) throw new Error(tStatic('err.songsDelete'))
 }
 
 export async function updateSong(id, changes) {
   const response = await apiFetch(`/api/songs/${id}`, {method: 'PATCH', headers: {'content-type': 'application/json'}, body: JSON.stringify(changes)})
-  if (!response.ok) throw new Error('Song konnte nicht geändert werden.')
+  if (!response.ok) throw new Error(tStatic('err.songsUpdate'))
   return response.json()
 }
 
-export async function analyzeSongChords(id) { const r=await apiFetch(`/api/songs/${id}/analyze-chords`,{method:'POST'});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'Akkorde konnten nicht ausgelesen werden.');return data }
-export async function saveSongVariant(id,values) { const r=await apiFetch(`/api/songs/${id}/variants`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(values)});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'Fassung konnte nicht gespeichert werden.');return data }
+export async function analyzeSongChords(id) { const r=await apiFetch(`/api/songs/${id}/analyze-chords`,{method:'POST'});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||tStatic('err.songsChords'));return data }
+export async function saveSongVariant(id,values) { const r=await apiFetch(`/api/songs/${id}/variants`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(values)});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||tStatic('err.songsVariant'));return data }
 
 export async function openSongChart(song,key) {
   const path = `/api/songs/${song.id}/chart?key=${encodeURIComponent(key)}`

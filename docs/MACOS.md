@@ -159,16 +159,20 @@ Default window in `tauri.conf.json`: 1280×800, min 1024×700. Responsive layout
 
 Custom Tauri app menu (localized DE/EN) replaces the default WKWebView menu set where possible.
 
-| Item | Controllable? |
-|------|----------------|
-| App / Edit / View / Window / Help labels we create | Yes — follow app language |
-| Check for Updates … | Yes — Phase-1 GitHub Releases metadata check |
-| Contact Support → `mailto:support@lyruma.studio` | Yes (verified in impressum) |
-| “Send … Feedback to Apple” | Removed by installing a custom Help submenu (that item comes from the default WebKit/Help set when no custom Help menu exists) |
-| Some OS-injected items tied to system language | May remain; document if seen after retest |
+| Eintrag | Quelle | Steuerbar? | Sprache |
+|---------|--------|------------|---------|
+| Über / About, Updates, Einstellungen, Beenden | Tauri App-Menü | ja | App-Sprache |
+| Bearbeiten (Widerrufen…Alles auswählen) | Tauri PredefinedMenuItem | ja (Label) | App-Sprache |
+| Darstellung → Vollbild | Tauri | ja | App-Sprache |
+| Fenster → Minimieren / Zoomen / Fenster schließen | Tauri | ja (`CloseWindow` text gesetzt) | App-Sprache |
+| Hilfe → Support / Lyruma / Eduard Wiebe | Tauri | ja | App-Sprache |
+| Writing Tools / Proofread / Rewrite / … | macOS Writing Tools | nein | macOS-Systemsprache |
+| Start Dictation… / Emoji & Symbols | macOS | nein | macOS-Systemsprache |
+| „Send … Feedback to Apple“ | Default-WebKit-Help | entfernt via eigenes Help-Menü | — |
 
 Update check does **not** auto-download/install until Developer ID signing + Tauri updater signatures exist.
 
+## Signing / notarization (later — not done here)
 
 For **public** distribution Apple typically requires:
 

@@ -89,7 +89,7 @@ export async function installNativeDesktopChrome({ t, locale, onAbout, onSetting
       await PredefinedMenuItem.new({ item: 'Minimize', text: t('menu.minimize') }),
       await PredefinedMenuItem.new({ item: 'Maximize', text: t('menu.zoom') }),
       await PredefinedMenuItem.new({ item: 'Separator' }),
-      await PredefinedMenuItem.new({ item: 'CloseWindow' }),
+      await PredefinedMenuItem.new({ item: 'CloseWindow', text: t('menu.closeWindow') }),
     ],
   })
 

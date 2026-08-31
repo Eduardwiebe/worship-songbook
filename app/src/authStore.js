@@ -1,4 +1,5 @@
 import { apiFetch, apiUrl, isNativeRuntime } from './apiConfig'
+import { tStatic } from './i18n'
 import {
   applyNativeLoginTokens,
   clearNativeSession,
@@ -12,7 +13,7 @@ export { onNativeAuthFailure, isNativeRuntime }
 async function request(path, options = {}) {
   const response = await apiFetch(path, options)
   const data = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(data.error || 'Die Anfrage ist fehlgeschlagen.')
+  if (!response.ok) throw new Error(data.error || tStatic('err.requestFailed'))
   return data
 }
 

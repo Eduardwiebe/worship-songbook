@@ -1,10 +1,11 @@
 import { apiFetch, apiUrl, isNativeRuntime } from './apiConfig'
 import { persistSelectedBand } from './nativeSession'
+import { tStatic } from './i18n'
 
 async function request(path,options={}){
   const response=await apiFetch(path,options)
   const data=await response.json().catch(()=>({}))
-  if(!response.ok)throw new Error(data.error||'Band-Anfrage fehlgeschlagen.')
+  if(!response.ok)throw new Error(data.error||tStatic('err.bandRequest'))
   return data
 }
 
