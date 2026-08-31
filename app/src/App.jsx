@@ -17,17 +17,28 @@ import { authorizedObjectUrl } from './apiConfig'
 import { approveBandJoinRequest, bandLogoUrl, createBand, createBandInvite, deleteBand, deleteBandLogo, getBands, getBandInvites, getBandJoinRequests, getBandMembers, getMyJoinRequests, joinBandByCode, rejectBandJoinRequest, requestBandJoin, searchBands, selectBand, selectPersonal, updateBand, uploadBandLogo } from './bandStore'
 import Onboarding from './onboarding/Onboarding'
 import { getOnboarding, resetOnboarding, dismissOnboarding } from './onboardingStore'
+import { useI18n } from './i18n'
+import { useTheme } from './theme.jsx'
+import { AuthScreen, PasswordRequired } from './AuthScreen'
+import SettingsPage from './SettingsPage'
+import { AboutDialog, UpdateDialog } from './AboutDialogs'
+import { installNativeDesktopChrome } from './nativeDesktop'
+import { URL_EDUARD_WIEBE, URL_LYRUMA_STUDIO, APP_VERSION } from './appMeta'
 
 const initialSongs = []
-const navItems = [
-  ['/', 'Home', Home], ['/sets', 'Sets', ListMusic],
-  ['/bands', 'Bands', Users], ['/team', 'Team', Users], ['/termine', 'Termine', CalendarDays],
-]
 
 function App() {
+  const { t, locale } = useI18n()
+  const { theme } = useTheme()
+  const navItems = [
+    ['/', t('nav.home'), Home],
+    ['/sets', t('nav.sets'), ListMusic],
+    ['/bands', t('nav.bands'), Users],
+    ['/team', t('nav.team'), Users],
+    ['/termine', t('nav.appointments'), CalendarDays],
+  ]
   const [authLoading,setAuthLoading]=useState(true)
   const [user,setUser]=useState(null)
-  const [theme] = useState('light')
   const [songs, setSongs] = useState(initialSongs)
   const [sets, setSets] = useState([])
   const [team, setTeam] = useState([])
@@ -40,11 +51,37 @@ function App() {
   const [teamDialogOpen, setTeamDialogOpen] = useState(false)
   const [appointmentSetId, setAppointmentSetId] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [aboutOpen, setAboutOpen] = useState(false)
+  const [updateResult, setUpdateResult] = useState(undefined)
+  const [updateOpen, setUpdateOpen] = useState(false)
   const navigate = useNavigate()
 
   useEffect(()=>{getCurrentUser().then(({user})=>setUser(user)).catch(()=>setUser(null)).finally(()=>setAuthLoading(false))},[])
   useEffect(()=>{onNativeAuthFailure(()=>setUser(null))},[])
   useEffect(()=>installNativeExternalLinkHandler(),[])
+  useEffect(() => {
+    let disposed = false
+    let cleanup = null
+    installNativeDesktopChrome({
+      t,
+      locale,
+      onAbout: () => setAboutOpen(true),
+      onSettings: () => navigate('/einstellungen'),
+      onUpdateResult: (result) => {
+        setUpdateResult(result)
+        setUpdateOpen(true)
+      },
+    }).then((fn) => {
+      if (disposed) return
+      cleanup = fn
+    }).catch((error) => {
+      console.warn('[nativeDesktop]', error?.message || error)
+    })
+    return () => {
+      disposed = true
+      if (typeof cleanup === 'function') cleanup()
+    }
+  }, [t, locale, navigate])
   useEffect(() => {
     if(!user||user.mustChangePassword)return
     if(!onboarding?.completed||onboarding?.manualRestart)return
@@ -91,10 +128,6 @@ function App() {
         })
       })
   }, [user?.id, user?.mustChangePassword])
-  useEffect(() => {
-    document.documentElement.dataset.theme = 'light'
-    localStorage.setItem('songbook-theme', 'light')
-  }, [theme])
   useEffect(()=>{
     if(!menuOpen)return
 
@@ -118,51 +151,59 @@ function App() {
     navigate(to)
   }
 
-  if(authLoading)return <div className="auth-loading"><span className="brand-mark">L</span><p>Songbook wird geladen …</p></div>
-  if(!user)return <AuthScreen onAuthenticated={setUser}/>
+  if(authLoading)return <div className="auth-loading"><span className="brand-mark">L</span><p>{t('loading')}</p></div>
+  if(!user)return <>
+    <AuthScreen onAuthenticated={setUser}/>
+    {aboutOpen&&<AboutDialog onClose={()=>setAboutOpen(false)}/>}
+    {updateOpen&&<UpdateDialog result={updateResult} onClose={()=>{setUpdateOpen(false);setUpdateResult(undefined)}}/>}
+  </>
   if(user.mustChangePassword)return <PasswordRequired user={user} onChanged={setUser} onLogout={async()=>{await logout();setUser(null)}}/>
-  if(onboarding===null)return <div className="auth-loading"><span className="brand-mark">L</span><p>Einrichtung wird geladen …</p></div>
+  if(onboarding===null)return <div className="auth-loading"><span className="brand-mark">L</span><p>{t('onboardingLoading')}</p></div>
   if(!onboarding.completed||onboarding.manualRestart)return <>
     {onboarding.manualRestart&&
       <div className="onboarding-dismiss-bar">
-        <span>Einrichtung</span>
+        <span>{t('setupLabel')}</span>
         <button
           type="button"
           className="onboarding-dismiss"
           onClick={async()=>setOnboarding(await dismissOnboarding())}
         >
-          Zurück zum Songbook
+          {t('backToSongbook')}
         </button>
       </div>
     }
     <Onboarding state={onboarding} onState={setOnboarding}/>
+    {aboutOpen&&<AboutDialog onClose={()=>setAboutOpen(false)}/>}
+    {updateOpen&&<UpdateDialog result={updateResult} onClose={()=>{setUpdateOpen(false);setUpdateResult(undefined)}}/>}
   </>
   const handleLogout=async()=>{await logout();setUser(null);setOnboarding(null);setSongs([]);setSets([]);setTeam([]);setAppointments([])}
   const activeBand=bands.find(item=>item.active)
   const openImport = () => setDialogOpen(true)
+  void theme
+  void APP_VERSION
   return <div className="app-shell">
     <aside className="sidebar">
-      <a className="brand" href="https://lyruma.studio" target="_blank" rel="noreferrer" aria-label="Lyruma Studio öffnen"><div className="brand-mark">L</div><div><strong>Lyruma</strong><span>Studio</span></div></a>
+      <a className="brand" href={URL_LYRUMA_STUDIO} target="_blank" rel="noreferrer" aria-label="Lyruma Studio"><div className="brand-mark">L</div><div><strong>{t('brand.lyruma')}</strong><span>{t('brand.studio')}</span></div></a>
       <nav className="nav">{navItems.map(([to, label, Icon]) =>
         <NavLink key={to} to={to} end={to === '/'} className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}><Icon size={19}/>{label}</NavLink>
       )}</nav>
       <div className="sidebar-bottom">
-        <button className="band-switch" onClick={()=>navigate('/bands')}><span className="band-switch-icon"><Users size={17}/></span><span><small>Aktiver Bereich</small><b>{activeBand?.name||'Persönliches Songbook'}</b></span><ChevronRight size={16}/></button>
-        <button className="add-button" onClick={openImport}><Plus size={19}/>Hinzufügen</button>
-        <NavLink to="/einstellungen" className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}><Settings size={19}/>Einstellungen</NavLink>
-        <button className="nav-item account-nav" onClick={()=>navigate('/einstellungen')}>{user.hasPhoto?<AuthorizedImg className="account-nav-photo" path={profilePhotoUrl(user)} alt=""/>:<UserRound size={19}/>}<span><b>{user.name}</b><small>{user.role==='admin'?'Administrator':'Mein Songbook'}</small></span></button>
+        <button className="band-switch" onClick={()=>navigate('/bands')}><span className="band-switch-icon"><Users size={17}/></span><span><small>{t('nav.activeScope')}</small><b>{activeBand?.name||t('nav.personalSongbook')}</b></span><ChevronRight size={16}/></button>
+        <button className="add-button" onClick={openImport}><Plus size={19}/>{t('nav.add')}</button>
+        <NavLink to="/einstellungen" className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}><Settings size={19}/>{t('nav.settings')}</NavLink>
+        <button className="nav-item account-nav" onClick={()=>navigate('/einstellungen')}>{user.hasPhoto?<AuthorizedImg className="account-nav-photo" path={profilePhotoUrl(user)} alt=""/>:<UserRound size={19}/>}<span><b>{user.name}</b><small>{user.role==='admin'?t('nav.admin'):t('nav.mySongbook')}</small></span></button>
       </div>
     </aside>
 
     <header className="mobile-topbar">
       <div className="mobile-topbar-brand">
         <span className="header-songbook-mark" aria-hidden="true"><Music2 size={20}/></span>
-        <strong>Worship Songbook</strong>
+        <strong>{t('brand.songbook')}</strong>
       </div>
       <button
         type="button"
         className="menu-toggle"
-        aria-label="Menü öffnen"
+        aria-label={t('nav.openMenu')}
         aria-expanded={menuOpen}
         onClick={()=>setMenuOpen(true)}
       >
@@ -172,14 +213,14 @@ function App() {
 
     {menuOpen&&
       <>
-        <button type="button" className="nav-backdrop" aria-label="Menü schließen" onClick={closeMenu}/>
-        <aside className="nav-drawer" role="dialog" aria-modal="true" aria-label="Hauptnavigation">
+        <button type="button" className="nav-backdrop" aria-label={t('nav.closeMenu')} onClick={closeMenu}/>
+        <aside className="nav-drawer" role="dialog" aria-modal="true" aria-label={t('nav.mainNav')}>
           <div className="nav-drawer-head">
-            <a className="brand" href="https://lyruma.studio" target="_blank" rel="noreferrer" aria-label="Lyruma Studio öffnen">
+            <a className="brand" href={URL_LYRUMA_STUDIO} target="_blank" rel="noreferrer" aria-label="Lyruma Studio">
               <div className="brand-mark">L</div>
-              <div><strong>Lyruma</strong><span>Studio</span></div>
+              <div><strong>{t('brand.lyruma')}</strong><span>{t('brand.studio')}</span></div>
             </a>
-            <button type="button" className="nav-drawer-close" aria-label="Menü schließen" onClick={closeMenu}>
+            <button type="button" className="nav-drawer-close" aria-label={t('nav.closeMenu')} onClick={closeMenu}>
               <X size={22}/>
             </button>
           </div>
@@ -201,14 +242,14 @@ function App() {
           <div className="sidebar-bottom">
             <button className="band-switch" onClick={()=>go('/bands')}>
               <span className="band-switch-icon"><Users size={17}/></span>
-              <span><small>Aktiver Bereich</small><b>{activeBand?.name||'Persönliches Songbook'}</b></span>
+              <span><small>{t('nav.activeScope')}</small><b>{activeBand?.name||t('nav.personalSongbook')}</b></span>
               <ChevronRight size={16}/>
             </button>
-            <button className="add-button" onClick={()=>{closeMenu();openImport()}}><Plus size={19}/>Hinzufügen</button>
-            <NavLink to="/einstellungen" onClick={closeMenu} className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}><Settings size={19}/>Einstellungen</NavLink>
+            <button className="add-button" onClick={()=>{closeMenu();openImport()}}><Plus size={19}/>{t('nav.add')}</button>
+            <NavLink to="/einstellungen" onClick={closeMenu} className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}><Settings size={19}/>{t('nav.settings')}</NavLink>
             <button className="nav-item account-nav" onClick={()=>go('/einstellungen')}>
               {user.hasPhoto?<AuthorizedImg className="account-nav-photo" path={profilePhotoUrl(user)} alt=""/>:<UserRound size={19}/>}
-              <span><b>{user.name}</b><small>{user.role==='admin'?'Administrator':'Mein Songbook'}</small></span>
+              <span><b>{user.name}</b><small>{user.role==='admin'?t('nav.admin'):t('nav.mySongbook')}</small></span>
             </button>
           </div>
         </aside>
@@ -225,41 +266,31 @@ function App() {
         <Route path="/sets/:setId" element={<SetDetailPage sets={sets} songs={songs} team={team} updateSets={setSets} navigate={navigate}/>}/>
         <Route path="/team" element={<TeamPage team={team} onAdd={() => setTeamDialogOpen(true)} onDelete={async (member) => { if(!window.confirm(`${member.name} wirklich aus dem Team entfernen?`))return;await deleteMember(member.id);setTeam((current)=>current.filter((item)=>item.id!==member.id)) }}/>}/>
         <Route path="/termine" element={<AppointmentsPage sets={sets} appointments={appointments} onAdd={(setId='') => setAppointmentSetId(setId||sets[0]?.id||'')} onDelete={async (item)=>{if(!window.confirm(`Termin „${item.title}“ löschen?`))return;await deleteAppointment(item.id);setAppointments((current)=>current.filter((entry)=>entry.id!==item.id))}} navigate={navigate}/>}/>
-        <Route path="/einstellungen" element={<SettingsPage theme={theme} user={user} onUser={setUser} onLogout={handleLogout} onRestartOnboarding={async()=>setOnboarding(await resetOnboarding())}/>}/>
-        <Route path="*" element={<SimplePage eyebrow="404" title="Seite nicht gefunden" text="Diese Seite gibt es noch nicht."/>}/>
+        <Route path="/einstellungen" element={<SettingsPage Header={Header} user={user} onUser={setUser} onLogout={handleLogout} onRestartOnboarding={async()=>setOnboarding(await resetOnboarding())}/>}/>
+        <Route path="*" element={<SimplePage eyebrow="404" title={t('pages.notFound')} text={t('pages.notFoundText')}/>}/>
       </Routes>
       <Footer/>
     </main>
 
     <nav className="mobile-nav">
-      <NavLink to="/" onClick={closeMenu}><Home size={20}/><span>Home</span></NavLink>
-      <NavLink to="/bands" onClick={closeMenu}><Users size={20}/><span>Bands</span></NavLink>
-      <button className="mobile-add" onClick={openImport} aria-label="Hinzufügen"><Plus size={22}/></button>
-      <NavLink to="/sets" onClick={closeMenu}><ListMusic size={20}/><span>Sets</span></NavLink>
-      <button type="button" onClick={()=>setMenuOpen(true)} aria-label="Mehr Menü"><MoreHorizontal size={20}/><span>Mehr</span></button>
+      <NavLink to="/" onClick={closeMenu}><Home size={20}/><span>{t('nav.home')}</span></NavLink>
+      <NavLink to="/bands" onClick={closeMenu}><Users size={20}/><span>{t('nav.bands')}</span></NavLink>
+      <button className="mobile-add" onClick={openImport} aria-label={t('nav.add')}><Plus size={22}/></button>
+      <NavLink to="/sets" onClick={closeMenu}><ListMusic size={20}/><span>{t('nav.sets')}</span></NavLink>
+      <button type="button" onClick={()=>setMenuOpen(true)} aria-label={t('nav.more')}><MoreHorizontal size={20}/><span>{t('nav.more')}</span></button>
     </nav>
     {dialogOpen && <ImportDialog onClose={() => setDialogOpen(false)} onImport={async (items) => { const storedSongs = await saveImportedSongs(items); setSongs((current) => [...storedSongs, ...current]); setDialogOpen(false); navigate('/songs') }} onScan={async(title,pages)=>{const song=await saveScannedSong(title,pages);setSongs(current=>[song,...current]);setDialogOpen(false);navigate(`/songs/${song.id}/editor`)}}/>} 
     {createSetOpen && <CreateSetDialog onClose={() => setCreateSetOpen(false)} onCreate={async (values) => { const next = await createSet(values); setSets((current) => [next, ...current]); setCreateSetOpen(false); navigate(`/sets/${next.id}`) }}/>} 
     {editingSong && <EditSongDialog song={editingSong} onClose={() => setEditingSong(null)} onSave={async (changes) => { const updated = await updateSong(editingSong.id, changes); setSongs((current) => current.map((song) => song.id === editingSong.id ? {...song, ...updated} : song)); setEditingSong(null) }}/>} 
     {teamDialogOpen && <TeamDialog onClose={() => setTeamDialogOpen(false)} onSave={async (values) => { const member=await saveMember(values);setTeam((current)=>[...current,member].sort((a,b)=>a.name.localeCompare(b.name)));setTeamDialogOpen(false) }}/>} 
     {appointmentSetId && <AppointmentDialog sets={sets} initialSetId={appointmentSetId} onClose={()=>setAppointmentSetId('')} onSave={async(values)=>{const item=await createAppointment(values);setAppointments((current)=>[...current,item].sort((a,b)=>`${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)));setAppointmentSetId('')}}/>}
+    {aboutOpen&&<AboutDialog onClose={()=>setAboutOpen(false)}/>}
+    {updateOpen&&<UpdateDialog result={updateResult} onClose={()=>{setUpdateOpen(false);setUpdateResult(undefined)}}/>}
   </div>
 }
 
-function AuthScreen({onAuthenticated}) {
-  const [mode,setMode]=useState('login');const [values,setValues]=useState({name:'',username:'',email:'',identifier:'',password:''});const [error,setError]=useState('');const [saving,setSaving]=useState(false)
-  const submit=async(event)=>{event.preventDefault();setError('');setSaving(true);try{const result=mode==='login'?await login({identifier:values.identifier,password:values.password}):await register({name:values.name,username:values.username,email:values.email,password:values.password});onAuthenticated(result.user)}catch(e){setError(e.message)}finally{setSaving(false)}}
-  const field=(key)=>({value:values[key],onChange:event=>setValues(current=>({...current,[key]:event.target.value}))})
-  return <main className="auth-page"><section className="auth-brand"><a className="brand" href="https://lyruma.studio" target="_blank" rel="noreferrer"><div className="brand-mark">L</div><div><strong>Lyruma</strong><span>Worship</span></div></a><div><p className="eyebrow">Worship Songbook</p><h1>Musik planen.<br/>Gemeinsam spielen.</h1><p>Deine persönliche Bibliothek für Songs, Sets, Proben und Bühne.</p></div></section><section className="auth-card"><div className="auth-card-head"><Music2 size={27}/><div><h2>{mode==='login'?'Anmelden':'Songbook erstellen'}</h2><p>{mode==='login'?'Willkommen zurück.':'Dein persönliches Songbook ist zunächst leer.'}</p></div></div><form onSubmit={submit}>{mode==='register'&&<><label>Name<input required autoComplete="name" {...field('name')}/></label><label>Benutzername<input required minLength="3" autoComplete="username" {...field('username')}/></label><label>E-Mail-Adresse<input required type="email" autoComplete="email" {...field('email')}/></label></>}{mode==='login'&&<label>E-Mail-Adresse oder Benutzername<input required autoComplete="username" autoFocus {...field('identifier')}/></label>}<label>Passwort<input required minLength="8" type="password" autoComplete={mode==='login'?'current-password':'new-password'} {...field('password')}/></label>{error&&<p className="auth-error">{error}</p>}<button className="auth-submit" disabled={saving}>{saving?'Bitte warten …':mode==='login'?'Anmelden':'Kostenlos registrieren'}</button></form><button className="auth-switch" onClick={()=>{setMode(mode==='login'?'register':'login');setError('')}}>{mode==='login'?'Noch kein Konto? Jetzt registrieren':'Schon registriert? Zur Anmeldung'}</button><small>Jedes Konto erhält ein vollständig getrenntes Songbook.</small></section></main>
-}
-
-function PasswordRequired({user,onChanged,onLogout}) {
-  const [currentPassword,setCurrent]=useState('');const [newPassword,setNext]=useState('');const [repeat,setRepeat]=useState('');const [error,setError]=useState('');const [saving,setSaving]=useState(false)
-  const submit=async(event)=>{event.preventDefault();if(newPassword!==repeat)return setError('Die neuen Passwörter stimmen nicht überein.');setSaving(true);setError('');try{const result=await changePassword({currentPassword,newPassword});onChanged(result.user)}catch(e){setError(e.message)}finally{setSaving(false)}}
-  return <main className="auth-page password-page"><section className="auth-card"><div className="auth-card-head"><LockKeyhole size={28}/><div><p className="eyebrow">Sicherheit</p><h2>Eigenes Passwort festlegen</h2><p>Hallo {user.name}. Vor dem ersten Öffnen muss das vorläufige Passwort geändert werden.</p></div></div><form onSubmit={submit}><label>Bisheriges Passwort<input required type="password" autoComplete="current-password" value={currentPassword} onChange={e=>setCurrent(e.target.value)}/></label><label>Neues Passwort<input required minLength="8" type="password" autoComplete="new-password" value={newPassword} onChange={e=>setNext(e.target.value)}/></label><label>Neues Passwort wiederholen<input required minLength="8" type="password" autoComplete="new-password" value={repeat} onChange={e=>setRepeat(e.target.value)}/></label>{error&&<p className="auth-error">{error}</p>}<button className="auth-submit" disabled={saving}>{saving?'Speichert …':'Passwort ändern und Songbook öffnen'}</button></form><button className="auth-switch" onClick={onLogout}>Abmelden</button></section></main>
-}
-
 function Footer() {
+  const { t } = useI18n()
   const social = [
     ['Facebook','https://www.facebook.com/people/Lyruma/61591920364451/','f'],
     ['Instagram','https://www.instagram.com/lyrumastudio/','◎'],
@@ -267,7 +298,7 @@ function Footer() {
     ['GitHub','https://github.com/eduardwiebe','<>'],
   ]
   const donationUrl='https://www.paypal.com/donate?business=eduardwiebe77%40gmail.com&no_recurring=0&item_name=Worship+Songbook+Open+Source+Entwicklung&currency_code=EUR'
-  return <footer className="app-footer"><section className="donation-card"><span className="donation-heart"><Heart size={23}/></span><div><strong>Worship Songbook unterstützen</strong><p>Der Code bleibt frei und Open Source. Deine freiwillige Unterstützung hilft bei Betrieb, Weiterentwicklung und kommenden Updates.</p></div><a href={donationUrl} target="_blank" rel="noreferrer"><Heart size={17}/>Mit PayPal unterstützen</a></section><div className="footer-main"><div><strong>Worship Songbook</strong><span>Open Source · Entwickelt von Eduard Wiebe</span></div><nav aria-label="Webseiten"><a href="https://lyruma.studio" target="_blank" rel="noreferrer">Lyruma Studio</a><a href="https://lyruma.app" target="_blank" rel="noreferrer">Lyruma App</a><a href="https://eduardwiebe.lyruma.studio" target="_blank" rel="noreferrer">Eduard Wiebe</a></nav></div><div className="footer-bottom"><nav aria-label="Rechtliches"><a href="/nutzungsbedingungen.html" target="_blank" rel="noreferrer">Nutzungsbedingungen</a><a href="/datenschutz.html" target="_blank" rel="noreferrer">Datenschutz</a><a href="/impressum.html" target="_blank" rel="noreferrer">Impressum</a></nav><div className="social-links" aria-label="Social Media">{social.map(([name,url,glyph])=><a key={name} href={url} target="_blank" rel="noreferrer" title={name} aria-label={`${name} öffnen`}><span aria-hidden="true">{glyph}</span></a>)}<a href="https://www.tiktok.com/@lyrumastudio" target="_blank" rel="noreferrer" title="TikTok" aria-label="TikTok öffnen" className="tiktok-icon"><span aria-hidden="true">♪</span></a></div></div><p>© {new Date().getFullYear()} Eduard Wiebe. Alle Rechte vorbehalten.</p></footer>
+  return <footer className="app-footer"><section className="donation-card"><span className="donation-heart"><Heart size={23}/></span><div><strong>{t('footer.supportTitle')}</strong><p>{t('footer.supportText')}</p></div><a href={donationUrl} target="_blank" rel="noreferrer"><Heart size={17}/>{t('footer.paypal')}</a></section><div className="footer-main"><div><strong>{t('brand.songbook')}</strong><span>{t('footer.openSource')}</span></div><nav aria-label="Websites"><a href={URL_LYRUMA_STUDIO} target="_blank" rel="noreferrer">Lyruma Studio</a><a href="https://lyruma.app" target="_blank" rel="noreferrer">Lyruma App</a><a href={URL_EDUARD_WIEBE} target="_blank" rel="noreferrer">Eduard Wiebe</a></nav></div><div className="footer-bottom"><nav aria-label="Legal"><a href="/nutzungsbedingungen.html" target="_blank" rel="noreferrer">{t('footer.terms')}</a><a href="/datenschutz.html" target="_blank" rel="noreferrer">{t('footer.privacy')}</a><a href="/impressum.html" target="_blank" rel="noreferrer">{t('footer.imprint')}</a></nav><div className="social-links" aria-label="Social Media">{social.map(([name,url,glyph])=><a key={name} href={url} target="_blank" rel="noreferrer" title={name} aria-label={name}><span aria-hidden="true">{glyph}</span></a>)}<a href="https://www.tiktok.com/@lyrumastudio" target="_blank" rel="noreferrer" title="TikTok" aria-label="TikTok" className="tiktok-icon"><span aria-hidden="true">♪</span></a></div></div><p>{t('footer.rights', { year: new Date().getFullYear() })}</p></footer>
 }
 
 function Header({title, subtitle}) {
@@ -286,8 +317,9 @@ function Header({title, subtitle}) {
 function HomePage({songs, setSongs, sets, openImport, openSetDialog, navigate}) {
   const [query,setQuery]=useState('');const [activeSlide,setActiveSlide]=useState(0);const [playing,setPlaying]=useState(false);const [selectedSongId,setSelectedSongId]=useState('');const shown=songs.filter((song)=>`${song.title} ${song.artist}`.toLowerCase().includes(query.toLowerCase())).slice(0,12);const selectedSong=songs.find((song)=>song.id===selectedSongId)
   const inspirationSlides=[{kind:'intro',title:'Lieder finden. Gemeinsam wachsen.',artist:'Dein Worship Songbook für Bibliothek, Sets, Proben und Bühne.',image:'/worship-neutral.svg'},{kind:'video',title:'Nichts unmöglich',artist:'ICF Karlsruhe Music',videoId:'neZnq_5bXkA'},{kind:'video',title:'Generation',artist:'X Worship',videoId:'ir3ZRcUsdW0'}];const safeSlide=activeSlide<inspirationSlides.length?activeSlide:0;const slide=inspirationSlides[safeSlide];const slideImage=slide.videoId?`https://i.ytimg.com/vi/${slide.videoId}/hqdefault.jpg`:slide.image
-  return <><Header title="Worship Songbook" subtitle="Suchen, öffnen, Tonart ändern und gemeinsam spielen."/>
-    <label className="home-search"><Search size={24}/><input value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Song, Set oder Stichwort suchen …" autoComplete="off"/>{query&&<button onClick={()=>setQuery('')} aria-label="Suche löschen"><X size={18}/></button>}</label>
+  const { t } = useI18n()
+  return <><Header title={t('home.title')} subtitle={t('home.subtitle')}/>
+    <label className="home-search"><Search size={24}/><input value={query} onChange={(event)=>setQuery(event.target.value)} placeholder={t('home.searchPlaceholder')} autoComplete="off"/>{query&&<button onClick={()=>setQuery('')} aria-label="Suche löschen"><X size={18}/></button>}</label>
     <section className={`home-hero inspiration-hero${playing?' is-playing':''}`} aria-label="Inspiration und neue Worship-Songs"><img className="hero-background" src={slideImage} alt=""/><div className="hero-shade"/>{playing&&slide.videoId?<div className="hero-player"><iframe src={`https://www.youtube-nocookie.com/embed/${slide.videoId}?autoplay=1&rel=0`} title={`${slide.title} auf YouTube`} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen/><button onClick={()=>setPlaying(false)} aria-label="Video schließen"><X size={20}/>Schließen</button></div>:<><button className="hero-arrow hero-arrow-left" onClick={()=>{setPlaying(false);setActiveSlide((safeSlide-1+inspirationSlides.length)%inspirationSlides.length)}} aria-label="Vorheriger Inhalt"><ChevronLeft size={25}/></button><div className={`hero-content${slide.kind==='intro'?' intro-slide':''}`}>{slide.kind==='video'&&<img className="hero-poster" src={slideImage} alt={`Cover ${slide.title}`}/>}<div className="hero-copy"><p className="hero-label">{slide.kind==='intro'?'Worship Songbook':'Neu im deutschen Worship'}</p><h2>{slide.title}</h2><p className="hero-date">{slide.artist}</p>{slide.kind==='intro'?<div className="intro-features"><span>Liedtexte</span><span>Akkorde</span><span>Sets</span><span>Gemeinsam spielen</span></div>:<button className="hero-set-link" onClick={()=>setPlaying(true)}><Play size={17}/>Zum Lied</button>}</div></div><button className="hero-arrow hero-arrow-right" onClick={()=>{setPlaying(false);setActiveSlide((safeSlide+1)%inspirationSlides.length)}} aria-label="Nächster Inhalt"><ChevronRight size={25}/></button></>}<div className="hero-dots">{inspirationSlides.map((item,index)=><button key={item.title} className={index===safeSlide?'active':''} onClick={()=>{setPlaying(false);setActiveSlide(index)}} aria-label={`Inhalt ${index+1}`}/>)}</div></section>
     {selectedSong?<TransposeDialog embedded homeEmbedded song={selectedSong} onClose={()=>setSelectedSongId('')} onSave={async(values)=>{const variant=await saveSongVariant(selectedSong.id,values);setSongs((current)=>current.map((item)=>item.id===selectedSong.id?{...item,key:variant.targetKey,sourceKey:variant.sourceKey,preferredKey:variant.targetKey,variantKeys:Array.from(new Set([variant.targetKey,...(item.variantKeys||[])]))}:item));return variant}}/>:<><section className="home-section"><div className="home-section-head"><div><p className="eyebrow">Deine Bibliothek</p><h2>{query?`Suchergebnisse für „${query}“`:'Songs direkt öffnen'}</h2></div><button className="text-button" onClick={openImport}><Plus size={17}/>Song hinzufügen</button></div>{shown.length?<div className="song-tile-row">{shown.map((song,index)=><button className="song-tile" key={song.id} onClick={()=>setSelectedSongId(song.id)}><span className={`song-cover cover-tone-${index%6}`}><Music2 size={31}/><span>{song.title}</span><i><Play size={17}/></i></span><span className="song-tile-copy"><span className="song-rank">{index+1}</span>{(song.preferredKey||song.key)&&<span className="song-key">Tonart {song.preferredKey||song.key}</span>}<strong>{song.title}</strong><small>{song.artist||'Worship Songbook'}</small><span className="tile-open">Im Editor öffnen <ChevronRight size={15}/></span></span></button>)}{!query&&songs.length>12&&<button className="song-tile more-tile" onClick={()=>navigate('/songs')}><span className="more-cover"><Plus size={30}/></span><span className="song-tile-copy"><span className="song-rank">12+</span><strong>Alle Songs</strong><small>Gesamte Bibliothek öffnen</small><span className="tile-open">Zur Bibliothek <ChevronRight size={15}/></span></span></button>}</div>:<div className="empty-state small"><Search size={30}/><h3>Kein Song gefunden</h3><p>Probiere einen anderen Suchbegriff oder importiere eine PDF.</p></div>}</section>
     <section className="home-section"><div className="home-section-head"><div><p className="eyebrow">Planung und Rückblick</p><h2>Sets und Veranstaltungen</h2></div><button className="text-button" onClick={openSetDialog}><Plus size={17}/>Neues Set</button></div><div className="set-poster-row">{sets.map((set,index)=><button className="set-poster-card" key={set.id} onClick={()=>navigate(`/sets/${set.id}`)}><div className="set-poster-image">{(set.theme||set.title).toLowerCase().includes('fundament')?<img src="/worship-neutral.svg" alt=""/>:<span className={`poster-placeholder cover-tone-${index%6}`}><ListMusic size={32}/></span>}<span>{formatDate(set.date)}</span></div><strong>{set.theme||set.title}</strong><small>{set.venue||`${set.songIds.length} Songs`}</small></button>)}{!sets.length&&<p className="empty">Noch kein Set geplant.</p>}</div></section>
@@ -296,7 +328,8 @@ function HomePage({songs, setSongs, sets, openImport, openSetDialog, navigate}) 
 }
 
 function SongsPage({songs, openImport, onTranspose, onEdit, onDelete}) {
-  return <><Header title="Songs" subtitle="Deine gesamte Songbibliothek."/><div className="page-actions"><button className="add-button compact" onClick={openImport}><Plus size={18}/>Song hinzufügen</button></div><SongPanel songs={songs} onTranspose={onTranspose} onEdit={onEdit} onDelete={onDelete}/></>
+  const { t } = useI18n()
+  return <><Header title={t('pages.songs')} subtitle={t('pages.songsSubtitle')}/><div className="page-actions"><button className="add-button compact" onClick={openImport}><Plus size={18}/>Song hinzufügen</button></div><SongPanel songs={songs} onTranspose={onTranspose} onEdit={onEdit} onDelete={onDelete}/></>
 }
 
 function SongPanel({songs, onAll, onTranspose, onEdit, onDelete}) {
@@ -943,296 +976,6 @@ function BandsPage({bands}) {
   </>
 }
 
-function SettingsPage({theme,user,onUser,onLogout,onRestartOnboarding}) {
-  const [profile,setProfile]=useState({
-    name:user.name,
-    username:user.username,
-    email:user.email
-  })
-
-  const [currentPassword,setCurrent]=useState('')
-  const [newPassword,setNext]=useState('')
-  const [profileMessage,setProfileMessage]=useState('')
-  const [profileError,setProfileError]=useState('')
-  const [securityMessage,setSecurityMessage]=useState('')
-  const [securityError,setSecurityError]=useState('')
-  const [photoBusy,setPhotoBusy]=useState(false)
-  const [profileBusy,setProfileBusy]=useState(false)
-  const [passwordBusy,setPasswordBusy]=useState(false)
-
-  const uploadPhoto=async event=>{
-    const file=event.target.files?.[0]
-    event.target.value=''
-    if(!file)return
-
-    setPhotoBusy(true)
-    setProfileError('')
-    setProfileMessage('')
-
-    try{
-      const result=await uploadProfilePhoto(file)
-      onUser(result.user)
-      setProfileMessage('Profilbild gespeichert.')
-    }catch(e){
-      setProfileError(e.message)
-    }finally{
-      setPhotoBusy(false)
-    }
-  }
-
-  const removePhoto=async()=>{
-    setPhotoBusy(true)
-    setProfileError('')
-    setProfileMessage('')
-
-    try{
-      const result=await deleteProfilePhoto()
-      onUser(result.user)
-      setProfileMessage('Profilbild entfernt.')
-    }catch(e){
-      setProfileError(e.message)
-    }finally{
-      setPhotoBusy(false)
-    }
-  }
-
-  const saveProfile=async()=>{
-    setProfileBusy(true)
-    setProfileError('')
-    setProfileMessage('')
-
-    try{
-      const result=await updateProfile(profile)
-      onUser(result.user)
-      setProfileMessage('Profil gespeichert.')
-    }catch(e){
-      setProfileError(e.message)
-    }finally{
-      setProfileBusy(false)
-    }
-  }
-
-  const savePassword=async()=>{
-    setPasswordBusy(true)
-    setSecurityError('')
-    setSecurityMessage('')
-
-    try{
-      await changePassword({currentPassword,newPassword})
-      setCurrent('')
-      setNext('')
-      setSecurityMessage('Passwort geändert.')
-    }catch(e){
-      setSecurityError(e.message)
-    }finally{
-      setPasswordBusy(false)
-    }
-  }
-
-  return <>
-    <Header title="Einstellungen" subtitle="Konto, Sicherheit und persönliche Optionen."/>
-
-    <div className="settings-page">
-      <section className="settings-card">
-        <div className="settings-card-head">
-          <p className="eyebrow">Konto</p>
-          <h2>Profil & Konto</h2>
-          <p>Name, Kontakt und Profilbild für dein Songbook.</p>
-        </div>
-
-        <div className="settings-profile-layout">
-          <div className="settings-profile-photo">
-            <div className="account-photo">
-              {user.hasPhoto
-                ? <AuthorizedImg path={profilePhotoUrl(user)} alt="Profilbild"/>
-                : <span>{initials(user.name)}</span>
-              }
-            </div>
-
-            <div className="settings-profile-photo-actions">
-              <label className="settings-action profile-photo-button">
-                <Upload size={16}/>
-                {photoBusy?'Bitte warten …':user.hasPhoto?'Neues Bild':'Bild hochladen'}
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-                  disabled={photoBusy}
-                  onChange={uploadPhoto}
-                />
-              </label>
-
-              {user.hasPhoto&&
-                <button
-                  type="button"
-                  className="profile-photo-remove"
-                  disabled={photoBusy}
-                  onClick={removePhoto}
-                >
-                  <Trash2 size={16}/>Entfernen
-                </button>
-              }
-
-              <small>JPG, PNG oder WebP · max. 30 MB</small>
-            </div>
-          </div>
-
-          <div className="settings-profile-fields">
-            <div className="settings-field-grid">
-              <label>
-                Name
-                <input
-                  value={profile.name}
-                  onChange={e=>setProfile({...profile,name:e.target.value})}
-                  autoComplete="name"
-                />
-              </label>
-
-              <label>
-                Benutzername
-                <input
-                  value={profile.username}
-                  onChange={e=>setProfile({...profile,username:e.target.value})}
-                  autoComplete="username"
-                />
-              </label>
-
-              <label className="settings-field-wide">
-                E-Mail-Adresse
-                <input
-                  type="email"
-                  value={profile.email}
-                  onChange={e=>setProfile({...profile,email:e.target.value})}
-                  autoComplete="email"
-                />
-              </label>
-            </div>
-
-            <div className="settings-card-actions">
-              <button
-                type="button"
-                className="settings-action"
-                disabled={profileBusy}
-                onClick={saveProfile}
-              >
-                {profileBusy?'Speichert …':'Profil speichern'}
-              </button>
-              <p className="settings-role-badge">
-                {user.role==='admin'?'Administrator':'Persönliches Songbook'}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {profileMessage&&<p className="settings-message">{profileMessage}</p>}
-        {profileError&&<p className="auth-error">{profileError}</p>}
-      </section>
-
-      <section className="settings-card">
-        <div className="settings-card-head">
-          <p className="eyebrow">Zugang</p>
-          <h2>Sicherheit</h2>
-          <p>Ändere dein Passwort für dieses Konto.</p>
-        </div>
-
-        <div className="settings-field-grid settings-security-grid">
-          <label>
-            Aktuelles Passwort
-            <input
-              type="password"
-              value={currentPassword}
-              onChange={e=>setCurrent(e.target.value)}
-              autoComplete="current-password"
-            />
-          </label>
-
-          <label>
-            Neues Passwort
-            <input
-              type="password"
-              minLength="8"
-              value={newPassword}
-              onChange={e=>setNext(e.target.value)}
-              autoComplete="new-password"
-            />
-          </label>
-        </div>
-
-        <div className="settings-card-actions">
-          <button
-            type="button"
-            className="settings-action"
-            disabled={passwordBusy||!currentPassword||newPassword.length<8}
-            onClick={savePassword}
-          >
-            {passwordBusy?'Speichert …':'Passwort ändern'}
-          </button>
-        </div>
-
-        {securityMessage&&<p className="settings-message">{securityMessage}</p>}
-        {securityError&&<p className="auth-error">{securityError}</p>}
-      </section>
-
-      <section className="settings-card settings-card-muted">
-        <div className="settings-card-head">
-          <p className="eyebrow">Assistent</p>
-          <h2>Einrichtung</h2>
-          <p>
-            Du kannst den Einrichtungsassistenten jederzeit erneut starten.
-            Vorhandene Bands, Mitglieder, Sets, Termine und Songs bleiben erhalten.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          className="settings-secondary"
-          onClick={onRestartOnboarding}
-        >
-          <RotateCcw size={16}/>
-          Einrichtung erneut starten
-        </button>
-      </section>
-
-      <section className="settings-card">
-        <div className="settings-card-head">
-          <p className="eyebrow">Anzeige</p>
-          <h2>Anwendung</h2>
-          <p>Darstellung und Sprache der Oberfläche.</p>
-        </div>
-
-        <div className="settings-app-grid">
-          <label>
-            Thema
-            <select value={theme} disabled>
-              <option value="light">Hell</option>
-            </select>
-            <small>Das Songbook verwendet durchgehend eine helle, gut lesbare Oberfläche.</small>
-          </label>
-
-          <label>
-            Sprache
-            <select value="de-DE" disabled>
-              <option value="de-DE">Deutsch (Deutschland)</option>
-            </select>
-            <small>Akkorde und Tonarten werden in deutscher Schreibweise dargestellt.</small>
-          </label>
-        </div>
-      </section>
-
-      <section className="settings-card settings-card-logout">
-        <div className="settings-card-head">
-          <p className="eyebrow">Sitzung</p>
-          <h2>Abmelden</h2>
-          <p>Beendet die Anmeldung auf diesem Gerät.</p>
-        </div>
-
-        <button type="button" className="logout-button" onClick={onLogout}>
-          <LogOut size={17}/>Sicher abmelden
-        </button>
-      </section>
-    </div>
-  </>
-}
-
 function formatDate(date) {
   if (!date) return 'Noch kein Datum'
   return new Intl.DateTimeFormat('de-DE', {day: '2-digit', month: '2-digit', year: 'numeric'}).format(new Date(`${date}T12:00:00`))
@@ -1246,7 +989,8 @@ function formatCompactDate(date) {
 function initials(name) { const parts=name.trim().split(/\s+/).filter(Boolean);return parts.length>1?`${parts[0][0]}${parts.at(-1)[0]}`.toUpperCase():(parts[0]?.slice(0,2).toUpperCase()||'') }
 
 function TeamPage({team, onAdd, onDelete}) {
-  return <><Header title="Team" subtitle="Menschen, Instrumente und Verantwortungen in eurer Band."/><div className="page-actions"><button className="add-button compact" onClick={onAdd}><Plus size={18}/>Teammitglied hinzufügen</button></div><section className="panel"><div className="panel-header"><div><p className="eyebrow">Band</p><h2>{team.length} {team.length===1?'Teammitglied':'Teammitglieder'}</h2></div></div>{team.length?<div className="team-grid">{team.map((member)=><article className="member-card" key={member.id}><div className="member-avatar">{member.hasPhoto?<AuthorizedImg path={memberPhoto(member)} alt=""/>:<span>{member.initials||initials(member.name)}</span>}</div><div className="member-info"><h3>{member.name} <small>{member.initials||initials(member.name)}</small></h3><p>{member.roles.join(' · ')||'Noch keine Aufgabe'}</p><div>{member.isLeader&&<span>Band-Leitung</span>}{member.isOrganizer&&<span>Organisation</span>}{member.isDesigner&&<span>Design & Plakate</span>}{member.isTechnician&&<span>Technik & Aufbau</span>}</div></div><button className="desktop-delete" onClick={()=>onDelete(member)} title="Teammitglied entfernen"><Trash2 size={18}/></button></article>)}</div>:<div className="empty-state"><Users size={38}/><h3>Euer Team beginnt hier</h3><p>Füge Sängerinnen, Musiker und organisatorische Rollen hinzu.</p><button className="add-button compact" onClick={onAdd}><Plus size={18}/>Erstes Mitglied hinzufügen</button></div>}</section></>
+  const { t } = useI18n()
+  return <><Header title={t('pages.team')} subtitle={t('pages.teamSubtitle')}/><div className="page-actions"><button className="add-button compact" onClick={onAdd}><Plus size={18}/>Teammitglied hinzufügen</button></div><section className="panel"><div className="panel-header"><div><p className="eyebrow">Band</p><h2>{team.length} {team.length===1?'Teammitglied':'Teammitglieder'}</h2></div></div>{team.length?<div className="team-grid">{team.map((member)=><article className="member-card" key={member.id}><div className="member-avatar">{member.hasPhoto?<AuthorizedImg path={memberPhoto(member)} alt=""/>:<span>{member.initials||initials(member.name)}</span>}</div><div className="member-info"><h3>{member.name} <small>{member.initials||initials(member.name)}</small></h3><p>{member.roles.join(' · ')||'Noch keine Aufgabe'}</p><div>{member.isLeader&&<span>Band-Leitung</span>}{member.isOrganizer&&<span>Organisation</span>}{member.isDesigner&&<span>Design & Plakate</span>}{member.isTechnician&&<span>Technik & Aufbau</span>}</div></div><button className="desktop-delete" onClick={()=>onDelete(member)} title="Teammitglied entfernen"><Trash2 size={18}/></button></article>)}</div>:<div className="empty-state"><Users size={38}/><h3>Euer Team beginnt hier</h3><p>Füge Sängerinnen, Musiker und organisatorische Rollen hinzu.</p><button className="add-button compact" onClick={onAdd}><Plus size={18}/>Erstes Mitglied hinzufügen</button></div>}</section></>
 }
 
 const roleOptions=['Gesang','Akustikgitarre','E-Gitarre','Bass','Piano / Keys','Drums','Percussion','Bläser','Streicher','Tontechnik','Lichttechnik','Songleitung','Organisation','Andere Aufgabe']
@@ -1259,7 +1003,8 @@ function TeamDialog({onClose,onSave}) {
 const appointmentTypes={rehearsal:'Bandprobe',planning:'Planungstreffen',soundcheck:'Technik & Soundcheck',other:'Sonstiger Termin'}
 function AppointmentsPage({sets,appointments,onAdd,onDelete,navigate}) {
   const sortedSets=[...sets].sort((a,b)=>a.date.localeCompare(b.date))
-  return <><Header title="Termine" subtitle="Alle Bandproben bis zum jeweiligen Konzert – direkt am Set."/><div className="page-actions"><button className="add-button compact" onClick={()=>onAdd()} disabled={!sets.length}><Plus size={18}/>Termin anlegen</button></div>{sortedSets.length?sortedSets.map((set)=>{const rehearsals=appointments.filter((item)=>item.setId===set.id).sort((a,b)=>`${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));const place=[set.band,set.venue].filter(Boolean).join(' in ')||'Ort noch offen';return <section className="panel concert-block" key={set.id}><div className="concert-head"><div className="concert-date"><strong>{formatCompactDate(set.date)}</strong><span>{set.eventTime?`${set.eventTime} Uhr`:'Beginn offen'}</span></div><div className="concert-dot"/><div className="concert-copy"><span>Konzert</span><h2>{set.theme||set.title}</h2><p>{place}</p><button className="text-button" onClick={()=>navigate(`/sets/${set.id}`)}>Set öffnen →</button></div></div><div className="rehearsal-section"><div className="rehearsal-head"><div><p className="eyebrow">Vorbereitung</p><h3>Geplante Bandproben</h3></div><button className="add-button compact" onClick={()=>onAdd(set.id)}><Plus size={17}/>Bandprobe hinzufügen</button></div>{rehearsals.length?<div className="rehearsal-list">{rehearsals.map((item)=><article key={item.id}><div className="rehearsal-date"><strong>{new Date(`${item.date}T12:00:00`).toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit'})}</strong><span>{item.time?`${item.time} Uhr`:'Zeit offen'}</span></div><div><b>{item.title}</b><p>{item.location||place}{item.notes&&` · ${item.notes}`}</p></div><button className="desktop-delete" onClick={()=>onDelete(item)} title="Termin löschen"><Trash2 size={17}/></button></article>)}</div>:<div className="no-rehearsals"><CalendarDays size={24}/><div><strong>Noch keine Bandprobe geplant</strong><span>Lege hier Proben und weitere Vorbereitungstermine mit Datum und Uhrzeit an.</span></div></div>}</div></section>}):<section className="panel"><div className="empty-state"><CalendarDays size={38}/><h3>Noch keine Sets</h3><p>Lege zuerst ein Set an. Danach kannst du alle zugehörigen Proben planen.</p></div></section>}</>
+  const { t } = useI18n()
+  return <><Header title={t('pages.appointments')} subtitle={t('pages.appointmentsSubtitle')}/><div className="page-actions"><button className="add-button compact" onClick={()=>onAdd()} disabled={!sets.length}><Plus size={18}/>Termin anlegen</button></div>{sortedSets.length?sortedSets.map((set)=>{const rehearsals=appointments.filter((item)=>item.setId===set.id).sort((a,b)=>`${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));const place=[set.band,set.venue].filter(Boolean).join(' in ')||'Ort noch offen';return <section className="panel concert-block" key={set.id}><div className="concert-head"><div className="concert-date"><strong>{formatCompactDate(set.date)}</strong><span>{set.eventTime?`${set.eventTime} Uhr`:'Beginn offen'}</span></div><div className="concert-dot"/><div className="concert-copy"><span>Konzert</span><h2>{set.theme||set.title}</h2><p>{place}</p><button className="text-button" onClick={()=>navigate(`/sets/${set.id}`)}>Set öffnen →</button></div></div><div className="rehearsal-section"><div className="rehearsal-head"><div><p className="eyebrow">Vorbereitung</p><h3>Geplante Bandproben</h3></div><button className="add-button compact" onClick={()=>onAdd(set.id)}><Plus size={17}/>Bandprobe hinzufügen</button></div>{rehearsals.length?<div className="rehearsal-list">{rehearsals.map((item)=><article key={item.id}><div className="rehearsal-date"><strong>{new Date(`${item.date}T12:00:00`).toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit'})}</strong><span>{item.time?`${item.time} Uhr`:'Zeit offen'}</span></div><div><b>{item.title}</b><p>{item.location||place}{item.notes&&` · ${item.notes}`}</p></div><button className="desktop-delete" onClick={()=>onDelete(item)} title="Termin löschen"><Trash2 size={17}/></button></article>)}</div>:<div className="no-rehearsals"><CalendarDays size={24}/><div><strong>Noch keine Bandprobe geplant</strong><span>Lege hier Proben und weitere Vorbereitungstermine mit Datum und Uhrzeit an.</span></div></div>}</div></section>}):<section className="panel"><div className="empty-state"><CalendarDays size={38}/><h3>Noch keine Sets</h3><p>Lege zuerst ein Set an. Danach kannst du alle zugehörigen Proben planen.</p></div></section>}</>
 }
 
 function AppointmentDialog({sets,initialSetId,onClose,onSave}) {

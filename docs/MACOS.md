@@ -155,7 +155,20 @@ Default window in `tauri.conf.json`: 1280×800, min 1024×700. Responsive layout
 | Identifier | `studio.lyruma.worshipsongbook` |
 | Icons | `app/src-tauri/icons/` (incl. `icon.icns`) |
 
-## Signing / notarization (later — not done here)
+## Native menu / Help / Updates
+
+Custom Tauri app menu (localized DE/EN) replaces the default WKWebView menu set where possible.
+
+| Item | Controllable? |
+|------|----------------|
+| App / Edit / View / Window / Help labels we create | Yes — follow app language |
+| Check for Updates … | Yes — Phase-1 GitHub Releases metadata check |
+| Contact Support → `mailto:support@lyruma.studio` | Yes (verified in impressum) |
+| “Send … Feedback to Apple” | Removed by installing a custom Help submenu (that item comes from the default WebKit/Help set when no custom Help menu exists) |
+| Some OS-injected items tied to system language | May remain; document if seen after retest |
+
+Update check does **not** auto-download/install until Developer ID signing + Tauri updater signatures exist.
+
 
 For **public** distribution Apple typically requires:
 
@@ -190,12 +203,13 @@ Until a human has smoke-tested the unsigned `.app`/`.dmg` on a real Mac:
 
 | | |
 |--|--|
-| Run | [33370068659](https://github.com/Eduardwiebe/worship-songbook/actions/runs/33370068659) |
-| Commit | `8dd7de8` |
-| Runner image | `macos-26-arm64` |
+| Prior “beschädigt” build | Run [33370068659](https://github.com/Eduardwiebe/worship-songbook/actions/runs/33370068659) — DMG valid, but incomplete linker-only signature |
+| Diagnosis rebuild | Run [33431737495](https://github.com/Eduardwiebe/worship-songbook/actions/runs/33431737495) — confirmed `codesign --verify` fail + `hdiutil verify` pass |
+| Repaired build | See newest successful `macos-native.yml` run after `signingIdentity: "-"` |
+| Runner image | `macos-*-arm64` |
 | Architecture | **arm64 only** (not universal; not x86_64) |
-| `.app` | `Worship Songbook.app` (~8.4 MB on runner) |
-| `.dmg` | `Worship Songbook_0.1.0_aarch64.dmg` (~3.9 MB) |
+| `.app` | `Worship Songbook.app` |
+| `.dmg` | `Worship Songbook_0.1.0_aarch64.dmg` |
 | Binary | `Contents/MacOS/worship-songbook` — Mach-O 64-bit **arm64** |
 
-Local server copy (not in git): `/var/www/songbook/backups/macos-artifacts-run-33370068659/`
+Local diagnosis report (not in git): `/var/www/songbook/backups/macos-artifacts-run-33431737495/macos-gatekeeper-diagnosis.txt`

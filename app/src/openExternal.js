@@ -12,7 +12,15 @@ export async function openExternal(url) {
       return
     } catch (error) {
       console.warn('[openExternal] opener unavailable:', error?.message || error)
+      if (String(url).startsWith('mailto:')) {
+        window.location.href = url
+        return
+      }
     }
+  }
+  if (String(url).startsWith('mailto:')) {
+    window.location.href = url
+    return
   }
   window.open(url, '_blank', 'noopener,noreferrer')
 }

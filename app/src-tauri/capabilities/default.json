@@ -33,7 +33,9 @@
         { "url": "https://github.com" },
         { "url": "https://github.com/**" },
         { "url": "https://www.instagram.com" },
-        { "url": "https://www.instagram.com/**" }
+        { "url": "https://www.instagram.com/**" },
+        { "url": "mailto:support@lyruma.studio" },
+        { "url": "mailto:info@lyruma.studio" }
       ]
     }
   ]
