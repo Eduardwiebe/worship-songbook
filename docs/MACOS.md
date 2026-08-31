@@ -169,3 +169,17 @@ Until a human has smoke-tested the unsigned `.app`/`.dmg` on a real Mac:
 
 - Do **not** claim “macOS app works”
 - Claim only: **unsigned CI artifact built on a macOS runner** (when the workflow succeeded)
+
+### Latest successful CI (reference)
+
+| | |
+|--|--|
+| Run | [33370068659](https://github.com/Eduardwiebe/worship-songbook/actions/runs/33370068659) |
+| Commit | `8dd7de8` |
+| Runner image | `macos-26-arm64` |
+| Architecture | **arm64 only** (not universal; not x86_64) |
+| `.app` | `Worship Songbook.app` (~8.4 MB on runner) |
+| `.dmg` | `Worship Songbook_0.1.0_aarch64.dmg` (~3.9 MB) |
+| Binary | `Contents/MacOS/worship-songbook` — Mach-O 64-bit **arm64** |
+
+Local server copy (not in git): `/var/www/songbook/backups/macos-artifacts-run-33370068659/`
