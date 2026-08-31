@@ -19,8 +19,25 @@ export function compareVersions(a, b) {
 /**
  * Phase-1 update check: read GitHub Releases metadata only.
  * Does not download or install. Safe without updater signatures.
+ *
+ * On iOS / Android: returns status `storeManaged` — store / TestFlight owns updates.
+ * Do not copy the desktop GitHub Releases flow onto mobile.
  */
-export async function checkForUpdates({ currentVersion = APP_VERSION, fetchImpl = fetch } = {}) {
+export async function checkForUpdates({
+  currentVersion = APP_VERSION,
+  fetchImpl = fetch,
+  platform = 'desktop',
+} = {}) {
+  if (platform === 'ios' || platform === 'android' || platform === 'mobile') {
+    return {
+      status: 'storeManaged',
+      currentVersion,
+      latestVersion: currentVersion,
+      releaseUrl: URL_GITHUB_RELEASES,
+      note: 'store_managed',
+    }
+  }
+
   const response = await fetchImpl(GITHUB_API_LATEST_RELEASE, {
     headers: { Accept: 'application/vnd.github+json' },
   })

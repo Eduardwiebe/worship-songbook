@@ -5,6 +5,7 @@ import { AuthorizedImg } from './AuthorizedMedia'
 import { useI18n } from './i18n'
 import { useTheme } from './theme.jsx'
 import { checkForUpdates } from './updateCheck'
+import { isLikelyIosNative, isLikelyMobileNative } from './nativePlatform'
 import { AboutDialog, UpdateDialog } from './AboutDialogs'
 import { APP_VERSION } from './appMeta'
 
@@ -233,13 +234,16 @@ export default function SettingsPage({ user, onUser, onLogout, onRestartOnboardi
                 setUpdateResult(undefined)
                 setUpdateOpen(true)
                 try {
-                  setUpdateResult(await checkForUpdates())
+                  const platform = isLikelyIosNative()
+                    ? 'ios'
+                    : (isLikelyMobileNative() ? 'mobile' : 'desktop')
+                  setUpdateResult(await checkForUpdates({ platform }))
                 } catch (error) {
                   setUpdateResult({ status: 'error', message: error?.message || String(error) })
                 }
               }}
             >
-              <RefreshCw size={16}/>{t('updates.title')}
+              <RefreshCw size={16}/>{isLikelyIosNative() ? t('updates.iosStoreManaged') : t('updates.title')}
             </button>
             <button type="button" className="settings-secondary" onClick={() => setAboutOpen(true)}>
               {t('about.title')} · {APP_VERSION}

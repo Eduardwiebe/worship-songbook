@@ -12,7 +12,9 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "tauri:build:windows": "tauri build --bundles nsis,msi",
-    "tauri:build:macos": "tauri build --bundles app,dmg"
+    "tauri:build:macos": "tauri build --bundles app,dmg",
+    "tauri:ios:init": "tauri ios init",
+    "tauri:ios:build:sim": "tauri ios build --debug --target aarch64-sim"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

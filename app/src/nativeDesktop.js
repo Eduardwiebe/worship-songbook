@@ -1,4 +1,5 @@
 import { isNativeRuntime } from './apiConfig'
+import { isLikelyMobileNative } from './nativePlatform'
 import { openExternal } from './openExternal'
 import {
   APP_NAME,
@@ -21,6 +22,8 @@ import { checkForUpdates } from './updateCheck'
  */
 export async function installNativeDesktopChrome({ t, locale, onAbout, onSettings, onUpdateResult }) {
   if (!isNativeRuntime()) return () => {}
+  // iPhone / iPad / Android: no desktop menu bar — do not force macOS menu logic.
+  if (isLikelyMobileNative()) return () => {}
 
   const {
     Menu,

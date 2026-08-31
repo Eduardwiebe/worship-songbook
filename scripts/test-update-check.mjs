@@ -33,4 +33,14 @@ const none = await checkForUpdates({
 })
 assert.equal(none.status, 'upToDate')
 
+const ios = await checkForUpdates({
+  currentVersion: '0.1.2',
+  platform: 'ios',
+  fetchImpl: async () => {
+    throw new Error('should not fetch on ios')
+  },
+})
+assert.equal(ios.status, 'storeManaged')
+assert.equal(ios.currentVersion, '0.1.2')
+
 console.log('updateCheck tests: ok')

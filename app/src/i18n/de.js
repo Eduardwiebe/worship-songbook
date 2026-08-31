@@ -616,6 +616,8 @@ export default {
     available: "Version {version} ist verfügbar.",
     phaseNote: "Automatischer Download/Installation folgt später mit sicherer Release-Signierung.",
     openRelease: "Release-Seite öffnen",
+    iosStoreHint: "Öffentliche iOS-Updates kommen später über App Store / TestFlight. Diese Desktop-Prüfung gilt nicht für die iPhone-App.",
+    iosStoreManaged: "Auf dem iPhone laufen Aktualisierungen über den App Store oder TestFlight — nicht über die Desktop-Release-Prüfung.",
   },
   backToSongbook: "Zurück zum Songbook",
   header: {

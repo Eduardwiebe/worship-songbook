@@ -417,6 +417,7 @@ h1 {
   gap: 12px;
   min-height: 52px;
   padding: 10px 16px;
+  padding-top: max(10px, env(safe-area-inset-top));
   border-bottom: 1px solid #dce3ea;
   background: rgba(255,255,255,.96);
   backdrop-filter: blur(10px);
@@ -473,6 +474,9 @@ body:has(.onboarding-dismiss-bar) .onboarding-shell {
     gap: 12px;
     min-height: 56px;
     padding: 8px 12px 8px 14px;
+    padding-top: max(8px, env(safe-area-inset-top));
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
     border-bottom: 1px solid #dce3ea;
     background: #f8fafc;
   }
@@ -594,7 +598,7 @@ body:has(.onboarding-dismiss-bar) .onboarding-shell {
   }
 
   .content {
-    padding-top: 72px;
+    padding-top: calc(72px + env(safe-area-inset-top, 0px));
   }
 
   .quick-actions {
@@ -614,11 +618,11 @@ body:has(.onboarding-dismiss-bar) .onboarding-shell {
 @media (max-width: 700px) {
   .app-shell {
     display: block;
-    padding-bottom: 80px;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   }
 
   .content {
-    padding: 72px 16px 35px;
+    padding: calc(72px + env(safe-area-inset-top, 0px)) 16px 35px;
   }
 
   .topbar {
@@ -651,9 +655,9 @@ body:has(.onboarding-dismiss-bar) .onboarding-shell {
   .mobile-nav {
     position: fixed;
     z-index: 20;
-    left: 10px;
-    right: 10px;
-    bottom: 10px;
+    left: max(10px, env(safe-area-inset-left));
+    right: max(10px, env(safe-area-inset-right));
+    bottom: max(10px, env(safe-area-inset-bottom));
     display: grid;
     grid-template-columns: repeat(5,1fr);
     align-items: center;

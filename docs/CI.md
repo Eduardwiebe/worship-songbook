@@ -9,8 +9,8 @@ No secrets are stored in the repository. Native signing remains optional and und
 | `ci-web.yml` | `ubuntu-latest` | Frontend build / server syntax checks |
 | `windows-native.yml` | `windows-latest` | Tauri NSIS + MSI (unsigned smoke); see `docs/WINDOWS.md` |
 | `macos-native.yml` | `macos-latest` | Tauri `.app` + `.dmg` (unsigned smoke); see `docs/MACOS.md` |
+| `ios-native.yml` | `macos-latest` (+ Xcode) | Tauri iOS **Simulator** build (unsigned); see `docs/IOS.md` |
 | `android.yml` | `ubuntu-latest` (+ Android SDK) | Debug APK/AAB later (not active) |
-| `ios.yml` | `macos-latest` (+ Xcode) | Archive later (not active) |
 
 Native workflows use `workflow_dispatch` (and optional `windows-v*` / `macos-v*` tags). They do not auto-run on every push.
 

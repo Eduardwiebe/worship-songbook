@@ -85,13 +85,14 @@ Creates a temporary user, exercises login/refresh/logout/expiry/Bearer API acces
 
 ## Desktop / mobile readiness
 
-See `docs/CI.md`, `docs/WINDOWS.md`, and `docs/MACOS.md`.
+See `docs/CI.md`, `docs/WINDOWS.md`, `docs/MACOS.md`, and `docs/IOS.md`.
 
 | Platform | Workflow | Status |
 |----------|----------|--------|
 | Windows | `.github/workflows/windows-native.yml` | Unsigned CI artifact (device smoke may still be open) |
 | macOS | `.github/workflows/macos-native.yml` | Unsigned CI artifact when runner succeeds |
-| Android / iOS | — | Not in this phase |
+| iOS | `.github/workflows/ios-native.yml` | Simulator CI (see `docs/IOS.md`); device test open |
+| Android | — | Not in this phase |
 
 Still needed for production native apps:
 

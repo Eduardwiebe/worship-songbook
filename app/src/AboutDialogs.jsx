@@ -51,6 +51,7 @@ export function UpdateDialog({ result, onClose }) {
   const error = result?.status === 'error'
   const available = result?.status === 'updateAvailable'
   const upToDate = result?.status === 'upToDate'
+  const storeManaged = result?.status === 'storeManaged'
 
   return (
     <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
@@ -58,13 +59,19 @@ export function UpdateDialog({ result, onClose }) {
         <div className="modal-header">
           <div>
             <p className="eyebrow">{APP_NAME}</p>
-            <h2>{t('updates.title')}</h2>
+            <h2>{storeManaged ? t('updates.iosStoreManaged') : t('updates.title')}</h2>
           </div>
           <button type="button" className="icon-button" onClick={onClose} aria-label={t('updates.close')}>×</button>
         </div>
         <div className="about-body">
           {checking && <p>{t('updates.checking')}</p>}
           {error && <p className="auth-error">{result.message || t('updates.error')}</p>}
+          {storeManaged && (
+            <>
+              <p>{t('updates.iosStoreHint')}</p>
+              <p>{t('updates.current', { version: result.currentVersion || APP_VERSION })}</p>
+            </>
+          )}
           {upToDate && (
             <>
               <p>{t('updates.upToDate')}</p>

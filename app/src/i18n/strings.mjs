@@ -145,6 +145,8 @@ export const STRINGS = {
   'updates.close': { de: 'Schließen', en: 'Close' },
   'updates.error': { de: 'Aktualisierungen konnten nicht geprüft werden.', en: 'Could not check for updates.' },
   'updates.phaseNote': { de: 'Automatischer Download/Installation folgt später mit sicherer Release-Signierung.', en: 'Automatic download/install comes later with secure release signing.' },
+  'updates.iosStoreManaged': { de: 'Auf dem iPhone laufen Aktualisierungen über den App Store oder TestFlight — nicht über die Desktop-Release-Prüfung.', en: 'On iPhone, updates come from the App Store or TestFlight — not via the desktop release check.' },
+  'updates.iosStoreHint': { de: 'Öffentliche iOS-Updates kommen später über App Store / TestFlight. Diese Desktop-Prüfung gilt nicht für die iPhone-App.', en: 'Public iOS updates will come via App Store / TestFlight later. This desktop check does not apply to the iPhone app.' },
 
   'footer.supportTitle': { de: 'Worship Songbook unterstützen', en: 'Support Worship Songbook' },
   'footer.supportText': { de: 'Der Code bleibt frei und Open Source. Deine freiwillige Unterstützung hilft bei Betrieb, Weiterentwicklung und kommenden Updates.', en: 'The code stays free and open source. Voluntary support helps with hosting, development, and future updates.' },

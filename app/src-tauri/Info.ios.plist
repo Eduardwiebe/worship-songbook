@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>NSCameraUsageDescription</key>
+    <string>Worship Songbook uses the camera only when you scan sheet music pages into a PDF.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Worship Songbook needs photo access so you can set a profile picture or import images for song scans.</string>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>Worship Songbook may save exported images to your photo library when you choose to export.</string>
+  </dict>
+</plist>
