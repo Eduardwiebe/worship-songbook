@@ -85,10 +85,16 @@ Creates a temporary user, exercises login/refresh/logout/expiry/Bearer API acces
 
 ## Desktop / mobile readiness
 
-See `docs/CI.md` and `docs/WINDOWS.md`. Windows builds use `.github/workflows/windows-native.yml` (`workflow_dispatch`).
+See `docs/CI.md`, `docs/WINDOWS.md`, and `docs/MACOS.md`.
 
-Still needed for real native apps:
+| Platform | Workflow | Status |
+|----------|----------|--------|
+| Windows | `.github/workflows/windows-native.yml` | Unsigned CI artifact (device smoke may still be open) |
+| macOS | `.github/workflows/macos-native.yml` | Unsigned CI artifact when runner succeeds |
+| Android / iOS | — | Not in this phase |
 
-- Platform `tauri build` on Windows / macOS / Android / iOS runners
-- Signing secrets (never in git)
+Still needed for production native apps:
+
+- Device smoke-tests per platform
+- Signing / notarization secrets (never in git)
 - End-to-end login smoke inside each WebView against production API

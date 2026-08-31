@@ -1,18 +1,18 @@
 # CI/CD plan (GitHub Actions)
 
-Status for v0.1.0: **workflow stubs only**. No secrets are stored in the repository. No public push is required to use these files locally.
+No secrets are stored in the repository. Native signing remains optional and undocumented credentials must never be committed.
 
-## Planned workflows
+## Workflows
 
 | Workflow | Runner | Purpose |
 |----------|--------|---------|
-| `web.yml` | `ubuntu-latest` | `npm ci`, `npm run build`, `node --check server.mjs` |
+| `ci-web.yml` | `ubuntu-latest` | Frontend build / server syntax checks |
 | `windows-native.yml` | `windows-latest` | Tauri NSIS + MSI (unsigned smoke); see `docs/WINDOWS.md` |
-| `desktop-macos.yml` | `macos-latest` | Tauri build (unsigned or signed later) |
-| `android.yml` | `ubuntu-latest` (+ Android SDK) | Debug APK/AAB later |
-| `ios.yml` | `macos-latest` (+ Xcode) | Archive later |
+| `macos-native.yml` | `macos-latest` | Tauri `.app` + `.dmg` (unsigned smoke); see `docs/MACOS.md` |
+| `android.yml` | `ubuntu-latest` (+ Android SDK) | Debug APK/AAB later (not active) |
+| `ios.yml` | `macos-latest` (+ Xcode) | Archive later (not active) |
 
-Stub file: `.github/workflows/ci-web.yml` (safe, no secrets).
+Native workflows use `workflow_dispatch` (and optional `windows-v*` / `macos-v*` tags). They do not auto-run on every push.
 
 ## Secrets required later (do not commit values)
 

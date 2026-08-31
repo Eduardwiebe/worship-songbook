@@ -1,0 +1,80 @@
+name: macOS Native
+
+# Builds unsigned macOS .app + .dmg via Tauri 2.
+# Does not run automatically on every push — use workflow_dispatch after an approved push.
+# Signing / notarization are intentionally omitted (see docs/MACOS.md).
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'macos-v*'
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Record runner architecture
+        run: |
+          echo "uname -m: $(uname -m)"
+          echo "uname -a: $(uname -a)"
+          sw_vers || true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri -> target
+
+      - name: Install frontend dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Build Tauri macOS bundles (app + dmg)
+        working-directory: app
+        # Unsigned development / smoke build. No Apple signing or notarization.
+        run: npm run tauri build -- --bundles app,dmg
+        env:
+          VITE_API_BASE: https://songbook.lyruma.app
+
+      - name: Summarize macOS artifacts
+        run: |
+          set -euo pipefail
+          echo "=== bundle tree ==="
+          find app/src-tauri/target/release/bundle -maxdepth 3 \( -name '*.app' -o -name '*.dmg' \) -print 2>/dev/null || true
+          echo "=== sizes ==="
+          find app/src-tauri/target/release/bundle -maxdepth 3 \( -name '*.app' -o -name '*.dmg' \) -exec du -sh {} \; 2>/dev/null || true
+          echo "=== mach-o arch (if lipo available) ==="
+          BIN=$(find app/src-tauri/target/release/bundle/macos -type f -path '*.app/Contents/MacOS/*' ! -name '.*' 2>/dev/null | head -1 || true)
+          if [ -n "${BIN}" ]; then
+            echo "binary=$BIN"
+            file "$BIN" || true
+            lipo -info "$BIN" 2>/dev/null || true
+          else
+            echo "No MacOS binary found for lipo probe"
+          fi
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Worship-Songbook-macOS
+          if-no-files-found: error
+          path: |
+            app/src-tauri/target/release/bundle/macos/*.app
+            app/src-tauri/target/release/bundle/dmg/*.dmg
