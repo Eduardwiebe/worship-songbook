@@ -175,40 +175,48 @@ Status marker when build + static tests green: `WORSHIP_SONGBOOK_IOS_VIEWPORT_KE
 
 ## Scan / OCR pipeline (iOS)
 
+Full write-up: **`docs/SCAN_OCR.md`**.
+
 ```
-Camera / file → POST /api/scans → scan_to_pdf.py → song PDF
-→ POST /api/songs/:id/analyze-chords → pdftotext and/or Tesseract OCR
+VisionKit (iOS) / file input (fallback)
+  → POST /api/scans → scan_to_pdf.py (full-frame PDF)
+  → POST /api/songs/:id/analyze-chords
+  → RapidOCR structured tokens → leadsheetReconstruct.mjs
 ```
 
-| Step | iPhone-specific |
-|------|-----------------|
-| Capture | `prepareScanPages()` upscales JPEG to ≥2000px before upload |
-| PDF build | `scan_to_pdf.py` EXIF transpose, autocontrast, min 2400px, sharpen |
-| Analysis | Multi-PSM Tesseract @ 400 DPI; best candidate via `leadsheetAnalysis.mjs` |
-| Quality | `needsReview: true` when score low / no chords detected — editor shows warning |
+| Step | Implementation |
+|------|----------------|
+| Capture | **VisionKit** `VNDocumentCameraViewController` via Tauri `document-scanner` plugin; HTML camera/gallery fallback |
+| PDF build | `scan_to_pdf.py` EXIF transpose, light autocontrast, upscale if needed — **no crop** |
+| Analysis | RapidOCR (PaddleOCR ONNX, CPU) with bbox/confidence; geometric chord placement |
+| Quality | `needsReview` when confidence/structure low — original still shown |
+| Original view | iOS uses page JPEGs from `GET /api/songs/:id/pages` (full width, no clip) |
 
-Desktop PDF import with text layer skips OCR; camera scans always OCR.
+Desktop PDF import with text layer may skip OCR; book scans always use structured OCR.
 
 ## Original PDF on iOS
 
-**Symptom:** “Original-PDF” tab opened but stayed white after scan.
+**Earlier symptom:** blank PDF tab (blob/`iframe`).
 
-**Root cause:** WKWebView does not reliably render PDFs in `<iframe src="blob:…">`; blob MIME was often `application/octet-stream`.
+**Device symptom (2026-09):** only part of the photographed page visible.
 
-**Fix:** `authorizedObjectUrl(..., { mimeHint: 'application/pdf' })` + `<embed type="application/pdf">` on iOS native (`AuthorizedMedia.jsx`).
+**Causes:** WKWebView PDF embed unreliability; CSP `object-src 'none'`; fixed-height sheet; regular camera photos without document crop.
+
+**Fix:** VisionKit corrected pages + page-image original viewer + CSP `object-src 'self' blob:` + full-frame `scan_to_pdf.py`.
 
 ## Device retest checklist (Eduard)
 
-1. Fresh install development build on iPhone 17 Pro Max.
+1. Fresh install development build on iPhone (Mac build with VisionKit plugin).
 2. Login → Home: no horizontal overflow, no pinch-zoom needed.
 3. Hamburger menu: fully visible, compact, close button reachable.
-4. Team → Mitglied hinzufügen, Bands → Band anlegen, Sets → Set anlegen: modals fit viewport; keyboard does not hide primary actions.
-5. Scan book page → verify Original-PDF tab shows scanned page.
-6. Edit key tab: lyrics readable; if quality warning shown, manual correction expected.
-7. Transpose/save in another key.
-8. Repeat spot-check on iPad portrait + landscape.
+4. Team / Bands / Sets modals: keyboard cycle does not corrupt viewport.
+5. **Scan:** Add → Buch scannen → VisionKit document camera → verify edge crop/perspective.
+6. **Original** tab: full page visible (not cropped/white).
+7. **Bearbeiten** tab: readable lyrics + valid chords with positions; transpose/save.
+8. If quality warning: confirm original still usable and text is best-effort.
+9. Repeat spot-check on iPad portrait + landscape.
 
-Status marker when CI + local build green: `WORSHIP_SONGBOOK_IOS_RESPONSIVE_SCAN_EDITOR_STABILIZATION_READY_FOR_DEVICE_RETEST`
+Status marker: `WORSHIP_SONGBOOK_NATIVE_DOCUMENT_SCANNER_AND_LEADSHEET_RECOGNITION_READY_FOR_DEVICE_RETEST`
 
 
 | | Simulator | Physical iPhone |

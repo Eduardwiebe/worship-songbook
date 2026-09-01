@@ -9,21 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- **Central modal lock + viewport restore** (`app/src/modalLock.js`, `ModalBackdrop.jsx`): overflow-only body lock (no `position:fixed`), blur + `visualViewport` restore after keyboard/modal dismiss; debug harness via `localStorage songbook-viewport-debug=1`.
-- **`useAvoidMobileAutoFocus`**: skips `autoFocus` on iOS native / mobile viewports.
-- Test: `scripts/test-modal-lock.mjs`.
+- **iOS VisionKit document scanner** (`app/src-tauri/plugins/document-scanner`): native page detect/crop/perspective via `VNDocumentCameraViewController`; HTML camera remains fallback.
+- **Structured leadsheet OCR** (`ocr_structured.py` + RapidOCR/PaddleOCR-ONNX CPU): tokens with bbox/confidence/line_index; `lib/leadsheetReconstruct.mjs` geometric chord placement, music-junk filter, syllable join.
+- **Original page images API** `GET /api/songs/:id/pages` for reliable iOS original view.
+- **Central modal lock + viewport restore** (`modalLock.js`, `ModalBackdrop.jsx`) for iOS keyboard cycles.
+- Docs: `docs/SCAN_OCR.md`. Tests: `scripts/test-leadsheet-reconstruct.mjs`, `scripts/benchmark-leadsheet-ocr.mjs`, `scripts/test-modal-lock.mjs`.
 
 ### Fixed
 
+- **iOS original page only partially visible:** PDF embed/CSP/fixed height; now full-width page JPEGs + full-frame `scan_to_pdf.py` (no crop/over-sharpen).
 - **iOS viewport corruption after modal + keyboard:** WKWebView stayed zoomed/shifted after closing Set/Band/Team dialogs. Causes: inherited `<16px` input font (auto-zoom), `autoFocus`, inconsistent scroll lock, modal `dvh` sizing. Fixed via central modal lifecycle, 16px form-control typography, viewport restore passes.
 - **iPhone/iPad horizontal overflow (root cause):** `.song-tile-row` forced `minmax(420px)` carousel columns; app shell lacked `min-width: 0`; hero background used `transform: scale`. Prior `overflow-x: clip` masked symptoms — replaced with real layout containment in `mobile-layout.css`.
 - **Original PDF blank on iOS**: WKWebView failed to render PDF blob URLs in `<iframe>`; native iOS now uses `<embed type="application/pdf">` with forced `application/pdf` blob MIME (`AuthorizedMedia.jsx`, `apiConfig.js`).
-- **Scan OCR quality**: iPhone JPEGs were often low-resolution; now upscaled client-side and server-side (`scan_to_pdf.py` min 2400px + sharpen). Server runs multi-PSM Tesseract at 400 DPI and picks best candidate; poor results surface `needsReview` warning in editor.
+- **Scan OCR quality**: replaced flat Tesseract-only path for scans with structured RapidOCR reconstruction (legacy Tesseract kept as fallback).
 
 ### Changed
 
-- `scan_to_pdf.py`: min width 1800→2400px, sharpen/contrast pass, PDF optimize=false.
-- `server.mjs`: unified `analyzeSongPdf()` with shared leadsheet analysis; force OCR path for `Gescannter Import` scans.
+- `scan_to_pdf.py`: preserve full frame; lighter correction (removed aggressive sharpen chain).
+- Analyze-chords returns engine/confidence metadata for scans.
+- Tauri CSP: `object-src 'self' blob:` so PDF embed can load when needed.
 
 - Tauri HTTP plugin (scoped to production API) and opener plugin for system-browser links.
 - Authorized media helpers for native Bearer-protected images/PDFs.

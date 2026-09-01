@@ -36,6 +36,7 @@ pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_http::init())
     .plugin(tauri_plugin_opener::init())
+    .plugin(tauri_plugin_document_scanner::init())
     .invoke_handler(tauri::generate_handler![secure_set, secure_get, secure_delete])
     .setup(|app| {
       if cfg!(debug_assertions) {

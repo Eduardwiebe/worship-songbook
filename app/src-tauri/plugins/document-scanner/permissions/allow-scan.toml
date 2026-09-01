@@ -1,0 +1,6 @@
+# Automatically generated - Also create allow permissions via build
+
+[[permission]]
+identifier = "allow-scan"
+description = "Enables the scan command."
+commands.allow = ["scan"]

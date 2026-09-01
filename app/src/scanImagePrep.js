@@ -1,9 +1,10 @@
 /**
  * Normalize camera/gallery images before upload — preserve resolution, fix orientation.
+ * VisionKit pages are already perspective-corrected; avoid unnecessary recompression.
  */
 
 const MIN_WIDTH = 2000
-const JPEG_QUALITY = 0.92
+const JPEG_QUALITY = 0.95
 
 function loadImageFromFile(file) {
   return new Promise((resolve, reject) => {
@@ -37,6 +38,12 @@ export async function prepareScanPageFile(file, index = 0) {
   try {
     const img = await loadImageFromFile(file)
     let { width, height } = img
+
+    // Already high-res JPEG from VisionKit — keep original bytes.
+    if (file.type === 'image/jpeg' && width >= MIN_WIDTH && file.name?.startsWith('visionkit-')) {
+      return file
+    }
+
     if (width < MIN_WIDTH) {
       const ratio = MIN_WIDTH / width
       width = MIN_WIDTH

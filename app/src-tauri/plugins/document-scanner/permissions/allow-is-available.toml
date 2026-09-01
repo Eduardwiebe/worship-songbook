@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-is-available"
+description = "Enables the is_available command."
+commands.allow = ["is_available"]

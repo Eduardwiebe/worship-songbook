@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { authorizedObjectUrl, isNativeRuntime, toApiPath } from './apiConfig'
+import { authorizedObjectUrl, isNativeRuntime, toApiPath, apiFetch } from './apiConfig'
 import { isLikelyIosNative } from './nativePlatform'
 
 /**
@@ -46,6 +46,76 @@ export function AuthorizedImg({ path, alt = '', className, ...rest }) {
   return <img src={src} alt={alt} className={className} {...rest} />
 }
 
+/**
+ * iOS WKWebView: render PDF pages as full-width images (no crop).
+ * Avoids incomplete PDF embed/iframe rendering.
+ */
+export function OriginalPagesViewer({ songId, title, className }) {
+  const [pages, setPages] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    async function load() {
+      if (!songId) {
+        setPages([])
+        setLoading(false)
+        return
+      }
+      setLoading(true)
+      setError('')
+      try {
+        const response = await apiFetch(`/api/songs/${songId}/pages`)
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(data.error || 'Seiten konnten nicht geladen werden.')
+        if (active) {
+          setPages(data.pages || [])
+          setLoading(false)
+        }
+      } catch (caught) {
+        if (active) {
+          setError(caught?.message || 'Seiten konnten nicht geladen werden.')
+          setLoading(false)
+        }
+      }
+    }
+    load()
+    return () => { active = false }
+  }, [songId])
+
+  if (loading) {
+    return (
+      <div className={`pdf-media-loading original-pages${className ? ` ${className}` : ''}`}>
+        <strong>{title || 'Original'}</strong>
+        <span>Lädt …</span>
+      </div>
+    )
+  }
+  if (error) {
+    return (
+      <div className={`pdf-media-error original-pages${className ? ` ${className}` : ''}`}>
+        <strong>{title || 'Original'}</strong>
+        <span>{error}</span>
+      </div>
+    )
+  }
+  if (!pages.length) return null
+
+  return (
+    <div className={`original-pages${className ? ` ${className}` : ''}`}>
+      {pages.map((page, index) => (
+        <img
+          key={index}
+          src={page.dataUrl}
+          alt={`${title || 'Seite'} ${index + 1}`}
+          className="original-page-image"
+        />
+      ))}
+    </div>
+  )
+}
+
 function PdfNativeViewer({ src, title, className }) {
   const ios = isLikelyIosNative()
   if (ios) {
@@ -64,8 +134,15 @@ function PdfNativeViewer({ src, title, className }) {
 /**
  * Protected PDFs/charts — blob URL on native, direct URL on web.
  * iOS WKWebView often fails to render PDFs inside iframes; embed is used there.
+ * For song originals on iOS, prefer OriginalPagesViewer (full page images).
  */
-export function AuthorizedFrame({ path, title, className, hash = '' }) {
+export function AuthorizedFrame({ path, title, className, hash = '', songId = '', preferPageImages = false }) {
+  const usePages = preferPageImages && songId && isLikelyIosNative()
+
+  if (usePages) {
+    return <OriginalPagesViewer songId={songId} title={title} className={className} />
+  }
+
   const [src, setSrc] = useState(() => {
     if (!path) return ''
     if (isNativeRuntime()) return ''

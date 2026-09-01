@@ -3,7 +3,7 @@
 <plist version="1.0">
   <dict>
     <key>NSCameraUsageDescription</key>
-    <string>Worship Songbook uses the camera only when you scan sheet music pages into a PDF.</string>
+    <string>Worship Songbook uses the camera to scan sheet-music pages with the document scanner (edge detection and perspective correction).</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Worship Songbook needs photo access so you can set a profile picture or import images for song scans.</string>
     <key>NSPhotoLibraryAddUsageDescription</key>

@@ -8,6 +8,7 @@
     "allow-secure-set",
     "allow-secure-get",
     "allow-secure-delete",
+    "document-scanner:default",
     {
       "identifier": "http:default",
       "allow": [

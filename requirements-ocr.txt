@@ -1,0 +1,13 @@
+# Self-hosted OCR for Worship Songbook leadsheet recognition (CPU).
+# Install:
+#   python3 -m venv /var/www/songbook/.venv-ocr
+#   /var/www/songbook/.venv-ocr/bin/pip install -r requirements-ocr.txt
+#
+# Engine: RapidOCR (PaddleOCR detection/recognition models via ONNX Runtime).
+# Full PaddlePaddle+PaddleOCR was evaluated but is heavier; RapidOCR uses the
+# same PP-OCR models with acceptable CPU latency (~1s/page on 8-core).
+
+rapidocr-onnxruntime==1.4.4
+pillow>=10
+numpy>=1.24
+onnxruntime>=1.16

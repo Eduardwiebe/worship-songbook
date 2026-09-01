@@ -17,7 +17,11 @@ import {
   scoreLeadsheetQuality,
   shouldRunOcr,
 } from './lib/leadsheetAnalysis.mjs'
+import { reconstructFromFlatText, reconstructLeadsheet } from './lib/leadsheetReconstruct.mjs'
 const execFileAsync=promisify(execFile)
+
+const OCR_PYTHON = process.env.SONGBOOK_OCR_PYTHON || '/var/www/songbook/.venv-ocr/bin/python'
+const OCR_SCRIPT = '/var/www/songbook/ocr_structured.py'
 
 const root = '/var/www/songbook/data'
 await mkdir(`${root}/pdfs`, {recursive: true})
@@ -183,7 +187,7 @@ async function extractPdfText(pdfPath) {
   }
 }
 
-async function ocrPdfPages(pdfPath) {
+async function ocrPdfPagesLegacy(pdfPath) {
   const dir = await mkdtemp(join(tmpdir(), 'songbook-ocr-'))
   try {
     await execFileAsync('/usr/bin/pdftoppm', ['-png', '-r', '400', pdfPath, join(dir, 'page')], { maxBuffer: 10 * 1024 * 1024 })
@@ -192,9 +196,9 @@ async function ocrPdfPages(pdfPath) {
     for (const page of pages) {
       const pagePath = join(dir, page)
       const configs = [
-        ['-l', 'deu+eng', '--psm', '4', 'preserve_interword_spaces=1'],
-        ['-l', 'deu+eng', '--psm', '6', 'preserve_interword_spaces=1'],
-        ['-l', 'eng', '--psm', '4', 'preserve_interword_spaces=1'],
+        ['-l', 'deu+eng', '--psm', '4', '-c', 'preserve_interword_spaces=1'],
+        ['-l', 'deu+eng', '--psm', '6', '-c', 'preserve_interword_spaces=1'],
+        ['-l', 'eng', '--psm', '4', '-c', 'preserve_interword_spaces=1'],
       ]
       for (const cfg of configs) {
         try {
@@ -216,17 +220,81 @@ async function ocrPdfPages(pdfPath) {
   }
 }
 
-async function analyzeSongPdf(pdfPath, { forceScan = false } = {}) {
+async function structuredOcrFromPdf(pdfPath) {
+  const dir = await mkdtemp(join(tmpdir(), 'songbook-ocr-struct-'))
+  try {
+    await execFileAsync('/usr/bin/pdftoppm', ['-png', '-r', '300', pdfPath, join(dir, 'page')], { maxBuffer: 20 * 1024 * 1024 })
+    const pages = (await readdir(dir)).filter((name) => name.endsWith('.png')).sort()
+    if (!pages.length) return null
+    const args = [OCR_SCRIPT, ...pages.map((name) => join(dir, name))]
+    const result = await execFileAsync(OCR_PYTHON, args, {
+      maxBuffer: 40 * 1024 * 1024,
+      timeout: 180000,
+      env: { ...process.env, SONGBOOK_OCR_PYTHON: OCR_PYTHON },
+    })
+    return JSON.parse(result.stdout)
+  } catch (error) {
+    console.error('structured OCR failed:', error?.message || error)
+    return null
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+}
+
+async function analyzeSongPdf(pdfPath, { forceScan = false, titleHint = '' } = {}) {
   const pdfText = await extractPdfText(pdfPath)
   const pdfQuality = scoreLeadsheetQuality(pdfText)
-  const candidates = [{ text: pdfText, method: 'PDF-Text' }]
+  const candidates = []
 
-  if (shouldRunOcr(pdfText, { forceScan })) {
-    const ocr = await ocrPdfPages(pdfPath)
-    if (ocr.text) candidates.push({ text: ocr.text, method: ocr.method || 'OCR' })
+  if (pdfText && !forceScan) {
+    candidates.push({ text: pdfText, method: 'PDF-Text', quality: pdfQuality })
   }
 
-  const best = pickBestTextCandidate(candidates)
+  let structured = null
+  let reconstructed = null
+
+  if (shouldRunOcr(pdfText, { forceScan }) || forceScan) {
+    structured = await structuredOcrFromPdf(pdfPath)
+    if (structured?.pages?.length) {
+      reconstructed = reconstructLeadsheet(structured, { titleHint })
+      if (reconstructed.text) {
+        candidates.push({
+          text: reconstructed.text,
+          method: `Structured/${structured.engine}`,
+          quality: reconstructed.quality,
+        })
+      }
+    }
+
+    const structuredScore = reconstructed?.quality?.score ?? 0
+    if (!reconstructed?.text || structuredScore < 45) {
+      const legacy = await ocrPdfPagesLegacy(pdfPath)
+      if (legacy?.text) {
+        const flat = reconstructFromFlatText(legacy.text)
+        candidates.push({
+          text: flat.text,
+          method: `Legacy/${legacy.method || 'OCR'}`,
+          quality: flat.quality,
+        })
+      }
+    }
+  }
+
+  if (!candidates.length && pdfText) {
+    candidates.push({ text: pdfText, method: 'PDF-Text', quality: pdfQuality })
+  }
+
+  const best = pickBestTextCandidate(candidates.map((c) => ({ text: c.text, method: c.method })))
+  // Prefer structured reconstruction when its score is within 5 points of best (geometry wins ties)
+  if (reconstructed?.text) {
+    const structuredScore = reconstructed.quality?.score ?? 0
+    if (structuredScore >= (best.quality?.score ?? 0) - 5) {
+      best.text = reconstructed.text
+      best.method = `Structured/${structured?.engine || 'ocr'}`
+      best.quality = reconstructed.quality
+    }
+  }
+
   const text = best.text
   const quality = best.quality || scoreLeadsheetQuality(text)
   const chordLines = text.split('\n').filter(isChordLine)
@@ -239,6 +307,9 @@ async function analyzeSongPdf(pdfPath, { forceScan = false } = {}) {
     quality,
     needsReview: quality.needsReview,
     pdfTextQuality: pdfQuality.score,
+    engine: structured?.engine || null,
+    avgConfidence: reconstructed?.avgConfidence ?? quality.avgConfidence ?? null,
+    elapsedMs: structured?.elapsed_ms ?? null,
   }
 }
 const auth=createAuth(db,json)
@@ -960,7 +1031,25 @@ http.createServer(async (req,res) => { try {
   if(req.method==='GET'&&pdfMatch){const row=db.prepare('SELECT pdf_path,file_name FROM songs WHERE id=?').get(pdfMatch[1]);if(!row)return json(res,404,{error:'Nicht gefunden'});const data=await readFile(row.pdf_path);res.writeHead(200,{'content-type':'application/pdf','content-disposition':`inline; filename*=UTF-8''${encodeURIComponent(row.file_name)}`});return res.end(data)}
   const analyzeMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/analyze-chords$/)
   if(req.method==='POST'&&analyzeMatch){const saved=db.prepare('SELECT content FROM song_variants WHERE song_id=? AND source_key=target_key ORDER BY created_at DESC LIMIT 1').get(analyzeMatch[1]);if(saved?.content){const chordLines=saved.content.split('\n').filter(isChordLine);const quality=scoreLeadsheetQuality(saved.content);return json(res,200,{text:saved.content,method:'Kontrollierte Fassung',chordCount:chordLines.reduce((sum,line)=>sum+chordTokens(line).length,0),chordLines:chordLines.length,quality,needsReview:quality.needsReview})}}
-  if(req.method==='POST'&&analyzeMatch){const row=db.prepare('SELECT pdf_path,artist FROM songs WHERE id=?').get(analyzeMatch[1]);if(!row)return json(res,404,{error:'Song nicht gefunden'});const result=await analyzeSongPdf(row.pdf_path,{forceScan:row.artist==='Gescannter Import'});if(!result.text)return json(res,422,{error:'Aus dieser PDF konnte kein Text erkannt werden.'});return json(res,200,result)}
+  if(req.method==='POST'&&analyzeMatch){const row=db.prepare('SELECT pdf_path,artist,title FROM songs WHERE id=?').get(analyzeMatch[1]);if(!row)return json(res,404,{error:'Song nicht gefunden'});const result=await analyzeSongPdf(row.pdf_path,{forceScan:row.artist==='Gescannter Import',titleHint:row.title||''});if(!result.text)return json(res,422,{error:'Aus dieser PDF konnte kein Text erkannt werden.'});return json(res,200,result)}
+  const pagesMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/pages$/)
+  if(req.method==='GET'&&pagesMatch){
+    const row=db.prepare('SELECT pdf_path FROM songs WHERE id=?').get(pagesMatch[1])
+    if(!row)return json(res,404,{error:'Nicht gefunden'})
+    const dir=await mkdtemp(join(tmpdir(),'songbook-pages-'))
+    try{
+      await execFileAsync('/usr/bin/pdftoppm',['-jpeg','-r','144',row.pdf_path,join(dir,'page')],{maxBuffer:30*1024*1024,timeout:60000})
+      const files=(await readdir(dir)).filter(name=>name.endsWith('.jpg')||name.endsWith('.jpeg')).sort()
+      const pages=[]
+      for(const file of files){
+        const data=await readFile(join(dir,file))
+        pages.push({mime:'image/jpeg',dataUrl:`data:image/jpeg;base64,${data.toString('base64')}`})
+      }
+      return json(res,200,{pages})
+    }finally{
+      await rm(dir,{recursive:true,force:true})
+    }
+  }
   const variantMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/variants$/)
   if(req.method==='POST'&&variantMatch){const b=await bodyJson(req);if(pitchMap[b.sourceKey]===undefined||pitchMap[b.targetKey]===undefined)return json(res,400,{error:'Ungültige Tonart'});const content=transposeText(b.text,b.sourceKey,b.targetKey);db.prepare('INSERT INTO song_variants (song_id,target_key,source_key,content,created_at) VALUES (?,?,?,?,?) ON CONFLICT(song_id,target_key) DO UPDATE SET source_key=excluded.source_key,content=excluded.content,created_at=excluded.created_at').run(variantMatch[1],b.targetKey,b.sourceKey,content,new Date().toISOString());db.prepare('UPDATE songs SET source_key=?,preferred_key=?,song_key=? WHERE id=?').run(b.sourceKey,b.targetKey,b.targetKey,variantMatch[1]);return json(res,201,{targetKey:b.targetKey,sourceKey:b.sourceKey,content})}
   if(req.method==='GET'&&variantMatch){const rows=db.prepare('SELECT target_key AS targetKey,source_key AS sourceKey,created_at AS createdAt FROM song_variants WHERE song_id=? ORDER BY created_at DESC').all(variantMatch[1]);return json(res,200,rows)}
