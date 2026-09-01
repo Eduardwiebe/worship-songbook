@@ -104,9 +104,78 @@ PDF / file import continues to use the HTML file input → iOS Files / document 
 
 ## Safe areas
 
-`viewport-fit=cover` + `env(safe-area-inset-*)` on mobile top bar, bottom nav, and content padding.
+`viewport-fit=cover` + `env(safe-area-inset-*)` on mobile top bar, bottom nav, content padding, and modal sheets.
 
-## Simulator vs device
+`app/src/mobile-layout.css` (imported in `main.jsx`) adds:
+
+| Area | Fix |
+|------|-----|
+| Top bar / content | Safe-area padding at `max-width: 1024px` (covers iPhone + iPad portrait) |
+| Bottom nav | Hidden when modal open (`body:has(.modal-backdrop)`) |
+| Drawer | `min(300px, 100vw - 40px)`, compact typography |
+| Modals / forms | Full-width sheet, `max-height: 100dvh`, scrollable body |
+| Inputs | `font-size: max(16px, 1em)` — prevents iOS focus zoom |
+
+## Responsive overflow (device test 2026-09-01)
+
+**Symptom:** Many screens appeared zoomed/cropped on iPhone 17 Pro Max and iPad; horizontal scroll, oversized hamburger drawer.
+
+**Root cause:**
+
+1. Tablet widths (768–1024px) used desktop `.content` padding (`38px 44px`) without mobile overrides.
+2. Missing `-webkit-text-size-adjust: 100%` allowed WebKit to inflate text.
+3. Modals/drawer used desktop `min()` widths without viewport caps.
+4. Inputs `<16px` triggered iOS automatic focus zoom.
+
+**Fix:** `mobile-layout.css` + viewport meta `interactive-widget=resizes-content`.
+
+Verify on device:
+
+```javascript
+document.documentElement.scrollWidth <= document.documentElement.clientWidth
+```
+
+on Home, Bands, Team, Sets, drawer, and form modals.
+
+## Scan / OCR pipeline
+
+All platforms use the same backend path:
+
+```
+Camera / file → POST /api/scans → scan_to_pdf.py → song PDF
+→ POST /api/songs/:id/analyze-chords → pdftotext and/or Tesseract OCR
+```
+
+| Step | iPhone-specific |
+|------|-----------------|
+| Capture | `prepareScanPages()` upscales JPEG to ≥2000px before upload |
+| PDF build | `scan_to_pdf.py` EXIF transpose, autocontrast, min 2400px, sharpen |
+| Analysis | Multi-PSM Tesseract @ 400 DPI; best candidate via `leadsheetAnalysis.mjs` |
+| Quality | `needsReview: true` when score low / no chords detected — editor shows warning |
+
+Desktop PDF import with text layer skips OCR; camera scans always OCR.
+
+## Original PDF on iOS
+
+**Symptom:** “Original-PDF” tab opened but stayed white after scan.
+
+**Root cause:** WKWebView does not reliably render PDFs in `<iframe src="blob:…">`; blob MIME was often `application/octet-stream`.
+
+**Fix:** `authorizedObjectUrl(..., { mimeHint: 'application/pdf' })` + `<embed type="application/pdf">` on iOS native (`AuthorizedMedia.jsx`).
+
+## Device retest checklist (Eduard)
+
+1. Fresh install development build on iPhone 17 Pro Max.
+2. Login → Home: no horizontal overflow, no pinch-zoom needed.
+3. Hamburger menu: fully visible, compact, close button reachable.
+4. Team → Mitglied hinzufügen, Bands → Band anlegen, Sets → Set anlegen: modals fit viewport; keyboard does not hide primary actions.
+5. Scan book page → verify Original-PDF tab shows scanned page.
+6. Edit key tab: lyrics readable; if quality warning shown, manual correction expected.
+7. Transpose/save in another key.
+8. Repeat spot-check on iPad portrait + landscape.
+
+Status marker when CI + local build green: `WORSHIP_SONGBOOK_IOS_RESPONSIVE_SCAN_EDITOR_STABILIZATION_READY_FOR_DEVICE_RETEST`
+
 
 | | Simulator | Physical iPhone |
 |--|-----------|-----------------|

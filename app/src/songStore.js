@@ -1,5 +1,6 @@
 import { apiFetch, apiUrl, authorizedObjectUrl, isNativeRuntime } from './apiConfig'
 import { tStatic } from './i18n'
+import { prepareScanPages } from './scanImagePrep'
 
 export async function getImportedSongs() {
   const response = await apiFetch('/api/songs')
@@ -20,8 +21,14 @@ export async function saveImportedSongs(items) {
 }
 
 export async function saveScannedSong(title, pages) {
-  const form=new FormData();form.set('title',title);pages.forEach((page,index)=>form.append('pages',page.file,`scan-${index+1}.jpg`))
-  const response=await apiFetch('/api/scans',{method:'POST',body:form});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||tStatic('err.songsScan'));return data
+  const prepared = await prepareScanPages(pages.map((page) => page.file))
+  const form = new FormData()
+  form.set('title', title)
+  prepared.forEach((file, index) => form.append('pages', file, `scan-${index + 1}.jpg`))
+  const response = await apiFetch('/api/scans', { method: 'POST', body: form })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(data.error || tStatic('err.songsScan'))
+  return data
 }
 
 export async function openSongPdf(song) {

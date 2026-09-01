@@ -420,6 +420,7 @@ export default {
     startCajon: "Start soft Cajón beat",
     versionKey: "Version {key}",
     originalPdf: "Original PDF",
+    qualityWarn: "Automatic recognition is uncertain. Please review title, lyrics, and chords manually — see the Original PDF tab for reference.",
     saveChanges: "Save changes",
     editableHint: "Automatically extracted, editable version",
     notInLibrary: "This song is no longer in the library.",

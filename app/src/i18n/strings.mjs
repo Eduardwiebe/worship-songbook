@@ -284,6 +284,10 @@ export const STRINGS = {
   'songs.savedInKey': { de: 'Fassung in {key} gespeichert', en: 'Version saved in {key}' },
   'songs.copiedClipboard': { de: 'In die Zwischenablage kopiert', en: 'Copied to clipboard' },
   'songs.saveEdited': { de: 'Bearbeitete Fassung in {key} speichern', en: 'Save edited version in {key}' },
+  'songs.qualityWarn': {
+    de: 'Die automatische Erkennung ist unsicher. Bitte prüfe Titel, Text und Akkorde manuell — das Original findest du im Tab „Original-PDF“.',
+    en: 'Automatic recognition is uncertain. Please review title, lyrics, and chords manually — see the Original PDF tab for reference.',
+  },
 
   'import.title': { de: 'Neue Songs', en: 'New songs' },
   'import.subtitle': { de: 'Mehrere PDFs importieren', en: 'Import multiple PDFs' },

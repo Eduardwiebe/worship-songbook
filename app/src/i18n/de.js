@@ -420,6 +420,7 @@ export default {
     startCajon: "Sanften Cajón-Takt starten",
     versionKey: "Fassung {key}",
     originalPdf: "Original-PDF",
+    qualityWarn: "Die automatische Erkennung ist unsicher. Bitte prüfe Titel, Text und Akkorde manuell — das Original findest du im Tab „Original-PDF“.",
     saveChanges: "Änderungen speichern",
     editableHint: "Automatisch ausgelesene, bearbeitbare Fassung",
     notInLibrary: "Dieser Song ist nicht mehr in der Bibliothek.",

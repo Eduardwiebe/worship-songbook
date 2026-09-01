@@ -9,7 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Windows native build preparation: GitHub Actions `windows-native.yml` (NSIS + MSI, unsigned).
+- **iOS/iPad responsive layout** (`app/src/mobile-layout.css`): overflow clipping, safe-area padding for modals/drawer/bottom nav, 16px minimum input font-size (prevents iOS focus zoom), mobile editor/PDF heights.
+- **Scan image prep** (`app/src/scanImagePrep.js`): upscale camera photos to ≥2000px width before upload.
+- **Leadsheet quality gate** (`lib/leadsheetAnalysis.mjs`): shared chord/lyric scoring, OCR candidate selection, `needsReview` flag in analyze-chords API.
+- Tests: `scripts/test-leadsheet-quality.mjs`, `scripts/test-mobile-layout.mjs`.
+
+### Fixed
+
+- **Horizontal overflow on iPhone/iPad**: root cause was missing tablet breakpoint padding (768–1024px still used desktop `.content` gutters), WebKit text-size-adjust, and modals/drawer wider than viewport; fixed via `mobile-layout.css` + `interactive-widget=resizes-content`.
+- **Original PDF blank on iOS**: WKWebView failed to render PDF blob URLs in `<iframe>`; native iOS now uses `<embed type="application/pdf">` with forced `application/pdf` blob MIME (`AuthorizedMedia.jsx`, `apiConfig.js`).
+- **Scan OCR quality**: iPhone JPEGs were often low-resolution; now upscaled client-side and server-side (`scan_to_pdf.py` min 2400px + sharpen). Server runs multi-PSM Tesseract at 400 DPI and picks best candidate; poor results surface `needsReview` warning in editor.
+
+### Changed
+
+- `scan_to_pdf.py`: min width 1800→2400px, sharpen/contrast pass, PDF optimize=false.
+- `server.mjs`: unified `analyzeSongPdf()` with shared leadsheet analysis; force OCR path for `Gescannter Import` scans.
+
 - Tauri HTTP plugin (scoped to production API) and opener plugin for system-browser links.
 - Authorized media helpers for native Bearer-protected images/PDFs.
 - Docs: `docs/WINDOWS.md` (runner steps, smoke checklist, signing secrets).

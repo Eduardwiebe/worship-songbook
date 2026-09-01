@@ -142,14 +142,18 @@ export async function apiFetch(path, options = {}) {
 }
 
 /** Fetch authenticated binary/media and return a blob: URL (native) or plain API URL (web). */
-export async function authorizedObjectUrl(pathOrUrl) {
+export async function authorizedObjectUrl(pathOrUrl, { mimeHint } = {}) {
   const path = toApiPath(pathOrUrl)
   if (!path) return ''
   if (!isNativeRuntime()) return apiUrl(path)
 
   const response = await apiFetch(path)
   if (!response.ok) throw new Error('Medium konnte nicht geladen werden.')
-  const blob = await response.blob()
+  let blob = await response.blob()
+  const hinted = mimeHint || (/\/pdf(?:\?|$)/i.test(path) ? 'application/pdf' : '')
+  if (hinted && (!blob.type || blob.type === 'application/octet-stream')) {
+    blob = new Blob([blob], { type: hinted })
+  }
   return URL.createObjectURL(blob)
 }
 
