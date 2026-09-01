@@ -1,22 +1,28 @@
 #!/usr/bin/env node
 /**
- * Smoke test for horizontal overflow CSS guards.
+ * Static checks for responsive layout root-cause fixes.
  */
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const css = readFileSync(join(root, 'app/src/mobile-layout.css'), 'utf8')
+const mobileCss = readFileSync(join(root, 'app/src/mobile-layout.css'), 'utf8')
+const appCss = readFileSync(join(root, 'app/src/App.css'), 'utf8')
+const extraCss = readFileSync(join(root, 'app/src/extra.css'), 'utf8')
 const html = readFileSync(join(root, 'app/index.html'), 'utf8')
 
 const checks = [
-  ['mobile-layout has text-size-adjust', /text-size-adjust:\s*100%/.test(css)],
-  ['mobile-layout clips overflow-x', /overflow-x:\s*clip/.test(css)],
-  ['mobile-layout has safe-area modal padding', /env\(safe-area-inset-top/.test(css)],
-  ['mobile-layout hides nav when modal open', /body:has\(\.modal-backdrop\)\s*\.mobile-nav/.test(css)],
-  ['index.html viewport-fit=cover', /viewport-fit=cover/.test(html)],
-  ['index.html interactive-widget', /interactive-widget=resizes-content/.test(html)],
+  ['viewport initial-scale=1', /initial-scale=1(?:\.0)?/.test(html) && !/initial-scale=0/.test(html)],
+  ['no interactive-widget override', !/interactive-widget/.test(html)],
+  ['app-shell min-width 0', /\.app-shell\s*\{[^}]*min-width:\s*0/.test(appCss)],
+  ['content min-width 0', /\.content\s*\{[^}]*min-width:\s*0/.test(appCss)],
+  ['carousel width containment', /song-tile-row[^}]*max-width:\s*100%/.test(mobileCss)],
+  ['no 420px song tile min', !/song-tile-row[^}]*420px/.test(extraCss)],
+  ['no hero scale hack', !/hero-background[^}]*scale\(/.test(extraCss)],
+  ['no overflow-x clip mask', !/overflow-x:\s*clip/.test(mobileCss)],
+  ['mobile modal width 100%', /@media \(max-width: 767px\)[\s\S]*\.modal[^}]*width:\s*100%/.test(mobileCss)],
+  ['text-size-adjust 100%', /text-size-adjust:\s*100%/.test(mobileCss)],
 ]
 
 let failed = 0

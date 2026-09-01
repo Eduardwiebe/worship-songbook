@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
-- **Horizontal overflow on iPhone/iPad**: root cause was missing tablet breakpoint padding (768–1024px still used desktop `.content` gutters), WebKit text-size-adjust, and modals/drawer wider than viewport; fixed via `mobile-layout.css` + `interactive-widget=resizes-content`.
+- **iPhone/iPad horizontal overflow (root cause):** `.song-tile-row` forced `minmax(420px)` carousel columns; app shell lacked `min-width: 0`; hero background used `transform: scale`. Prior `overflow-x: clip` masked symptoms — replaced with real layout containment in `mobile-layout.css`.
 - **Original PDF blank on iOS**: WKWebView failed to render PDF blob URLs in `<iframe>`; native iOS now uses `<embed type="application/pdf">` with forced `application/pdf` blob MIME (`AuthorizedMedia.jsx`, `apiConfig.js`).
 - **Scan OCR quality**: iPhone JPEGs were often low-resolution; now upscaled client-side and server-side (`scan_to_pdf.py` min 2400px + sharpen). Server runs multi-PSM Tesseract at 400 DPI and picks best candidate; poor results surface `needsReview` warning in editor.
 

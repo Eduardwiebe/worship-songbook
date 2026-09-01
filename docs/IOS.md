@@ -118,26 +118,25 @@ PDF / file import continues to use the HTML file input → iOS Files / document 
 
 ## Responsive overflow (device test 2026-09-01)
 
-**Symptom:** Many screens appeared zoomed/cropped on iPhone 17 Pro Max and iPad; horizontal scroll, oversized hamburger drawer.
+**Symptom:** Pages wider than iPhone viewport; user had to pinch-zoom out.
 
-**Root cause:**
+**Root causes (verified via Playwright overflow audit):**
 
-1. Tablet widths (768–1024px) used desktop `.content` padding (`38px 44px`) without mobile overrides.
-2. Missing `-webkit-text-size-adjust: 100%` allowed WebKit to inflate text.
-3. Modals/drawer used desktop `min()` widths without viewport caps.
-4. Inputs `<16px` triggered iOS automatic focus zoom.
+| Element | Rule | Cause |
+|---------|------|--------|
+| `.song-tile-row` | `grid-auto-columns: minmax(420px, 1fr)` | Carousel grid forced 420px-wide columns; without `min-width: 0` on ancestors the grid expanded `document.scrollWidth` beyond the viewport |
+| `.song-tile-row`, `.set-poster-row` | horizontal grid + `overflow-x: auto` | Missing `width/max-width: 100%; min-width: 0` — scroll container grew with content instead of clipping internally |
+| `.app-shell`, `.content` | no `min-width: 0` | Flex/grid default `min-width: auto` propagated child minimum sizes upward |
+| `.home-hero > .hero-background` | `width: calc(100% + 60px); transform: scale(1.08)` | Decorative scale extended past hero bounds (removed) |
+| Prior fix | `overflow-x: clip` on `html/body` | Masked symptom only — removed |
 
-**Fix:** `mobile-layout.css` + viewport meta `interactive-widget=resizes-content`.
+**Fix:** `app/src/mobile-layout.css` — shell chain `min-width: 0`, carousel containment, breakpoint strategy (mobile `<768`, tablet `<1200`, desktop `≥1200`), modal viewport sizing. `extra.css` — 420px tile min removed, hero scale removed.
 
-Verify on device:
+**Automated test:** `node scripts/test-overflow-playwright.mjs` (after `npm run build`, Playwright in `app/`).
 
-```javascript
-document.documentElement.scrollWidth <= document.documentElement.clientWidth
-```
+**Device retest:** On each main page run `document.documentElement.scrollWidth <= document.documentElement.clientWidth`.
 
-on Home, Bands, Team, Sets, drawer, and form modals.
-
-## Scan / OCR pipeline
+## Safe areas
 
 All platforms use the same backend path:
 

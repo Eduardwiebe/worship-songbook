@@ -12,7 +12,7 @@
 
 body {
   margin: 0;
-  min-width: 320px;
+  min-width: 0;
   min-height: 100vh;
   background:
     radial-gradient(circle at top right, rgba(44, 91, 153, 0.18), transparent 35%),
@@ -30,6 +30,9 @@ button {
 
 .app-shell {
   min-height: 100vh;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
   display: grid;
   grid-template-columns: 260px 1fr;
 }
@@ -126,6 +129,7 @@ button {
 .content {
   width: 100%;
   max-width: 1500px;
+  min-width: 0;
   margin: 0 auto;
   padding: 38px 44px 70px;
 }

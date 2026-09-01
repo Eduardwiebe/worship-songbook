@@ -1,60 +1,102 @@
 /**
- * Mobile / tablet layout fixes (iPhone, iPad, narrow WebView).
- * Prevents horizontal overflow, oversized drawer, and modal clipping.
+ * Responsive layout — fixes horizontal overflow at the source.
+ *
+ * Breakpoints:
+ *   mobile  < 768px
+ *   tablet  768px – 1199px
+ *   desktop >= 1200px
+ *
+ * Do not use transform/zoom/scale hacks. Carousels scroll inside their box.
  */
 
 html {
+  width: 100%;
+  max-width: 100%;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
-  overflow-x: clip;
 }
 
 body {
-  overflow-x: clip;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+#root,
+.app-shell,
+.content,
+main,
+.panel,
+.home-section,
+.modal-backdrop {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.app-shell {
+  width: 100%;
+}
+
+.content {
+  width: 100%;
+}
+
+/* Horizontal carousels must not expand the page width (grid min-width trap). */
+.song-tile-row,
+.set-poster-row {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.panel,
+.settings-panel,
+.settings-card,
+.band-current,
+.band-card,
+.member-card,
+.set-card,
+.modal,
+.modal-wide,
+.transpose-modal,
+.scan-modal {
   max-width: 100%;
 }
 
-#root {
-  overflow-x: clip;
-  max-width: 100%;
+.topbar,
+.panel-header,
+.home-section-head,
+.band-current,
+.modal-header {
+  min-width: 0;
 }
 
-img,
-video,
-iframe,
-embed,
-object,
-canvas,
-svg {
-  max-width: 100%;
+.topbar > *,
+.panel-header > *,
+.home-section-head > * {
+  min-width: 0;
 }
 
-@media (max-width: 1024px) {
+/* ── Tablet (< 1200px) ───────────────────────────────────────────── */
+@media (max-width: 1199px) {
   .content {
-    width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
-    padding-left: max(16px, env(safe-area-inset-left, 0px));
-    padding-right: max(16px, env(safe-area-inset-right, 0px));
-  }
-
-  .panel,
-  .settings-panel,
-  .settings-card,
-  .song-editor-surface,
-  .modal,
-  .modal-wide,
-  .transpose-modal,
-  .scan-modal {
-    max-width: 100%;
-    box-sizing: border-box;
+    padding-left: max(20px, env(safe-area-inset-left, 0px));
+    padding-right: max(20px, env(safe-area-inset-right, 0px));
   }
 
   .planner-grid,
   .band-access-grid,
   .briefing-grid,
-  .dialog-columns {
+  .dialog-columns,
+  .band-editor-fields {
     grid-template-columns: 1fr;
+  }
+
+  .team-grid,
+  .band-grid,
+  .set-library {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
   }
 
   .planned-song {
@@ -65,6 +107,65 @@ svg {
   .leader-select,
   .set-song-options {
     grid-column: 1 / -1;
+  }
+
+  body:has(.modal-backdrop) .mobile-nav {
+    display: none;
+  }
+}
+
+/* ── Mobile (< 768px) ────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .content {
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  .team-grid,
+  .band-grid,
+  .set-library {
+    grid-template-columns: 1fr;
+  }
+
+  .song-tile-row {
+    grid-auto-columns: min(100%, 360px);
+  }
+
+  .set-poster-row {
+    grid-auto-columns: min(100%, 220px);
+  }
+
+  .band-current {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .personal-button {
+    width: 100%;
+  }
+
+  .timeline-item {
+    grid-template-columns: 72px 14px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .timeline-item .icon-button,
+  .timeline-item > button:last-child {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+
+  .join-request-list article {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .join-request-list article button {
+    width: 100%;
+  }
+
+  .responsibility-options {
+    grid-template-columns: 1fr;
   }
 
   .footer-main,
@@ -80,16 +181,20 @@ svg {
   .donation-card > a {
     grid-column: 1 / -1;
     justify-content: center;
+    white-space: normal;
+    text-align: center;
   }
 
-  /* Modals: full-width sheet, scrollable, keyboard-safe */
+  /* Modals: fit viewport, scroll vertically, no horizontal bleed */
   .modal-backdrop {
+    display: flex;
     align-items: flex-end;
+    justify-content: center;
     padding:
       max(8px, env(safe-area-inset-top, 0px))
-      max(8px, env(safe-area-inset-right, 0px))
+      max(16px, env(safe-area-inset-left, 0px))
       max(8px, env(safe-area-inset-bottom, 0px))
-      max(8px, env(safe-area-inset-left, 0px));
+      max(16px, env(safe-area-inset-right, 0px));
   }
 
   .modal,
@@ -99,17 +204,44 @@ svg {
     width: 100%;
     max-width: 100%;
     max-height: min(
-      calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px),
-      100%
+      90dvh,
+      calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px)
     );
     overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    padding: 20px 16px;
     border-radius: 20px 20px 12px 12px;
   }
 
+  .modal-header {
+    gap: 12px;
+  }
+
   .modal-header h2 {
-    font-size: clamp(18px, 4.8vw, 24px);
+    font-size: clamp(18px, 5vw, 24px);
+    overflow-wrap: anywhere;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .modal-actions .cancel-button,
+  .modal-actions .add-button,
+  .modal-actions .add-button.compact {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .field > div,
+  .field input,
+  .field select,
+  .field textarea,
+  .member-form-head .field input {
+    width: 100%;
+    min-width: 0;
   }
 
   .member-form-head {
@@ -117,159 +249,9 @@ svg {
     align-items: stretch;
   }
 
-  .photo-picker {
-    width: 88px;
-    height: 88px;
-  }
-
-  /* Drawer: compact, never wider than viewport */
-  .nav-drawer {
-    width: min(300px, calc(100vw - 40px));
-    max-width: calc(100vw - 40px);
-    padding-top: max(16px, env(safe-area-inset-top, 0px));
-    padding-bottom: max(20px, env(safe-area-inset-bottom, 0px));
-    padding-left: max(14px, env(safe-area-inset-left, 0px));
-  }
-
-  .nav-drawer .brand {
-    padding: 0;
-  }
-
-  .nav-drawer .brand-mark {
-    width: 34px;
-    height: 34px;
-    font-size: 16px;
-    border-radius: 11px;
-  }
-
-  .nav-drawer .brand strong {
-    font-size: 15px;
-  }
-
-  .nav-drawer .brand span {
-    font-size: 10px;
-    letter-spacing: 0.08em;
-  }
-
-  .nav-drawer .nav-item,
-  .nav-drawer .add-button,
-  .nav-drawer .band-switch {
-    font-size: 14px;
-    padding: 11px 12px;
-  }
-
-  /* Bottom nav vs modals / keyboard */
-  body:has(.modal-backdrop) .mobile-nav,
-  body:has(.run-mode) .mobile-nav {
-    display: none;
-  }
-
-  /* Prevent iOS focus zoom (16px minimum) */
   input,
   select,
   textarea {
     font-size: max(16px, 1em);
   }
-
-  /* Song editor mobile */
-  .song-editor-page {
-    min-height: auto;
-    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
-  }
-
-  .home-song-editor .song-editor-surface {
-    margin: 0;
-    border-radius: 16px;
-  }
-
-  .editor-paper {
-    min-height: auto;
-    padding: 18px 14px 28px;
-  }
-
-  .original-pdf-sheet {
-    height: min(68dvh, calc(100dvh - 260px));
-    min-height: 220px;
-    max-width: 100%;
-    overflow: hidden;
-    border-radius: 12px;
-    background: #fff;
-  }
-
-  .original-pdf-sheet iframe,
-  .original-pdf-sheet embed,
-  .original-pdf-sheet object {
-    width: 100%;
-    height: 100%;
-    border: 0;
-    display: block;
-  }
-
-  .sheet-toolbar {
-    flex-wrap: wrap;
-    overflow-x: visible;
-    gap: 8px;
-    max-width: 100%;
-  }
-
-  .tool-group,
-  .sheet-toolbar label {
-    min-width: 0;
-  }
-
-  .editor-bottom-actions {
-    position: sticky;
-    bottom: 0;
-    z-index: 2;
-    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
-    background: linear-gradient(180deg, rgba(12, 25, 42, 0), rgba(12, 25, 42, 0.96) 24%);
-  }
-
-  .transpose-modal.modal-wide {
-    width: 100%;
-  }
-}
-
-@media (max-width: 700px) {
-  .join-request-list article {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
-  }
-
-  .join-request-list article button {
-    width: 100%;
-  }
-}
-
-.pdf-media-loading,
-.pdf-media-error {
-  display: grid;
-  place-items: center;
-  gap: 10px;
-  min-height: 180px;
-  padding: 20px;
-  color: #607289;
-  text-align: center;
-  background: #f3f6f8;
-  border-radius: 12px;
-}
-
-.pdf-media-error button {
-  border: 1px solid #cfd7df;
-  border-radius: 10px;
-  padding: 10px 14px;
-  color: #1c2837;
-  background: #fff;
-  font-weight: 700;
-}
-
-.analysis-quality-warn {
-  margin: 0 0 14px;
-  padding: 12px 14px;
-  border: 1px solid rgba(214, 180, 95, 0.45);
-  border-radius: 12px;
-  color: #6f5718;
-  background: rgba(241, 211, 141, 0.18);
-  font-size: 13px;
-  line-height: 1.45;
 }
