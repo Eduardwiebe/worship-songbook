@@ -1,6 +1,8 @@
 import { Music2 } from 'lucide-react'
 import { useI18n } from './i18n'
 import { openExternal } from './openExternal'
+import { ModalBackdrop } from './ModalBackdrop'
+import { dismissModal } from './modalLock'
 import {
   APP_NAME,
   APP_VERSION,
@@ -13,8 +15,9 @@ import {
 
 export function AboutDialog({ onClose }) {
   const { t } = useI18n()
+  const close = () => dismissModal(onClose)
   return (
-    <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <ModalBackdrop onClose={onClose}>
       <section className="modal about-modal">
         <div className="modal-header">
           <div className="about-brand">
@@ -24,7 +27,7 @@ export function AboutDialog({ onClose }) {
               <h2>{t('about.title')}</h2>
             </div>
           </div>
-          <button type="button" className="icon-button" onClick={onClose} aria-label={t('about.close')}>×</button>
+          <button type="button" className="icon-button" onClick={close} aria-label={t('about.close')}>×</button>
         </div>
         <div className="about-body">
           <p><Music2 size={16}/> {t('about.version', { version: APP_VERSION })}</p>
@@ -38,10 +41,10 @@ export function AboutDialog({ onClose }) {
           <p className="about-author">{APP_AUTHOR}</p>
         </div>
         <div className="modal-actions">
-          <button type="button" className="add-button compact" onClick={onClose}>{t('about.close')}</button>
+          <button type="button" className="add-button compact" onClick={close}>{t('about.close')}</button>
         </div>
       </section>
-    </div>
+    </ModalBackdrop>
   )
 }
 
@@ -52,16 +55,17 @@ export function UpdateDialog({ result, onClose }) {
   const available = result?.status === 'updateAvailable'
   const upToDate = result?.status === 'upToDate'
   const storeManaged = result?.status === 'storeManaged'
+  const close = () => dismissModal(onClose)
 
   return (
-    <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <ModalBackdrop onClose={onClose}>
       <section className="modal">
         <div className="modal-header">
           <div>
             <p className="eyebrow">{APP_NAME}</p>
             <h2>{storeManaged ? t('updates.iosStoreManaged') : t('updates.title')}</h2>
           </div>
-          <button type="button" className="icon-button" onClick={onClose} aria-label={t('updates.close')}>×</button>
+          <button type="button" className="icon-button" onClick={close} aria-label={t('updates.close')}>×</button>
         </div>
         <div className="about-body">
           {checking && <p>{t('updates.checking')}</p>}
@@ -92,9 +96,9 @@ export function UpdateDialog({ result, onClose }) {
               {t('updates.openRelease')}
             </button>
           )}
-          <button type="button" className="cancel-button" onClick={onClose}>{t('updates.close')}</button>
+          <button type="button" className="cancel-button" onClick={close}>{t('updates.close')}</button>
         </div>
       </section>
-    </div>
+    </ModalBackdrop>
   )
 }

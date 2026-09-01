@@ -2,7 +2,7 @@
 /**
  * Static checks for responsive layout root-cause fixes.
  */
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -23,6 +23,8 @@ const checks = [
   ['no overflow-x clip mask', !/overflow-x:\s*clip/.test(mobileCss)],
   ['mobile modal width 100%', /@media \(max-width: 767px\)[\s\S]*\.modal[^}]*width:\s*100%/.test(mobileCss)],
   ['text-size-adjust 100%', /text-size-adjust:\s*100%/.test(mobileCss)],
+  ['form control 16px at tablet', /\.field input,[\s\S]*font-size:\s*16px/.test(mobileCss)],
+  ['modalLock module present', existsSync(join(root, 'app/src/modalLock.js'))],
 ]
 
 let failed = 0

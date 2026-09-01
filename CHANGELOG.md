@@ -9,13 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- **iOS/iPad responsive layout** (`app/src/mobile-layout.css`): overflow clipping, safe-area padding for modals/drawer/bottom nav, 16px minimum input font-size (prevents iOS focus zoom), mobile editor/PDF heights.
-- **Scan image prep** (`app/src/scanImagePrep.js`): upscale camera photos to ≥2000px width before upload.
-- **Leadsheet quality gate** (`lib/leadsheetAnalysis.mjs`): shared chord/lyric scoring, OCR candidate selection, `needsReview` flag in analyze-chords API.
-- Tests: `scripts/test-leadsheet-quality.mjs`, `scripts/test-mobile-layout.mjs`.
+- **Central modal lock + viewport restore** (`app/src/modalLock.js`, `ModalBackdrop.jsx`): overflow-only body lock (no `position:fixed`), blur + `visualViewport` restore after keyboard/modal dismiss; debug harness via `localStorage songbook-viewport-debug=1`.
+- **`useAvoidMobileAutoFocus`**: skips `autoFocus` on iOS native / mobile viewports.
+- Test: `scripts/test-modal-lock.mjs`.
 
 ### Fixed
 
+- **iOS viewport corruption after modal + keyboard:** WKWebView stayed zoomed/shifted after closing Set/Band/Team dialogs. Causes: inherited `<16px` input font (auto-zoom), `autoFocus`, inconsistent scroll lock, modal `dvh` sizing. Fixed via central modal lifecycle, 16px form-control typography, viewport restore passes.
 - **iPhone/iPad horizontal overflow (root cause):** `.song-tile-row` forced `minmax(420px)` carousel columns; app shell lacked `min-width: 0`; hero background used `transform: scale`. Prior `overflow-x: clip` masked symptoms — replaced with real layout containment in `mobile-layout.css`.
 - **Original PDF blank on iOS**: WKWebView failed to render PDF blob URLs in `<iframe>`; native iOS now uses `<embed type="application/pdf">` with forced `application/pdf` blob MIME (`AuthorizedMedia.jsx`, `apiConfig.js`).
 - **Scan OCR quality**: iPhone JPEGs were often low-resolution; now upscaled client-side and server-side (`scan_to_pdf.py` min 2400px + sharpen). Server runs multi-PSM Tesseract at 400 DPI and picks best candidate; poor results surface `needsReview` warning in editor.

@@ -112,6 +112,31 @@ main,
   body:has(.modal-backdrop) .mobile-nav {
     display: none;
   }
+
+  /* iOS auto-zoom threshold — form controls only, not all UI text */
+  .field input,
+  .field select,
+  .field textarea,
+  .band-editor .field input,
+  .band-editor .field textarea,
+  .briefing-grid textarea,
+  .briefing-grid select,
+  .band-join-row input,
+  .auth-card input,
+  .profile-grid input,
+  .home-search input,
+  .import-title input,
+  .import-main input,
+  .key-picker select,
+  .leader-select select,
+  .settings-row select,
+  .sheet-toolbar input[type="number"],
+  .scan-modal input[type="text"],
+  .dialog-columns input,
+  .dialog-columns select,
+  .dialog-columns textarea {
+    font-size: 16px;
+  }
 }
 
 /* ── Mobile (< 768px) ────────────────────────────────────────────── */
@@ -204,8 +229,8 @@ main,
     width: 100%;
     max-width: 100%;
     max-height: min(
-      90dvh,
-      calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px)
+      90vh,
+      calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px)
     );
     overflow-x: hidden;
     overflow-y: auto;
@@ -247,11 +272,5 @@ main,
   .member-form-head {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  input,
-  select,
-  textarea {
-    font-size: max(16px, 1em);
   }
 }

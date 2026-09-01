@@ -113,8 +113,45 @@ PDF / file import continues to use the HTML file input → iOS Files / document 
 | Top bar / content | Safe-area padding at `max-width: 1024px` (covers iPhone + iPad portrait) |
 | Bottom nav | Hidden when modal open (`body:has(.modal-backdrop)`) |
 | Drawer | `min(300px, 100vw - 40px)`, compact typography |
-| Modals / forms | Full-width sheet, `max-height: 100dvh`, scrollable body |
-| Inputs | `font-size: max(16px, 1em)` — prevents iOS focus zoom |
+| Modals / forms | Full-width sheet, `max-height: 90vh`, scrollable body |
+| Inputs | `font-size: 16px` on form controls at `<1200px` — prevents iOS focus auto-zoom |
+
+## Viewport / keyboard corruption after modals (device test 2026-09-01)
+
+**Symptom:** After opening a modal (Set/Band/Team), focusing an input, and closing the keyboard + modal, the underlying page stayed zoomed, shifted, or cropped with wrong effective viewport width. State persisted until manual pinch-zoom.
+
+**Root causes (code analysis; WKWebView-specific — Chromium Playwright does not reproduce):**
+
+| Factor | Detail |
+|--------|--------|
+| **iOS input auto-zoom** | `.field` labels use `font-size: 13px`; inputs inherit → effective `<16px` triggers WKWebView zoom on focus. Partial prior fix used `max(16px,1em)` blanket rule — replaced with explicit 16px on form controls only. |
+| **autoFocus on modals** | Team / Set / Band / Scan dialogs used `autoFocus` → keyboard opens immediately on mobile, amplifying zoom corruption. |
+| **No central modal lifecycle** | Inconsistent scroll lock (`body.style.overflow` in menu only); no blur or viewport restore after dismiss. |
+| **Modal `dvh` units** | `max-height: 100dvh` could desync when keyboard opens/closes — changed to `vh` on mobile sheets. |
+
+**Not involved:** No `body { position: fixed; top: -scrollY }` pattern found. No dynamic viewport meta or CSS/JS scale/zoom hacks.
+
+**Fix:**
+
+| File | Change |
+|------|--------|
+| `app/src/modalLock.js` | Central lock (overflow-only, no `position:fixed`), `dismissModal()`, `scheduleViewportRestore()` at 0/100/300/600ms, optional debug logging |
+| `app/src/ModalBackdrop.jsx` | Shared modal shell with lock on mount / unlock on unmount |
+| `app/src/useMobileFormFocus.js` | Skip `autoFocus` on mobile native / `≤767px` |
+| `app/src/mobile-layout.css` | 16px on all mobile form controls; modal `vh` sizing |
+| `app/src/App.jsx`, `AboutDialogs.jsx` | Modals migrated to `ModalBackdrop` + `dismissModal`; band editor blur/restore on close |
+
+**Debug on device:** In Web Inspector console:
+
+```js
+localStorage.setItem('songbook-viewport-debug', '1')
+```
+
+Reload, then open/close modals. Console logs `[viewport:…]` with `innerWidth`, `clientWidth`, `scrollWidth`, `visualViewport.scale`, `offsetLeft`, etc. at open, focus, blur, dismiss, and +100/+300/+600ms.
+
+**Device retest:** For each modal (Set anlegen, Band anlegen, Teammitglied hinzufügen): open → focus input → type → dismiss keyboard → close modal → verify `visualViewport.scale ≈ 1`, `offsetLeft ≈ 0`, `scrollWidth <= clientWidth`. Repeat open/close twice; no pinch-zoom needed.
+
+Status marker when build + static tests green: `WORSHIP_SONGBOOK_IOS_VIEWPORT_KEYBOARD_MODAL_STATE_FIXED_READY_FOR_DEVICE_RETEST`
 
 ## Responsive overflow (device test 2026-09-01)
 
@@ -136,9 +173,7 @@ PDF / file import continues to use the HTML file input → iOS Files / document 
 
 **Device retest:** On each main page run `document.documentElement.scrollWidth <= document.documentElement.clientWidth`.
 
-## Safe areas
-
-All platforms use the same backend path:
+## Scan / OCR pipeline (iOS)
 
 ```
 Camera / file → POST /api/scans → scan_to_pdf.py → song PDF

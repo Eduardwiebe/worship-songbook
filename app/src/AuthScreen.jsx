@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { Music2, LockKeyhole } from 'lucide-react'
 import { login, register, changePassword, logout } from './authStore'
 import { useI18n } from './i18n'
+import { useAvoidMobileAutoFocus } from './useMobileFormFocus'
 import { URL_LYRUMA_STUDIO } from './appMeta'
 
 export function AuthScreen({ onAuthenticated }) {
   const { t } = useI18n()
+  const avoidAutoFocus = useAvoidMobileAutoFocus()
   const [gate, setGate] = useState('choice') // choice | login | register
   const [values, setValues] = useState({ name: '', username: '', email: '', identifier: '', password: '' })
   const [error, setError] = useState('')
@@ -95,7 +97,7 @@ export function AuthScreen({ onAuthenticated }) {
                 </>
               )}
               {gate === 'login' && (
-                <label>{t('auth.identifier')}<input required autoComplete="username" autoFocus {...field('identifier')}/></label>
+                <label>{t('auth.identifier')}<input required autoComplete="username" autoFocus={!avoidAutoFocus} {...field('identifier')}/></label>
               )}
               <label>{t('auth.password')}<input required minLength="8" type="password" autoComplete={gate === 'login' ? 'current-password' : 'new-password'} {...field('password')}/></label>
               {error && <p className="auth-error">{error}</p>}
