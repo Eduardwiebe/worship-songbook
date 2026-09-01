@@ -80,3 +80,4 @@ PRIVATE*
 .venv-ocr/
 fixtures/leadsheet/*.png
 fixtures/leadsheet/benchmark-report.json
+fixtures/leadsheet/page-understanding-report.json

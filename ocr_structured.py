@@ -5,6 +5,10 @@ Structured OCR for leadsheet pages.
 Primary: RapidOCR (PaddleOCR det/rec models via ONNX, CPU).
 Fallback: Tesseract TSV (word boxes).
 
+OCR tokens are raw data only (text, bbox, confidence). Staff systems are
+detected geometrically from the page image so reconstruction can assign
+chord / notation / lyric zones without using RapidOCR reading order as song text.
+
 Output JSON (stdout):
 {
   "engine": "rapidocr"|"tesseract-tsv",
@@ -12,7 +16,8 @@ Output JSON (stdout):
     "page_index": 0,
     "width": 1200,
     "height": 1600,
-    "tokens": [{ "text", "bbox": [x0,y0,x1,y1], "confidence", "line_index" }]
+    "tokens": [{ "text", "bbox": [x0,y0,x1,y1], "confidence", "line_index" }],
+    "systems": [{ "index", "y0", "y1", "spacing", "score" }]
   }],
   "elapsed_ms": 123
 }
@@ -27,10 +32,14 @@ import sys
 import time
 from pathlib import Path
 
+import numpy as np
+from PIL import Image
+
 OCR_PYTHON = os.environ.get(
     "SONGBOOK_OCR_PYTHON",
     str(Path(__file__).resolve().parent / ".venv-ocr" / "bin" / "python"),
 )
+_RAPID_OCR = None
 
 
 def _bbox_from_poly(poly):
@@ -40,7 +49,11 @@ def _bbox_from_poly(poly):
 
 
 def _assign_line_indices(tokens):
-    """Cluster tokens into reading-order lines by vertical overlap."""
+    """Cluster tokens into reading-order lines by vertical overlap.
+
+    This index is diagnostic only. Reconstruction must not treat it as
+    the song reading order — parallel lyric tracks share similar Y values.
+    """
     if not tokens:
         return tokens
     ordered = sorted(tokens, key=lambda t: ((t["bbox"][1] + t["bbox"][3]) / 2, t["bbox"][0]))
@@ -66,14 +79,92 @@ def _assign_line_indices(tokens):
     return ordered
 
 
-def rapidocr_page(image_path: Path):
-    # Import inside worker to keep cold-start isolation
-    from PIL import Image
-    from rapidocr_onnxruntime import RapidOCR
+def detect_staff_systems(gray: np.ndarray) -> list[dict]:
+    """Find 5-line staves via horizontal ink projection + equal-spacing template.
 
-    image = Image.open(image_path)
+    Returns systems top-to-bottom: {index, y0, y1, spacing, score}.
+    Downstream reconstruction uses these to cut chord / notation / lyric zones.
+    """
+    if gray.ndim != 2:
+        raise ValueError("detect_staff_systems expects a grayscale array")
+
+    height, width = gray.shape
+    if height < 80 or width < 80:
+        return []
+
+    x0, x1 = int(width * 0.14), int(width * 0.92)
+    mid = gray[:, x0:x1]
+    ink = (mid < 185).astype(np.float32)
+    proj = ink.mean(axis=1)
+    proj = np.convolve(proj, np.ones(3) / 3.0, mode="same")
+
+    spacing_min = max(8, int(height * 0.004))
+    spacing_max = max(spacing_min + 1, int(height * 0.012))
+    candidates: list[tuple[float, int, int, int]] = []
+
+    for spacing in range(spacing_min, spacing_max + 1):
+        usable = height - 4 * spacing
+        if usable < 16:
+            continue
+        layers = np.stack([proj[i * spacing : i * spacing + usable] for i in range(5)])
+        between = np.stack(
+            [proj[i * spacing + spacing // 2 : i * spacing + spacing // 2 + usable] for i in range(4)]
+        )
+        vmin = layers.min(axis=0)
+        vmean = layers.mean(axis=0)
+        score = vmin * 0.4 + vmean * 0.6 - between.mean(axis=0)
+        peaks = np.where((score > 0.12) & (vmin > 0.08))[0]
+        if peaks.size == 0:
+            continue
+        for y in peaks.tolist():
+            if y > 0 and score[y] < score[y - 1]:
+                continue
+            if y + 1 < usable and score[y] < score[y + 1]:
+                continue
+            candidates.append((float(score[y]), int(y), int(y + 4 * spacing), int(spacing)))
+
+    candidates.sort(reverse=True)
+    picked: list[tuple[float, int, int, int]] = []
+    for item in candidates:
+        _sc, y0, y1, _spacing = item
+        if any(not (y1 < other[1] - 8 or y0 > other[2] + 8) for other in picked):
+            continue
+        picked.append(item)
+        if len(picked) >= 16:
+            break
+
+    picked.sort(key=lambda item: item[1])
+    return [
+        {
+            "index": index,
+            "y0": y0,
+            "y1": y1,
+            "spacing": spacing,
+            "score": round(score, 3),
+        }
+        for index, (score, y0, y1, spacing) in enumerate(picked)
+    ]
+
+
+def _page_arrays(image_path: Path):
+    image = Image.open(image_path).convert("RGB")
     width, height = image.size
-    ocr = RapidOCR()
+    gray = np.asarray(image.convert("L"), dtype=np.uint8)
+    return width, height, gray
+
+
+def _rapid_engine():
+    global _RAPID_OCR
+    if _RAPID_OCR is None:
+        from rapidocr_onnxruntime import RapidOCR
+
+        _RAPID_OCR = RapidOCR()
+    return _RAPID_OCR
+
+
+def rapidocr_page(image_path: Path):
+    width, height, gray = _page_arrays(image_path)
+    ocr = _rapid_engine()
     result, _elapse = ocr(str(image_path))
     tokens = []
     for row in result or []:
@@ -93,14 +184,12 @@ def rapidocr_page(image_path: Path):
         "width": width,
         "height": height,
         "tokens": tokens,
+        "systems": detect_staff_systems(gray),
     }
 
 
 def tesseract_tsv_page(image_path: Path):
-    from PIL import Image
-
-    image = Image.open(image_path)
-    width, height = image.size
+    width, height, gray = _page_arrays(image_path)
     proc = subprocess.run(
         [
             "/usr/bin/tesseract",
@@ -122,7 +211,7 @@ def tesseract_tsv_page(image_path: Path):
     tokens = []
     lines = proc.stdout.splitlines()
     if len(lines) < 2:
-        return {"width": width, "height": height, "tokens": []}
+        return {"width": width, "height": height, "tokens": [], "systems": detect_staff_systems(gray)}
     header = lines[0].split("\t")
     idx = {name: i for i, name in enumerate(header)}
     for row in lines[1:]:
@@ -141,7 +230,6 @@ def tesseract_tsv_page(image_path: Path):
             top = float(cols[idx["top"]])
             w = float(cols[idx["width"]])
             h = float(cols[idx["height"]])
-            line_num = int(cols[idx.get("line_num", 0)] or 0)
         except (KeyError, ValueError):
             continue
         if conf < 0:
@@ -151,21 +239,17 @@ def tesseract_tsv_page(image_path: Path):
                 "text": text,
                 "bbox": [left, top, left + w, top + h],
                 "confidence": conf / 100.0,
-                "line_index": line_num,
             }
         )
-    if tokens and all("line_index" in t for t in tokens):
-        # normalize line indices to contiguous
-        mapping = {}
-        next_i = 0
-        for t in sorted(tokens, key=lambda x: (x["line_index"], x["bbox"][0])):
-            if t["line_index"] not in mapping:
-                mapping[t["line_index"]] = next_i
-                next_i += 1
-            t["line_index"] = mapping[t["line_index"]]
-    else:
-        tokens = _assign_line_indices(tokens)
-    return {"width": width, "height": height, "tokens": tokens}
+    # Tesseract's line_num restarts in each block/paragraph. Using it alone
+    # merges unrelated lyrics. Re-cluster the complete page geometrically.
+    tokens = _assign_line_indices(tokens)
+    return {
+        "width": width,
+        "height": height,
+        "tokens": tokens,
+        "systems": detect_staff_systems(gray),
+    }
 
 
 def run_engine(image_paths):
@@ -173,7 +257,6 @@ def run_engine(image_paths):
     engine = "rapidocr"
     pages = []
     try:
-        # Prefer RapidOCR in dedicated venv via in-process import when already that interpreter
         for index, path in enumerate(image_paths):
             page = rapidocr_page(Path(path))
             page["page_index"] = index

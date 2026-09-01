@@ -181,14 +181,14 @@ Full write-up: **`docs/SCAN_OCR.md`**.
 VisionKit (iOS) / file input (fallback)
   → POST /api/scans → scan_to_pdf.py (full-frame PDF)
   → POST /api/songs/:id/analyze-chords
-  → RapidOCR structured tokens → leadsheetReconstruct.mjs
+  → RapidOCR tokens + staff systems → leadsheetReconstruct.mjs
 ```
 
 | Step | Implementation |
 |------|----------------|
 | Capture | **VisionKit** `VNDocumentCameraViewController` via Tauri `document-scanner` plugin; HTML camera/gallery fallback |
 | PDF build | `scan_to_pdf.py` EXIF transpose, light autocontrast, upscale if needed — **no crop** |
-| Analysis | RapidOCR (PaddleOCR ONNX, CPU) with bbox/confidence; geometric chord placement |
+| Analysis | RapidOCR tokens + staff-system zones; parallel lyric tracks; chord X-placement |
 | Quality | `needsReview` when confidence/structure low — original still shown |
 | Original view | iOS uses page JPEGs from `GET /api/songs/:id/pages` (full width, no clip) |
 

@@ -17,8 +17,8 @@ Same path for desktop upload and iOS scan:
 ```
 pages → scan_to_pdf.py (full-frame PDF, no crop)
      → POST /api/songs/:id/analyze-chords
-     → ocr_structured.py (RapidOCR / PaddleOCR-ONNX, CPU)
-     → lib/leadsheetReconstruct.mjs (geometry + chord/lyric structure)
+     → ocr_structured.py (RapidOCR tokens + staff-system geometry)
+     → lib/leadsheetReconstruct.mjs (musical page understanding)
 ```
 
 ### OCR engines evaluated
@@ -42,9 +42,24 @@ Env override: `SONGBOOK_OCR_PYTHON=/path/to/python`
 
 ### Structured OCR token shape
 
+OCR is raw data only. `line_index` is diagnostic and is **not** used as song reading order.
+
 ```json
-{ "text": "Jesus", "bbox": [x0,y0,x1,y1], "confidence": 0.98, "line_index": 2 }
+{
+  "text": "Jesus",
+  "bbox": [x0, y0, x1, y1],
+  "confidence": 0.98,
+  "line_index": 2
+}
 ```
+
+Each page also includes detected 5-line staves:
+
+```json
+{ "index": 0, "y0": 455, "y1": 535, "spacing": 20, "score": 0.26 }
+```
+
+Reconstruction assigns tokens to header, chord, notation, lyric, footer, or margin zones relative to those staves. Parallel lyric tracks under one staff stay separate (`[Strophe 1]` / `[Strophe 2]`). Rubrics, page numbers, tempo, and copyright stay out of the editable sheet.
 
 ### Original page viewer (iOS)
 
@@ -61,6 +76,7 @@ Fix:
 ```bash
 node scripts/test-leadsheet-quality.mjs
 node scripts/test-leadsheet-reconstruct.mjs
+node scripts/test-musical-page-understanding.mjs
 node scripts/benchmark-leadsheet-ocr.mjs   # synthetic fixtures only
 ```
 
@@ -71,5 +87,5 @@ node scripts/benchmark-leadsheet-ocr.mjs   # synthetic fixtures only
 3. Add → Aus dem Buch scannen → **Dokument scannen** (VisionKit UI).
 4. Scan a leadsheet page → create song → open editor.
 5. **Original**: full page visible, not cropped.
-6. **Bearbeiten**: chords above lyrics, no `SSS`/`♪` junk; transpose works.
+6. **Bearbeiten**: `[Strophe 1]` / `[Strophe 2]` / `[Refrain]` in original order; chords above the matching lyric line; no rubric/page/copyright/tempo as lyrics; engraved `ste - he` joined.
 7. If quality low: `needsReview` warning shown; original still available.

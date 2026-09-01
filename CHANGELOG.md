@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - **iOS VisionKit document scanner** (`app/src-tauri/plugins/document-scanner`): native page detect/crop/perspective via `VNDocumentCameraViewController`; HTML camera remains fallback.
-- **Structured leadsheet OCR** (`ocr_structured.py` + RapidOCR/PaddleOCR-ONNX CPU): tokens with bbox/confidence/line_index; `lib/leadsheetReconstruct.mjs` geometric chord placement, music-junk filter, syllable join.
+- **Musical page understanding** (`ocr_structured.py` staff-system detection + `lib/leadsheetReconstruct.mjs`): OCR tokens stay raw data; 5-line staves partition chord / notation / lyric zones; parallel verse tracks are unmixed; rubrics, page numbers, tempo, and copyright are excluded; engraved syllable hyphens are joined without deleting linguistic hyphens.
 - **Original page images API** `GET /api/songs/:id/pages` for reliable iOS original view.
 - **Central modal lock + viewport restore** (`modalLock.js`, `ModalBackdrop.jsx`) for iOS keyboard cycles.
 - Docs: `docs/SCAN_OCR.md`. Tests: `scripts/test-leadsheet-reconstruct.mjs`, `scripts/benchmark-leadsheet-ocr.mjs`, `scripts/test-modal-lock.mjs`.
