@@ -5,8 +5,10 @@
  */
 import { chordPattern, isChordLine, pitchMap } from '../lib/leadsheetAnalysis.mjs'
 import {
+  applySharedChorusOrder,
   leadsheetFromVision,
   normalizeVisionDocument,
+  splitFusedChordToken,
   validateVisionWithOmr,
   visionResultToApi,
 } from '../lib/visionLeadsheet.mjs'
@@ -47,12 +49,37 @@ const document = normalizeVisionDocument({
 const text = leadsheetFromVision(document)
 assert(/Morgenlicht/.test(text), 'title')
 assert(/\[Strophe 1\]/.test(text) && /\[Strophe 2\]/.test(text) && /\[Refrain\]/.test(text), 'sections')
-assert(text.indexOf('[Strophe 1]') < text.indexOf('[Strophe 2]'), 'verse order')
+assert(text.indexOf('[Strophe 1]') < text.indexOf('[Refrain]'), 'verse 1 before chorus')
+assert(text.indexOf('[Refrain]') < text.indexOf('[Strophe 2]'), 'chorus before verse 2')
+assert(text.indexOf('[Strophe 2]') < text.lastIndexOf('[Refrain]'), 'refrain marker after verse 2')
+assert((text.match(/\[Refrain\]/g) || []).length === 2, 'two refrain headers')
+assert((text.match(/Wir singen heut von Frieden und Geduld/g) || []).length === 1, 'chorus lyrics not duplicated')
 assert(/Alpha beta/.test(text) && !/Zeta eta[\s\S]*\[Strophe 1\]/.test(text), 'verses not mixed')
 assert(/F\/C/.test(text) && /G\/B/.test(text) && /D\/F#/.test(text) && /Bb\/D/.test(text), 'slash chords')
 assert(!/LOB|62|156|Verlag/.test(text), 'no page chrome')
 assert(!/Alphabeta/.test(text), 'spaces kept')
 console.log('OK vision render')
+
+assert(JSON.stringify(splitFusedChordToken('GC')) === JSON.stringify(['G', 'C']), 'split GC')
+assert(JSON.stringify(splitFusedChordToken('CC')) === JSON.stringify(['C', 'C']), 'split CC')
+assert(JSON.stringify(splitFusedChordToken('AmG')) === JSON.stringify(['Am', 'G']), 'split AmG')
+assert(JSON.stringify(splitFusedChordToken('F/C')) === JSON.stringify(['F/C']), 'keep slash')
+assert(JSON.stringify(splitFusedChordToken('Cmaj7')) === JSON.stringify(['Cmaj7']), 'keep Cmaj7')
+assert(splitFusedChordToken('SSS').length === 0, 'reject garbage')
+const fused = normalizeVisionDocument({
+  sections: [{ type: 'verse', number: 1, lines: [{ lyrics: 'Alpha beta.', chords: [{ chord: 'GC', index: 0 }, { chord: 'CC', index: 6 }] }] }],
+})
+const fusedNames = fused.sections[0].lines[0].chords.map((item) => item.chord)
+assert(JSON.stringify(fusedNames) === JSON.stringify(['G', 'C', 'C', 'C']), `fused chords: ${fusedNames}`)
+console.log('OK fused chord split')
+
+const alreadyMusical = applySharedChorusOrder([
+  { type: 'verse', number: 1, lines: [{ lyrics: 'A', chords: [] }] },
+  { type: 'chorus', lines: [{ lyrics: 'R', chords: [] }] },
+  { type: 'verse', number: 2, lines: [{ lyrics: 'B', chords: [] }] },
+])
+assert(alreadyMusical.sections.map((s) => s.type).join(',') === 'verse,chorus,verse', 'do not reorder musical order')
+console.log('OK section order')
 
 const dropped = normalizeVisionDocument({
   sections: [{ type: 'verse', number: 1, lines: [{ lyrics: 'Alpha beta.', chords: [{ chord: 'SSS', index: 0 }, { chord: 'C', index: 0 }] }] }],

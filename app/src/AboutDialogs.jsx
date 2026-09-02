@@ -4,7 +4,6 @@ import { openExternal } from './openExternal'
 import { ModalBackdrop } from './ModalBackdrop'
 import { dismissModal } from './modalLock'
 import {
-  APP_NAME,
   APP_VERSION,
   APP_COPYRIGHT,
   APP_AUTHOR,
@@ -23,7 +22,7 @@ export function AboutDialog({ onClose }) {
           <div className="about-brand">
             <span className="brand-mark">L</span>
             <div>
-              <p className="eyebrow">{APP_NAME}</p>
+              <p className="eyebrow">{t('header.eyebrow')}</p>
               <h2>{t('about.title')}</h2>
             </div>
           </div>
@@ -62,7 +61,7 @@ export function UpdateDialog({ result, onClose }) {
       <section className="modal">
         <div className="modal-header">
           <div>
-            <p className="eyebrow">{APP_NAME}</p>
+            <p className="eyebrow">{t('header.eyebrow')}</p>
             <h2>{storeManaged ? t('updates.iosStoreManaged') : t('updates.title')}</h2>
           </div>
           <button type="button" className="icon-button" onClick={close} aria-label={t('updates.close')}>×</button>

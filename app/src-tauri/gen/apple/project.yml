@@ -10,7 +10,7 @@ configs:
 settingGroups:
   app:
     base:
-      PRODUCT_NAME: Worship Songbook
+      PRODUCT_NAME: Lyruma Songbook
       PRODUCT_BUNDLE_IDENTIFIER: studio.lyruma.worshipsongbook
 targetTemplates:
   app:

@@ -41,7 +41,7 @@ export function AuthScreen({ onAuthenticated }) {
       <section className="auth-brand">
         <a className="brand" href={URL_LYRUMA_STUDIO} target="_blank" rel="noreferrer">
           <div className="brand-mark">L</div>
-          <div><strong>{t('brand.lyruma')}</strong><span>{t('brand.worship')}</span></div>
+          <div><strong>{t('brand.lyruma')}</strong><span>{t('brand.studio')}</span></div>
         </a>
         <div>
           <p className="eyebrow">{t('auth.title')}</p>

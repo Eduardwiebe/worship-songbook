@@ -1,6 +1,6 @@
-# Worship Songbook
+# Lyruma Songbook
 
-Worship Songbook is a web app for worship bands to plan sets, manage songs, team members, bands, and appointments.
+Lyruma Songbook is a web app for bands to plan sets, manage songs, team members, bands, and appointments.
 
 **Live web version:** https://songbook.lyruma.app
 

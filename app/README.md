@@ -1,4 +1,4 @@
-# React + Vite frontend for Worship Songbook
+# React + Vite frontend for Lyruma Songbook
 
 See the root [README.md](../README.md) for project documentation.
 
