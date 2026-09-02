@@ -5,7 +5,9 @@
  */
 import {
   isValidChordToken,
+  joinLyricTokens,
   mergeChordCandidates,
+  normalizeEngravedLyrics,
   reconstructLeadsheet,
 } from '../lib/leadsheetReconstruct.mjs'
 import {
@@ -45,6 +47,39 @@ assert(splitGluedGermanWords('verstehst') === 'verstehst', 'keep verstehst')
 assert(splitGluedGermanWords('wieder') === 'wieder', 'keep wieder')
 assert(splitGluedGermanWords('Gottes') === 'Gottes', 'keep Gottes')
 assert(splitGluedGermanWords('Morgenlicht') === 'Morgenlicht', 'keep Morgenlicht')
+assert(splitGluedGermanWords('trotzdemliebst') === 'trotzdem liebst', 'trotzdemliebst')
+assert(normalizeEngravedLyrics('Wenn - ich - auch - flie - he') === 'Wenn ich auch fliehe', 'do not hyphen-join function words')
+assert(normalizeEngravedLyrics('du - warst') === 'du warst', 'do not hyphen-join du warst')
+assert(normalizeEngravedLyrics('ste - he') === 'stehe', 'still join ste-he')
+assert(normalizeEngravedLyrics('wie - der') === 'wieder', 'keep wieder')
+assert(normalizeEngravedLyrics('trotz - dem') === 'trotzdem', 'keep trotzdem')
+assert(normalizeEngravedLyrics('Sehn-sucht') === 'Sehnsucht', 'keep Sehnsucht')
+assert(
+  joinLyricTokens([
+    { text: 'ich', bbox: [80, 190, 110, 220] },
+    { text: 'danke', bbox: [130, 190, 210, 220] },
+    { text: 'dir', bbox: [230, 190, 270, 220] },
+  ]) === 'ich danke dir',
+  'separate boxes stay spaced',
+)
+assert(
+  joinLyricTokens([
+    { text: 'du-', bbox: [80, 190, 120, 220] },
+    { text: 'hebst-', bbox: [160, 190, 240, 220] },
+    { text: 'mich', bbox: [260, 190, 320, 220] },
+    { text: 'zu-', bbox: [340, 190, 370, 220] },
+    { text: 'dir-', bbox: [400, 190, 440, 220] },
+    { text: 'hinauf', bbox: [460, 190, 560, 220] },
+  ]) === 'du hebst mich zu dir hinauf',
+  'gapped hyphen tokens stay spaced',
+)
+assert(
+  joinLyricTokens([
+    { text: 'ste-', bbox: [80, 190, 130, 220] },
+    { text: 'he', bbox: [132, 190, 160, 220] },
+  ]) === 'stehe',
+  'adjacent syllable boxes still join',
+)
 console.log('OK glued German word split')
 
 // --- umlauts / ß ---
