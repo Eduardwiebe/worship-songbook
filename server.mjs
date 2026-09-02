@@ -18,6 +18,8 @@ import {
   shouldRunOcr,
 } from './lib/leadsheetAnalysis.mjs'
 import { reconstructFromFlatText, reconstructLeadsheet } from './lib/leadsheetReconstruct.mjs'
+import { visionAvailable, recognizeMusicPages } from './lib/visionProviders/index.mjs'
+import { visionResultToApi } from './lib/visionLeadsheet.mjs'
 const execFileAsync=promisify(execFile)
 
 const OCR_PYTHON = process.env.SONGBOOK_OCR_PYTHON || '/var/www/songbook/.venv-ocr/bin/python'
@@ -221,28 +223,36 @@ async function ocrPdfPagesLegacy(pdfPath) {
   }
 }
 
-async function structuredOcrFromPdf(pdfPath) {
+async function renderPdfPngs(pdfPath) {
   const dir = await mkdtemp(join(tmpdir(), 'songbook-ocr-struct-'))
+  await execFileAsync('/usr/bin/pdftoppm', ['-png', '-r', '300', pdfPath, join(dir, 'page')], { maxBuffer: 20 * 1024 * 1024 })
+  const pages = (await readdir(dir)).filter((name) => name.endsWith('.png')).sort().map((name) => join(dir, name))
+  return { dir, pages }
+}
+
+async function structuredOcrFromPngs(pagePaths) {
+  if (!pagePaths.length) return null
+  const result = await execFileAsync(OCR_PYTHON, [OMR_SCRIPT, ...pagePaths], {
+    maxBuffer: 40 * 1024 * 1024,
+    timeout: 240000,
+    env: {
+      ...process.env,
+      SONGBOOK_OCR_PYTHON: OCR_PYTHON,
+      PYTHONPATH: '/var/www/songbook',
+    },
+  })
+  return JSON.parse(result.stdout)
+}
+
+async function structuredOcrFromPdf(pdfPath) {
+  const rendered = await renderPdfPngs(pdfPath)
   try {
-    await execFileAsync('/usr/bin/pdftoppm', ['-png', '-r', '300', pdfPath, join(dir, 'page')], { maxBuffer: 20 * 1024 * 1024 })
-    const pages = (await readdir(dir)).filter((name) => name.endsWith('.png')).sort()
-    if (!pages.length) return null
-    const args = [OMR_SCRIPT, ...pages.map((name) => join(dir, name))]
-    const result = await execFileAsync(OCR_PYTHON, args, {
-      maxBuffer: 40 * 1024 * 1024,
-      timeout: 240000,
-      env: {
-        ...process.env,
-        SONGBOOK_OCR_PYTHON: OCR_PYTHON,
-        PYTHONPATH: '/var/www/songbook',
-      },
-    })
-    return JSON.parse(result.stdout)
+    return await structuredOcrFromPngs(rendered.pages)
   } catch (error) {
     console.error('structured OCR failed:', error?.message || error)
     return null
   } finally {
-    await rm(dir, { recursive: true, force: true })
+    await rm(rendered.dir, { recursive: true, force: true })
   }
 }
 
@@ -259,16 +269,50 @@ async function analyzeSongPdf(pdfPath, { forceScan = false, titleHint = '' } = {
   let reconstructed = null
 
   if (shouldRunOcr(pdfText, { forceScan }) || forceScan) {
-    structured = await structuredOcrFromPdf(pdfPath)
-    if (structured?.pages?.length) {
-      reconstructed = reconstructLeadsheet(structured, { titleHint })
-      if (reconstructed.text) {
-        candidates.push({
-          text: reconstructed.text,
-          method: `Structured/${structured.engine}`,
-          quality: reconstructed.quality,
+    const rendered = await renderPdfPngs(pdfPath).catch((error) => {
+      console.error('page render failed:', error?.message || error)
+      return null
+    })
+    try {
+      const omrTask = rendered?.pages?.length
+        ? structuredOcrFromPngs(rendered.pages).catch((error) => {
+          console.error('structured OCR failed:', error?.message || error)
+          return null
         })
+        : Promise.resolve(null)
+      const visionTask = rendered?.pages?.length && visionAvailable()
+        ? recognizeMusicPages(rendered.pages).catch((error) => {
+          console.error('vision recognition failed:', error?.message || error)
+          return null
+        })
+        : Promise.resolve(null)
+      const [omr, visionDoc] = await Promise.all([omrTask, visionTask])
+      structured = omr
+      if (visionDoc?.sections?.length) {
+        const visionApi = visionResultToApi(visionDoc, {
+          structured,
+          elapsedMs: visionDoc.usage?.elapsedMs || null,
+        })
+        if (visionDoc.usage) console.log('vision recognition', JSON.stringify(visionDoc.usage))
+        if (visionApi.text) {
+          return {
+            ...visionApi,
+            pdfTextQuality: pdfQuality.score,
+          }
+        }
       }
+      if (structured?.pages?.length) {
+        reconstructed = reconstructLeadsheet(structured, { titleHint })
+        if (reconstructed.text) {
+          candidates.push({
+            text: reconstructed.text,
+            method: `Structured/${structured.engine}`,
+            quality: reconstructed.quality,
+          })
+        }
+      }
+    } finally {
+      if (rendered?.dir) await rm(rendered.dir, { recursive: true, force: true })
     }
 
     const structuredScore = reconstructed?.quality?.score ?? 0

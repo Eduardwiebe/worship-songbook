@@ -188,7 +188,7 @@ VisionKit (iOS) / file input (fallback)
 |------|----------------|
 | Capture | **VisionKit** `VNDocumentCameraViewController` via Tauri `document-scanner` plugin; HTML camera/gallery fallback |
 | PDF build | `scan_to_pdf.py` EXIF transpose, light autocontrast, upscale if needed — **no crop** |
-| Analysis | Audiveris OMR staff/chord structure; RapidOCR lyric fill; zone reconstruction |
+| Analysis | Vision leadsheet JSON (primary); Audiveris/RapidOCR validate or fallback |
 | Quality | `needsReview` when confidence/structure low — original still shown |
 | Original view | iOS uses page JPEGs from `GET /api/songs/:id/pages` (full width, no clip) |
 
