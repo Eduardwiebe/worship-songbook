@@ -4,11 +4,13 @@
  * Does not call Vision or commit private lyrics as fixtures in git.
  */
 import { readFileSync } from 'node:fs'
+import { DatabaseSync } from 'node:sqlite'
 import {
   applyEditorKeyChange,
+  displayEditorText,
+  inferKeyFromLeadsheet,
   normalizeEditorKey,
   resolveEditorSourceKey,
-  transposeEditorText,
 } from '../lib/editorKey.mjs'
 
 function assert(cond, msg) {
@@ -21,41 +23,42 @@ assert(normalizeEditorKey('C-Dur') === 'C', 'C-Dur')
 assert(normalizeEditorKey('C major') === 'C', 'C major')
 assert(normalizeEditorKey('Eb') === 'Es', 'Eb → Es')
 assert(resolveEditorSourceKey({ sourceKey: '', key: '–' }) === '', 'scan default is not D')
+assert(resolveEditorSourceKey({ sourceKey: '', key: 'D' }, 'C') === 'C', 'song.key D is not the source')
 assert(resolveEditorSourceKey({ sourceKey: '', key: '–' }, 'C') === 'C', 'vision C wins')
 assert(resolveEditorSourceKey({ sourceKey: 'C', key: 'D' }, 'G') === 'C', 'stored original wins over preferred D')
-assert(resolveEditorSourceKey({ sourceKey: '', key: '–' }, 'D') === 'D', 'D only if recognized')
-console.log('OK key resolution (no hardcoded D)')
+assert(inferKeyFromLeadsheet('TONART: C · TEMPO: 156 BPM') === 'C', 'infer TONART C')
+console.log('OK key resolution (no hardcoded D, song.key ignored)')
 
 const original = `C
-E
-Em
 F
 G
-Am`
+Am
+Em`
 const scanSong = { sourceKey: '', key: '–' }
 const source = resolveEditorSourceKey(scanSong, 'C')
 assert(source === 'C', 'scan source is C')
-const stay = transposeEditorText(original, source, 'C')
+const stay = displayEditorText(original, source, 'C')
 assert(stay === original, 'C→C identity')
-assert(/\bC\b/.test(stay) && /\bEm\b/.test(stay) && /\bF\b/.test(stay) && /\bG\b/.test(stay) && /\bAm\b/.test(stay), 'original chords kept')
-assert(!/\bBb\b/.test(stay) && !/\bDm\b/.test(stay) && !/\bGm\b/.test(stay), 'no D→C drift')
+assert(/\bC\b/.test(stay) && /\bF\b/.test(stay) && /\bG\b/.test(stay) && /\bAm\b/.test(stay) && /\bEm\b/.test(stay), 'original chords kept')
+assert(!/\bBb\b/.test(stay) && !/\bDm\b/.test(stay) && !/\bGm\b/.test(stay) && !/\bDis\b/.test(stay), 'no D→C drift')
 console.log('OK C→C keeps original chords')
 
-const toD = applyEditorKeyChange(original, source, source, 'D')
-assert(toD.sourceKey === 'C' && toD.currentKey === 'D', 'source stays C while viewing D')
-assert(toD.text === 'D\nFis\nFism\nG\nA\nBm', `C→D +2:\n${toD.text}`)
-const back = applyEditorKeyChange(toD.text, toD.currentKey, toD.sourceKey, 'C')
-assert(back.text === original, `C→D→C roundtrip:\n${back.text}`)
+const toD = applyEditorKeyChange(original, source, 'D')
+assert(toD.sourceKey === 'C' && toD.targetKey === 'D', 'source stays C while viewing D')
+assert(toD.text === 'D\nG\nA\nBm\nF#m', `C→D +2:\n${toD.text}`)
+const back = applyEditorKeyChange(original, toD.sourceKey, 'C')
+assert(back.text === original, `C→D→C from original:\n${back.text}`)
+const againD = applyEditorKeyChange(original, back.sourceKey, 'D')
+assert(againD.text === toD.text, 'second C→D matches first (no cumulative drift)')
 console.log('OK C→D→C no drift')
 
-const unknown = applyEditorKeyChange(original, '', '', 'C')
+const unknown = applyEditorKeyChange(original, '', 'C')
 assert(unknown.text === original && unknown.sourceKey === 'C', 'unknown key: first pick declares source, no transpose')
 console.log('OK unknown key is not D')
 
-assert(transposeEditorText('F', 'D', 'C') === 'Es', 'flat spelling Es not Dis when landing in C')
+assert(displayEditorText('F', 'D', 'C') === 'Es', 'flat spelling Es not Dis when landing in C')
 console.log('OK Es spelling')
 
-let realText = original
 try {
   const vision = JSON.parse(readFileSync('/tmp/songbook-vision-last.json', 'utf8'))
   const key = resolveEditorSourceKey({ sourceKey: '', key: '–' }, vision.document?.key)
@@ -64,12 +67,30 @@ try {
     (section.lines || []).flatMap((line) => (line.chords || []).map((item) => item.chord))
   ))
   assert(chords.includes('C') && chords.includes('Em') && chords.includes('F') && chords.includes('G') && chords.includes('Am'), 'realscan has C Em F G Am')
-  realText = chords.join('\n')
-  const again = transposeEditorText(transposeEditorText(realText, 'C', 'D'), 'D', 'C')
-  assert(again === realText, 'realscan chord list C→D→C')
+  const realText = ['C', 'F', 'G', 'Am', 'Em'].join('\n')
+  const outD = displayEditorText(realText, 'C', 'D')
+  const outC = displayEditorText(realText, 'C', 'C')
+  const backC = displayEditorText(realText, 'C', 'C')
+  assert(outC === realText, 'realscan C→C')
+  assert(outD === 'D\nG\nA\nBm\nF#m', `realscan C→D: ${outD}`)
+  assert(backC === realText, 'realscan D→C via original')
   console.log('OK realscan vision JSON C / C→D→C')
 } catch (error) {
   if (error.code === 'ENOENT') console.log('SKIP realscan json (not on disk)')
+  else throw error
+}
+
+try {
+  const db = new DatabaseSync('/var/www/songbook/data/songbook.sqlite', { readOnly: true })
+  const rows = db.prepare('SELECT title, source_key, song_key FROM songs').all()
+  const withC = rows.filter((row) => row.source_key === 'C')
+  console.log(`OK live DB songs=${rows.length} source_key=C count=${withC.length}`)
+  for (const row of withC) {
+    assert(resolveEditorSourceKey({ sourceKey: row.source_key, key: row.song_key }) === 'C', `${row.title} reload source stays C`)
+  }
+  db.close()
+} catch (error) {
+  if (String(error.message || '').includes('unable to open')) console.log('SKIP live DB')
   else throw error
 }
 

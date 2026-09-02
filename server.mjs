@@ -20,7 +20,7 @@ import {
 import { reconstructFromFlatText, reconstructLeadsheet } from './lib/leadsheetReconstruct.mjs'
 import { visionAvailable, recognizeMusicPages } from './lib/visionProviders/index.mjs'
 import { visionResultToApi } from './lib/visionLeadsheet.mjs'
-import { editorPitchName, normalizeEditorKey } from './lib/editorKey.mjs'
+import { editorPitchName, inferKeyFromLeadsheet, normalizeEditorKey } from './lib/editorKey.mjs'
 const execFileAsync=promisify(execFile)
 
 const OCR_PYTHON = process.env.SONGBOOK_OCR_PYTHON || '/var/www/songbook/.venv-ocr/bin/python'
@@ -175,7 +175,7 @@ const saveOnboardingState=(userId,value)=>{
 const makeInitials=(name)=>{const parts=name.trim().split(/\s+/).filter(Boolean);return parts.length>1?(parts[0][0]+parts.at(-1)[0]).toUpperCase():parts[0]?.slice(0,2).toUpperCase()||''}
 const json = (res, status, body) => { res.writeHead(status, {'content-type':'application/json'}); res.end(JSON.stringify(body)) }
 const bodyJson = async (req) => { const chunks=[]; for await (const c of req) chunks.push(c); return JSON.parse(Buffer.concat(chunks).toString() || '{}') }
-const songRows = (ownerId,bandId='') => (bandId?db.prepare('SELECT s.id,s.title,s.artist,s.song_key AS key,s.source_key AS sourceKey,s.preferred_key AS preferredKey,s.file_name AS fileName,s.file_size AS fileSize,s.sort_order AS sortOrder,s.created_at AS createdAt,s.is_protected AS isProtected,1 AS hasPdf FROM songs s JOIN band_songs bs ON bs.song_id=s.id WHERE bs.band_id=? ORDER BY s.sort_order DESC').all(bandId):db.prepare('SELECT id,title,artist,song_key AS key,source_key AS sourceKey,preferred_key AS preferredKey,file_name AS fileName,file_size AS fileSize,sort_order AS sortOrder,created_at AS createdAt,is_protected AS isProtected,1 AS hasPdf FROM songs WHERE owner_id=? ORDER BY sort_order DESC').all(ownerId)).map(song=>({...song,isProtected:Boolean(song.isProtected),variantKeys:db.prepare('SELECT target_key FROM song_variants WHERE song_id=? ORDER BY created_at DESC').all(song.id).map(row=>row.target_key)}))
+const songRows = (ownerId,bandId='') => (bandId?db.prepare('SELECT s.id,s.title,s.artist,s.song_key AS key,s.source_key AS sourceKey,s.preferred_key AS preferredKey,s.file_name AS fileName,s.file_size AS fileSize,s.sort_order AS sortOrder,s.created_at AS createdAt,s.is_protected AS isProtected,1 AS hasPdf FROM songs s JOIN band_songs bs ON bs.song_id=s.id WHERE bs.band_id=? ORDER BY s.sort_order DESC').all(bandId):db.prepare('SELECT id,title,artist,song_key AS key,source_key AS sourceKey,preferred_key AS preferredKey,file_name AS fileName,file_size AS fileSize,sort_order AS sortOrder,created_at AS createdAt,is_protected AS isProtected,1 AS hasPdf FROM songs WHERE owner_id=? ORDER BY sort_order DESC').all(ownerId)).map(song=>({...song,originalKey:song.sourceKey||'',isProtected:Boolean(song.isProtected),variantKeys:db.prepare('SELECT target_key FROM song_variants WHERE song_id=? ORDER BY created_at DESC').all(song.id).map(row=>row.target_key)}))
 const pitchMap={C:0,Cis:1,'C#':1,Des:1,Db:1,D:2,Dis:3,'D#':3,Es:3,Eb:3,E:4,F:5,Fis:6,'F#':6,Ges:6,Gb:6,G:7,Gis:8,'G#':8,As:8,Ab:8,A:9,Ais:10,'A#':10,Bb:10,B:11,H:11}
 const namesSharp=['C','Cis','D','Dis','E','F','Fis','G','Gis','A','Ais','B'];const namesFlat=['C','Des','D','Es','E','F','Ges','G','As','A','Bb','B']
 const pitchName=(idx,targetKey)=>editorPitchName(idx,targetKey)
@@ -348,14 +348,16 @@ async function analyzeSongPdf(pdfPath, { forceScan = false, titleHint = '' } = {
   const text = best.text
   const quality = best.quality || scoreLeadsheetQuality(text)
   const chordLines = text.split('\n').filter(isChordLine)
+  const key = inferKeyFromLeadsheet(text)
 
   return {
     text,
+    key,
     method: best.method,
     chordCount: chordLines.reduce((sum, line) => sum + chordTokens(line).length, 0),
     chordLines: chordLines.length,
     quality,
-    needsReview: quality.needsReview,
+    needsReview: quality.needsReview || !key,
     pdfTextQuality: pdfQuality.score,
     engine: structured?.engine || null,
     avgConfidence: reconstructed?.avgConfidence ?? quality.avgConfidence ?? null,
@@ -1080,8 +1082,8 @@ http.createServer(async (req,res) => { try {
   const pdfMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/pdf$/)
   if(req.method==='GET'&&pdfMatch){const row=db.prepare('SELECT pdf_path,file_name FROM songs WHERE id=?').get(pdfMatch[1]);if(!row)return json(res,404,{error:'Nicht gefunden'});const data=await readFile(row.pdf_path);res.writeHead(200,{'content-type':'application/pdf','content-disposition':`inline; filename*=UTF-8''${encodeURIComponent(row.file_name)}`});return res.end(data)}
   const analyzeMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/analyze-chords$/)
-  if(req.method==='POST'&&analyzeMatch){const saved=db.prepare('SELECT content,source_key FROM song_variants WHERE song_id=? AND source_key=target_key ORDER BY created_at DESC LIMIT 1').get(analyzeMatch[1]);if(saved?.content){const song=db.prepare('SELECT source_key,song_key FROM songs WHERE id=?').get(analyzeMatch[1]);const key=normalizeEditorKey(saved.source_key)||normalizeEditorKey(song?.source_key)||normalizeEditorKey(song?.song_key);const chordLines=saved.content.split('\n').filter(isChordLine);const quality=scoreLeadsheetQuality(saved.content);return json(res,200,{text:saved.content,method:'Kontrollierte Fassung',chordCount:chordLines.reduce((sum,line)=>sum+chordTokens(line).length,0),chordLines:chordLines.length,quality,needsReview:quality.needsReview,key,sourceKey:key})}}
-  if(req.method==='POST'&&analyzeMatch){const row=db.prepare('SELECT pdf_path,artist,title,source_key,song_key FROM songs WHERE id=?').get(analyzeMatch[1]);if(!row)return json(res,404,{error:'Song nicht gefunden'});const result=await analyzeSongPdf(row.pdf_path,{forceScan:row.artist==='Gescannter Import',titleHint:row.title||''});if(!result.text)return json(res,422,{error:'Aus dieser PDF konnte kein Text erkannt werden.'});const key=normalizeEditorKey(row.source_key)||normalizeEditorKey(result.key)||normalizeEditorKey(row.song_key);if(key&&!normalizeEditorKey(row.source_key)&&(!row.song_key||row.song_key==='–')){db.prepare('UPDATE songs SET source_key=?,song_key=? WHERE id=?').run(key,key,analyzeMatch[1])}return json(res,200,{...result,key,sourceKey:key,needsReview:Boolean(result.needsReview)||!key})}
+  if(req.method==='POST'&&analyzeMatch){const saved=db.prepare('SELECT content,source_key FROM song_variants WHERE song_id=? AND source_key=target_key ORDER BY created_at DESC LIMIT 1').get(analyzeMatch[1]);if(saved?.content){const song=db.prepare('SELECT source_key FROM songs WHERE id=?').get(analyzeMatch[1]);const key=normalizeEditorKey(song?.source_key)||normalizeEditorKey(saved.source_key)||inferKeyFromLeadsheet(saved.content);const chordLines=saved.content.split('\n').filter(isChordLine);const quality=scoreLeadsheetQuality(saved.content);return json(res,200,{text:saved.content,method:'Kontrollierte Fassung',chordCount:chordLines.reduce((sum,line)=>sum+chordTokens(line).length,0),chordLines:chordLines.length,quality,needsReview:quality.needsReview||!key,key,sourceKey:key,originalKey:key})}}
+  if(req.method==='POST'&&analyzeMatch){const row=db.prepare('SELECT pdf_path,artist,title,source_key FROM songs WHERE id=?').get(analyzeMatch[1]);if(!row)return json(res,404,{error:'Song nicht gefunden'});const result=await analyzeSongPdf(row.pdf_path,{forceScan:row.artist==='Gescannter Import',titleHint:row.title||''});if(!result.text)return json(res,422,{error:'Aus dieser PDF konnte kein Text erkannt werden.'});const recognized=normalizeEditorKey(result.key)||inferKeyFromLeadsheet(result.text);const stored=normalizeEditorKey(row.source_key);const key=stored||recognized;if(recognized&&!stored){db.prepare('UPDATE songs SET source_key=?,song_key=CASE WHEN song_key IS NULL OR song_key=\'\' OR song_key=? THEN ? ELSE song_key END WHERE id=?').run(recognized,'–',recognized,analyzeMatch[1])}return json(res,200,{...result,key,sourceKey:key,originalKey:key,needsReview:Boolean(result.needsReview)||!key})}
   const pagesMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/pages$/)
   if(req.method==='GET'&&pagesMatch){
     const row=db.prepare('SELECT pdf_path FROM songs WHERE id=?').get(pagesMatch[1])
