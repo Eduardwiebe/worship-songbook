@@ -26,11 +26,11 @@ pages → scan_to_pdf.py (full-frame PDF, no crop)
 | Engine | Role | Notes |
 |--------|------|-------|
 | **Audiveris 5.5.1** | **Primary structure** | Self-hosted OMR: staves, chord names, sentence roles (.omr) |
-| **RapidOCR (ONNX)** | Text fill / fallback | Lyrics and missing chord glyphs assigned into OMR staff zones |
+| **RapidOCR (ONNX)** | Text fill / OCR-A | Lyrics and missing chord glyphs assigned into OMR staff zones |
 | Full PaddlePaddle + PaddleOCR | Evaluated | Heavier install; same model family — RapidOCR preferred for CPU hosts |
 | Tesseract TSV | Fallback | Word boxes if RapidOCR unavailable |
 | Legacy Tesseract stdout | Legacy candidate | Flat text only; used if structured score &lt; 45 |
-| Apple Vision OCR | Not used server-side | Capture quality comes from VisionKit; recognition stays self-hosted |
+| Apple Vision `VNRecognizeTextRequest` | **Not integrated** | Evaluated as OCR-B. The analysis host is Linux and cannot run Vision. Wiring it would mean changing the iOS scanner plugin (out of scope). RapidOCR + OMR geometry + conservative German glue/umlaut repair is the measured path. VisionKit remains **capture only**. |
 
 Install OCR venv and Audiveris on the server:
 
@@ -81,6 +81,7 @@ Fix:
 ```bash
 node scripts/test-leadsheet-quality.mjs
 node scripts/test-leadsheet-reconstruct.mjs
+node scripts/test-recognition-quality.mjs
 node scripts/test-omr-leadsheet.mjs          # parse local .omr if present
 node scripts/test-omr-leadsheet.mjs --full   # live Audiveris + fill
 node scripts/benchmark-leadsheet-ocr.mjs   # synthetic fixtures only

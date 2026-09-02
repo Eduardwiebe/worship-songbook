@@ -92,7 +92,7 @@ def parse_omr_book(omr_path: Path, width: int, height: int) -> dict:
 
     for chord in root.iter("chord-name"):
         bbox = _bounds(chord)
-        text = (chord.get("value") or "").strip()
+        text = normalize_chord_text(chord.get("value") or "")
         if not text or bbox is None:
             continue
         tokens.append(
@@ -176,9 +176,22 @@ CHORD_RE = re.compile(
 )
 
 
+def normalize_chord_text(value: str) -> str:
+    text = (value or "").strip()
+    text = text.replace("♯", "#").replace("♭", "b").replace("＃", "#")
+    text = re.sub(r"\s*/\s*", "/", text)
+    if text.startswith("(") and text.endswith(")") and "/" in text:
+        text = text[1:-1].strip()
+    return text
+
+
+def is_chord_text(text: str) -> bool:
+    return bool(CHORD_RE.match(normalize_chord_text(text)))
+
+
 def is_plausible_short_token(text: str) -> bool:
     value = (text or "").strip()
-    return value in {"C", "D", "E", "F", "G", "A", "B", "H", "1", "2"} or bool(CHORD_RE.match(value))
+    return value in {"C", "D", "E", "F", "G", "A", "B", "H", "1", "2"} or is_chord_text(value)
 
 
 def merge_rapidocr(omr_page: dict, image_path: Path) -> dict:
@@ -196,7 +209,8 @@ def merge_rapidocr(omr_page: dict, image_path: Path) -> dict:
 
     extras = []
     for token in ocr.get("tokens") or []:
-        if _in_notation(token, omr_page["systems"]) and not CHORD_RE.match(str(token.get("text") or "").strip()):
+        raw = str(token.get("text") or "").strip()
+        if _in_notation(token, omr_page["systems"]) and not is_chord_text(raw):
             continue
         extras.append({**token, "source": "rapidocr-fill"})
 
