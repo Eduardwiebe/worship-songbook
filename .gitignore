@@ -77,7 +77,7 @@ app/src-tauri/gen/apple/Externals/
 *.local.md
 PRIVATE*
 .venv-ocr/
-.venv-ocr/
+.opt/
 fixtures/leadsheet/*.png
 fixtures/leadsheet/benchmark-report.json
 fixtures/leadsheet/page-understanding-report.json

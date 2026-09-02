@@ -181,7 +181,7 @@ Full write-up: **`docs/SCAN_OCR.md`**.
 VisionKit (iOS) / file input (fallback)
   → POST /api/scans → scan_to_pdf.py (full-frame PDF)
   → POST /api/songs/:id/analyze-chords
-  → RapidOCR tokens + staff systems → leadsheetReconstruct.mjs
+  → Audiveris OMR + leadsheetReconstruct.mjs
 ```
 
 | Step | Implementation |

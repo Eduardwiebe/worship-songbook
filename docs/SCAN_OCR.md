@@ -17,28 +17,33 @@ Same path for desktop upload and iOS scan:
 ```
 pages → scan_to_pdf.py (full-frame PDF, no crop)
      → POST /api/songs/:id/analyze-chords
-     → ocr_structured.py (RapidOCR tokens + staff-system geometry)
-     → lib/leadsheetReconstruct.mjs (musical page understanding)
+     → omr_structured.py (Audiveris OMR staves/chords + RapidOCR text fill)
+     → lib/leadsheetReconstruct.mjs (zones, parallel tracks, leadsheet)
 ```
 
 ### OCR engines evaluated
 
 | Engine | Role | Notes |
 |--------|------|-------|
-| **RapidOCR (ONNX)** | **Primary** | PaddleOCR det/rec models; token + bbox + confidence; ~0.7–1s/page CPU |
+| **Audiveris 5.5.1** | **Primary structure** | Self-hosted OMR: staves, chord names, sentence roles (.omr) |
+| **RapidOCR (ONNX)** | Text fill / fallback | Lyrics and missing chord glyphs assigned into OMR staff zones |
 | Full PaddlePaddle + PaddleOCR | Evaluated | Heavier install; same model family — RapidOCR preferred for CPU hosts |
 | Tesseract TSV | Fallback | Word boxes if RapidOCR unavailable |
 | Legacy Tesseract stdout | Legacy candidate | Flat text only; used if structured score &lt; 45 |
 | Apple Vision OCR | Not used server-side | Capture quality comes from VisionKit; recognition stays self-hosted |
 
-Install OCR venv on the server:
+Install OCR venv and Audiveris on the server:
 
 ```bash
 python3 -m venv /var/www/songbook/.venv-ocr
 /var/www/songbook/.venv-ocr/bin/pip install -r /var/www/songbook/requirements-ocr.txt
+
+# Audiveris 5.5.1 Linux package (JRE bundled), not committed:
+# dpkg-deb -x audiveris_5.5.1_amd64.deb /var/www/songbook/.opt-extract
+# plus tessdata (legacy+LSTM) in /var/www/songbook/.opt/tessdata
 ```
 
-Env override: `SONGBOOK_OCR_PYTHON=/path/to/python`
+Env: `SONGBOOK_AUDIVERIS`, `SONGBOOK_TESSDATA`, `SONGBOOK_OCR_PYTHON`
 
 ### Structured OCR token shape
 
@@ -76,7 +81,8 @@ Fix:
 ```bash
 node scripts/test-leadsheet-quality.mjs
 node scripts/test-leadsheet-reconstruct.mjs
-node scripts/test-musical-page-understanding.mjs
+node scripts/test-omr-leadsheet.mjs          # parse local .omr if present
+node scripts/test-omr-leadsheet.mjs --full   # live Audiveris + fill
 node scripts/benchmark-leadsheet-ocr.mjs   # synthetic fixtures only
 ```
 

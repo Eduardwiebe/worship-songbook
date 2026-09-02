@@ -22,6 +22,7 @@ const execFileAsync=promisify(execFile)
 
 const OCR_PYTHON = process.env.SONGBOOK_OCR_PYTHON || '/var/www/songbook/.venv-ocr/bin/python'
 const OCR_SCRIPT = '/var/www/songbook/ocr_structured.py'
+const OMR_SCRIPT = process.env.SONGBOOK_OMR_SCRIPT || '/var/www/songbook/omr_structured.py'
 
 const root = '/var/www/songbook/data'
 await mkdir(`${root}/pdfs`, {recursive: true})
@@ -226,11 +227,15 @@ async function structuredOcrFromPdf(pdfPath) {
     await execFileAsync('/usr/bin/pdftoppm', ['-png', '-r', '300', pdfPath, join(dir, 'page')], { maxBuffer: 20 * 1024 * 1024 })
     const pages = (await readdir(dir)).filter((name) => name.endsWith('.png')).sort()
     if (!pages.length) return null
-    const args = [OCR_SCRIPT, ...pages.map((name) => join(dir, name))]
+    const args = [OMR_SCRIPT, ...pages.map((name) => join(dir, name))]
     const result = await execFileAsync(OCR_PYTHON, args, {
       maxBuffer: 40 * 1024 * 1024,
-      timeout: 180000,
-      env: { ...process.env, SONGBOOK_OCR_PYTHON: OCR_PYTHON },
+      timeout: 240000,
+      env: {
+        ...process.env,
+        SONGBOOK_OCR_PYTHON: OCR_PYTHON,
+        PYTHONPATH: '/var/www/songbook',
+      },
     })
     return JSON.parse(result.stdout)
   } catch (error) {
