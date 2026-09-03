@@ -8,9 +8,12 @@ import { DatabaseSync } from 'node:sqlite'
 import {
   applyEditorKeyChange,
   displayEditorText,
+  editorSemitoneDelta,
+  inferKeyFromChords,
   inferKeyFromLeadsheet,
   normalizeEditorKey,
   resolveEditorSourceKey,
+  resolveScanSourceKey,
 } from '../lib/editorKey.mjs'
 
 function assert(cond, msg) {
@@ -27,6 +30,19 @@ assert(resolveEditorSourceKey({ sourceKey: '', key: 'D' }, 'C') === 'C', 'song.k
 assert(resolveEditorSourceKey({ sourceKey: '', key: '–' }, 'C') === 'C', 'vision C wins')
 assert(resolveEditorSourceKey({ sourceKey: 'C', key: 'D' }, 'G') === 'C', 'stored original wins over preferred D')
 assert(inferKeyFromLeadsheet('TONART: C · TEMPO: 156 BPM') === 'C', 'infer TONART C')
+const cChords = `C
+F
+G
+Am
+Em`
+assert(inferKeyFromChords(cChords).key === 'C', 'C F G Am Em → C')
+assert(resolveScanSourceKey({ visionKey: 'C', text: cChords }).key === 'C', 'vision C + chords C')
+assert(resolveScanSourceKey({ visionKey: 'D', text: cChords }).key === 'C', 'chords override conflicting vision D')
+assert(resolveScanSourceKey({ visionKey: 'D', text: cChords }).needsReview === true, 'conflict needs review')
+assert(resolveScanSourceKey({ visionKey: '', text: cChords }).key === 'C', 'chords alone → C')
+assert(resolveScanSourceKey({ visionKey: '', text: '' }).key === '', 'empty is unknown, not D')
+assert(editorSemitoneDelta('C', 'C') === 0, 'C→C delta 0')
+assert(editorSemitoneDelta('C', 'D') === 2, 'C→D delta +2')
 console.log('OK key resolution (no hardcoded D, song.key ignored)')
 
 const original = `C
