@@ -168,7 +168,7 @@ main,
   }
 
   .song-tile-row {
-    grid-auto-columns: min(100%, 360px);
+    grid-auto-columns: min(72vw, 200px);
   }
 
   .set-poster-row {

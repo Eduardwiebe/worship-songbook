@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.1.9 — 2026-09-10
+
+### Home song-tile carousel layout
+- Redesigned **Songs direkt öffnen** tiles as contained cover cards (`overflow: hidden`) so metadata no longer bleeds between tiles.
+- Single readable title in a bottom dark scrim — removed duplicate UI title / rank / PDF-Import / „Im Editor öffnen“ from the carousel.
+- Small key badge (top-right letter only); play control bottom-left; subtle note icon.
+- Fixed ~200px tile width for consistent horizontal scroll (iPad-friendly contrast on light and dark covers).
+- Library list page unchanged.
+
 ## 1.0.1.8 — 2026-09-10
 
 ### YouTube rehearsal link

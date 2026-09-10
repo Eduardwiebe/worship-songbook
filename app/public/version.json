@@ -1,9 +1,9 @@
 {
   "name": "Lyruma Songbook",
-  "version": "1.0.1.8",
+  "version": "1.0.1.9",
   "releasedAt": "2026-09-10",
   "releaseUrl": "https://songbook.lyruma.app",
-  "notes": "YouTube Probe button in song editor — opens rehearsal listening (original-language search when title is a German translation).",
+  "notes": "Home song-tile carousel: contained cover cards, single title scrim, key badge \u2014 no overflow/duplicate titles.",
   "channel": "web",
   "canReload": true
 }
