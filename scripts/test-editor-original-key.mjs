@@ -7,10 +7,13 @@
 import { readFileSync } from 'node:fs'
 import {
   applyEditorKeyChange,
+  displayEditorKeyLabel,
   displayEditorText,
   editorSemitoneDelta,
   extractEditorChordAnchors,
   extractEditorChordModel,
+  formatEditorDisplayText,
+  GERMAN_EDITOR_KEYS,
   inferKeyFromChords,
   inferKeyFromLeadsheet,
   normalizeEditorKey,
@@ -18,6 +21,9 @@ import {
   resolveEditorSnapshot,
   resolveEditorSourceKey,
   resolveScanSourceKey,
+  simplifyChordToken,
+  simplifyEditorText,
+  transposeEditorText,
 } from '../lib/editorKey.mjs'
 
 function assert(cond, msg) {
@@ -144,5 +150,44 @@ assert(jesusA.split('\n')[1] === 'Jesus meine', 'lyrics stay')
 const jesusSlash = displayEditorText(`F/G   Am
 Jesus meine`, 'G', 'A')
 assert(jesusSlash.split('\n')[0].startsWith('G/A'), `slash transpose got ${JSON.stringify(jesusSlash.split('\\n')[0])}`)
-assert(jesusSlash.split('\n')[0].indexOf('Bm') === 6, 'Am→Bm keeps column')
+assert(jesusSlash.split('\n')[0].indexOf('Hm') === 6, 'Am→Hm keeps column (German H)')
 console.log('PASS Jesus meine transpose column alignment + slash token')
+
+assert(GERMAN_EDITOR_KEYS.includes('H') && !GERMAN_EDITOR_KEYS.includes('B'), 'key list uses H not English B')
+assert(normalizeEditorKey('B') === 'H', 'legacy B → H')
+assert(normalizeEditorKey('H') === 'H', 'H stays H')
+assert(normalizeEditorKey('Bb') === 'Bb', 'Bb stays Bb')
+assert(displayEditorKeyLabel('Bb') === 'B', 'Bb displays as German B')
+assert(displayEditorKeyLabel('H') === 'H', 'H displays as H')
+
+// Anker-style D→E worship chords (harmonic + German spelling)
+const ankerD = `D          Gmaj7
+A
+Hm         Fism
+Em7        D/Fis
+A          Bm7     E7
+Em7        A`
+const ankerE = displayEditorText(ankerD, 'D', 'E')
+assert(/\bE\b/.test(ankerE) && /\bAmaj7\b/.test(ankerE), `D→E has E and Amaj7: ${ankerE}`)
+assert(/\bH\b/.test(ankerE), 'A→H German')
+assert(/\bCism\b/.test(ankerE), 'Hm/Bm → Cism')
+assert(/\bGism\b/.test(ankerE), 'Fism → Gism')
+assert(/\bFism7\b/.test(ankerE), 'Em7 → Fism7')
+assert(/\bE\/Gis\b/.test(ankerE), 'D/Fis → E/Gis')
+assert(/\bFis7\b/.test(ankerE), 'E7 → Fis7')
+assert(!/#/.test(ankerE) && !/\bB\b/.test(ankerE.replace(/Bb/g, '')), 'no international # or bare English B')
+
+const ankerSimple = formatEditorDisplayText(ankerE, { simplify: true })
+assert(/\bA\b/.test(ankerSimple) && !/Amaj7/.test(ankerSimple), 'simplify Amaj7→A')
+assert(/\bCism\b/.test(ankerSimple) && !/Cism7/.test(ankerSimple), 'simplify Cism7→Cism')
+assert(/\bFis\b/.test(ankerSimple) && !/Fis7/.test(ankerSimple), 'simplify Fis7→Fis')
+assert(/\bE\b/.test(ankerSimple) && !/E\/Gis/.test(ankerSimple), 'simplify drop slash E/Gis→E')
+assert(simplifyChordToken('Asus') === 'Asus', 'keep Asus')
+assert(simplifyChordToken('C#m7') === 'C#m', 'international m7 still simplifies')
+
+// Round-trip: simplify is display-only; full transpose from original snapshot still works
+const back = displayEditorText(ankerD, 'D', 'D')
+assert(back.includes('Gmaj7') || back.includes('G'), 'source fidelity path still available')
+const again = transposeEditorText(ankerD, 'D', 'E')
+assert(again === ankerE, 'repeat D→E stable')
+console.log('PASS D→E German spelling + simplify display rules')

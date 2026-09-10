@@ -1,9 +1,9 @@
 {
   "name": "Lyruma Songbook",
-  "version": "1.0.1.4",
+  "version": "1.0.1.5",
   "releasedAt": "2026-09-10",
   "releaseUrl": "https://songbook.lyruma.app",
-  "notes": "Library covers: auto artwork on import, redesigned home tiles, list thumbnails.",
+  "notes": "German chord spelling (H/B/Cis) and simplified band chords after transpose; original PDF unchanged.",
   "channel": "web",
   "canReload": true
 }

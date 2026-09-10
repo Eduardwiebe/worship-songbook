@@ -1,6 +1,6 @@
 /** Shared app metadata — keep in sync with package.json / tauri.conf / Cargo.toml */
 export const APP_NAME = 'Lyruma Songbook'
-export const APP_VERSION = '1.0.1.4'
+export const APP_VERSION = '1.0.1.5'
 export const APP_AUTHOR = 'Eduard Wiebe'
 export const APP_COPYRIGHT = 'Copyright 2026 Eduard Wiebe'
 export const APP_IDENTIFIER = 'studio.lyruma.worshipsongbook'

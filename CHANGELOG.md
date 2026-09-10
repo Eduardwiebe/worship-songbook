@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.1.5 — 2026-09-10
+
+### Chords: German spelling + simplify
+- Transpose output uses **German/European** roots: **H** (English B), **B** (Bb), Cis/Dis/Fis/Gis/As/Es.
+- Key picker shows **B** for Bb and **H** for B; legacy stored key `B` maps to `H`.
+- Display-layer **simplify** (default ON for DE): maj7/m7/7/add → triad/minor; slash bass dropped; sus kept. Toggle Einfach/Voll in editor toolbar. Original PDF + snapshot stay full fidelity (`data-full` on chart stacks).
+- Fixed Asus/Esus parsing so `As`/`Es` roots do not swallow `sus`.
+- Tests: D→E worship table (Anker-style) + German H/B + simplify round-trip from original snapshot.
+
 ## 1.0.1.4 — 2026-09-10
 
 ### Library covers & tiles

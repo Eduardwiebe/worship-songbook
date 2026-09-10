@@ -25,9 +25,11 @@ import { AboutDialog, UpdateDialog } from './AboutDialogs'
 import {
   GERMAN_EDITOR_KEYS,
   applyEditorKeyChange,
+  displayEditorKeyLabel,
   normalizeEditorKey,
   projectEditorSnapshot,
   resolveEditorSnapshot,
+  simplifyChordToken,
   transposeEditorText,
 } from '../../lib/editorKey.mjs'
 import {
@@ -1200,7 +1202,10 @@ function serializeChartSheetDom(root) {
     }
     if (cls.contains('chart-pair')) {
       const stacks = Array.from(child.querySelectorAll('.chart-stack')).map((el) => {
-        const chord = String(el.querySelector('.chart-stack-chord')?.innerText || '').replace(/\u00a0/g, ' ').trim()
+        const chordEl = el.querySelector('.chart-stack-chord')
+        const visible = String(chordEl?.innerText || '').replace(/\u00a0/g, ' ').trim()
+        const full = String(chordEl?.getAttribute('data-full') || '').trim()
+        const chord = full && simplifyChordToken(full) === visible ? full : visible
         const word = String(el.querySelector('.chart-stack-word')?.innerText || '').replace(/\u00a0/g, ' ').trim()
         return { chord, word }
       })
@@ -1209,21 +1214,32 @@ function serializeChartSheetDom(root) {
       parts.push(packed.lyricLine)
       continue
     }
-    if (cls.contains('chart-chords') || cls.contains('chart-lyrics')) {
+    if (cls.contains('chart-chords')) {
+      const full = String(child.getAttribute('data-full') || '').trim()
+      const visible = String(child.innerText || '').replace(/\s+$/g, '')
+      parts.push(full && simplifyChordToken(full.replace(/\s+$/g, '')) === visible.replace(/\s+$/g, '') ? full.replace(/\s+$/g, '') : visible)
+      continue
+    }
+    if (cls.contains('chart-lyrics')) {
       parts.push(String(child.innerText || '').replace(/\s+$/g, ''))
     }
   }
   return parts.join('\n').replace(/\n{3,}/g, '\n\n').trim()
 }
 
-function ChartSheet({ text, columns, fontSize, editable, onCommit }) {
+function ChartSheet({ text, columns, fontSize, editable, onCommit, simplifyChords = true }) {
   const display = softFormatChordChart(text || '')
   // Wrap long pairs so iPad never needs horizontal pan; stacks keep chords on syllables.
   const maxCols = columns === 2 ? 28 : 44
   const blocks = parseChartBlocks(display, { maxCols })
+  const showChord = (chord) => {
+    const full = String(chord || '')
+    if (!simplifyChords) return full || '\u00a0'
+    return simplifyChordToken(full) || '\u00a0'
+  }
   return (
     <div
-      key={display}
+      key={`${display}::${simplifyChords ? 'simple' : 'full'}`}
       className={`chart-sheet columns-${columns}`}
       style={{ fontSize }}
       contentEditable={editable}
@@ -1248,23 +1264,39 @@ function ChartSheet({ text, columns, fontSize, editable, onCommit }) {
             <div key={index} className="chart-pair">
               {(block.stacks || []).map((stack, stackIndex) => (
                 <span key={stackIndex} className="chart-stack">
-                  <span className="chart-stack-chord">{stack.chord || '\u00a0'}</span>
+                  <span className="chart-stack-chord" data-full={stack.chord || ''}>{showChord(stack.chord)}</span>
                   <span className="chart-stack-word">{stack.word || '\u00a0'}</span>
                 </span>
               ))}
             </div>
           )
         }
-        if (block.kind === 'chords') return <div key={index} className="chart-chords">{block.text}</div>
+        if (block.kind === 'chords') {
+          const full = String(block.text || '')
+          const shown = simplifyChords
+            ? full.replace(/(Cis|Des|Dis|Es(?!us)|Fis|Ges|Gis|As(?!us)|Ais|C#|Db|D#|Eb|F#|Gb|G#|Ab|A#|Bb|[CDEFGABH])((?:m|maj|min|dim|aug|sus|add)?\d*(?:sus\d*)?(?:[#b+°\-]\d*)*(?:\/(?:Cis|Des|Dis|Es(?!us)|Fis|Ges|Gis|As(?!us)|Ais|C#|Db|D#|Eb|F#|Gb|G#|Ab|A#|Bb|[CDEFGABH]))?)/gu, (all) => simplifyChordToken(all))
+            : full
+          return <div key={index} className="chart-chords" data-full={full}>{shown}</div>
+        }
         return <div key={index} className="chart-lyrics">{block.text}</div>
       })}
     </div>
   )
 }
 
+function readSimplifyChordsPref(locale = 'de') {
+  try {
+    const stored = localStorage.getItem('songbook-simplify-chords')
+    if (stored === '0' || stored === 'false') return false
+    if (stored === '1' || stored === 'true') return true
+  } catch {}
+  return locale !== 'en' // DE (and default) → simplified chords ON
+}
+
 function TransposeDialog({song,onClose,onSave,onKeysResolved,embedded=false,homeEmbedded=false}) {
-  const { t } = useI18n()
-  const [originalText,setOriginalText]=useState('');const [overlayText,setOverlayText]=useState('');const [sourceKey,setSourceKey]=useState('');const [targetKey,setTargetKey]=useState('');const [snapshotVerified,setSnapshotVerified]=useState(false);const [error,setError]=useState('');const [loading,setLoading]=useState(true);const [saving,setSaving]=useState(false);const [saved,setSaved]=useState('');const [needsReview,setNeedsReview]=useState(false);const [reanalyzing,setReanalyzing]=useState(false);const [reloadToken,setReloadToken]=useState(0);const [fontSize,setFontSize]=useState(16);const [columns,setColumns]=useState(1);const [autoScroll,setAutoScroll]=useState(false);const [bpm,setBpm]=useState(120);const [bpmInput,setBpmInput]=useState('120');const [cajonOn,setCajonOn]=useState(false);const audioContextRef=useRef(null);const [view,setView]=useState(hasSongPdf(song)?'original':'edited')
+  const { t, locale } = useI18n()
+  const [originalText,setOriginalText]=useState('');const [overlayText,setOverlayText]=useState('');const [sourceKey,setSourceKey]=useState('');const [targetKey,setTargetKey]=useState('');const [snapshotVerified,setSnapshotVerified]=useState(false);const [error,setError]=useState('');const [loading,setLoading]=useState(true);const [saving,setSaving]=useState(false);const [saved,setSaved]=useState('');const [needsReview,setNeedsReview]=useState(false);const [reanalyzing,setReanalyzing]=useState(false);const [reloadToken,setReloadToken]=useState(0);const [fontSize,setFontSize]=useState(16);const [columns,setColumns]=useState(1);const [autoScroll,setAutoScroll]=useState(false);const [bpm,setBpm]=useState(120);const [bpmInput,setBpmInput]=useState('120');const [cajonOn,setCajonOn]=useState(false);const audioContextRef=useRef(null);const [view,setView]=useState(hasSongPdf(song)?'original':'edited');const [simplifyChords,setSimplifyChords]=useState(()=>readSimplifyChordsPref(locale))
+  const setSimplifyPref=(next)=>{setSimplifyChords(next);try{localStorage.setItem('songbook-simplify-chords', next?'1':'0')}catch{}}
   const projection=projectEditorSnapshot({originalText,overlayText,sourceKey,selectedKey:targetKey});const text=projection.text
   useEffect(()=>{let active=true;(async()=>{try{setLoading(true);setError('');let data=await getSongOriginalSnapshot(song.id);if(!active)return;let original=resolveEditorSnapshot(data);if(!original.ok && hasSongPdf(song)){try{setReanalyzing(true);await analyzeSongChords(song.id);if(!active)return;data=await getSongOriginalSnapshot(song.id);original=resolveEditorSnapshot(data)}catch(repairError){if(!active)return;console.warn('song reanalyze failed',repairError)}finally{if(active)setReanalyzing(false)}}if(!original.ok){setOriginalText('');setOverlayText('');setSourceKey('');setTargetKey('');setSnapshotVerified(false);setNeedsReview(true);setLoading(false);return}const variants=await getSongVariants(song.id);if(!active)return;const preferred=normalizeEditorKey(song.preferredKey)||normalizeEditorKey(song.key);const current=variants.find((variant)=>normalizeEditorKey(variant.targetKey)===preferred);const selected=normalizeEditorKey(current?.targetKey)||preferred||original.sourceKey;const overlay=typeof current?.overlayText==='string'&&current.overlayText?current.overlayText:original.originalText;setOriginalText(original.originalText);setOverlayText(overlay);setSourceKey(original.sourceKey);setTargetKey(selected);setSnapshotVerified(true);setNeedsReview(false);onKeysResolved?.({sourceKey:original.sourceKey,originalKey:original.sourceKey,sourceKeyStatus:'verified',sourceKeyVerified:true,snapshotStatus:'verified',snapshotId:original.snapshotId,key:selected,preferredKey:selected});const tempo=parseTempoBpm(overlay)||parseTempoBpm(original.originalText);if(tempo){setBpm(tempo);setBpmInput(String(tempo))}setLoading(false)}catch(caught){if(active){setError(caught.message);setLoading(false)}}})();return()=>{active=false}},[song.id,reloadToken])
   useEffect(()=>{if(!autoScroll)return;const timer=window.setInterval(()=>window.scrollBy({top:1,behavior:'auto'}),70);return()=>window.clearInterval(timer)},[autoScroll])
@@ -1290,7 +1322,7 @@ function TransposeDialog({song,onClose,onSave,onKeysResolved,embedded=false,home
   const originalUrl=songPdfUrl(song);const share=async()=>{const data=view==='original'?{title:song.title,url:new URL(originalUrl,window.location.origin).href}:{title:song.title,text:`${song.title}\n\n${text}`};if(navigator.share)await navigator.share(data);else{await navigator.clipboard.writeText(data.url||data.text);setSaved(t('songs.copiedClipboard'))}}
   const download=async()=>{const link=document.createElement('a');if(view==='original'){try{const href=await authorizedObjectUrl(originalUrl);link.href=href;link.download=song.fileName||`${song.title}.pdf`;link.click();if(href.startsWith('blob:'))setTimeout(()=>URL.revokeObjectURL(href),30000)}catch{link.href=originalUrl;link.download=song.fileName||`${song.title}.pdf`;link.click()}}else{link.href=URL.createObjectURL(new Blob([`${song.title}\n\n${text}`],{type:'text/plain;charset=utf-8'}));link.download=`${song.title}.txt`;link.click();URL.revokeObjectURL(link.href)}}
   const printSheet=async()=>{if(view==='original'){try{const href=await authorizedObjectUrl(originalUrl);window.open(`${href}#toolbar=1`,'_blank','noopener')}catch{window.open(`${originalUrl}#toolbar=1`,'_blank','noopener')}}else window.print()}
-  return <div className={`${embedded?'song-editor-page':'modal-backdrop'}${homeEmbedded?' home-song-editor':''}`} onMouseDown={(event)=>!embedded&&event.target===event.currentTarget&&close()}>{embedded&&<button className="back-button editor-back" onClick={close}><ChevronLeft size={18}/>{t('songs.toLibrary')}</button>}<section className={embedded?'song-editor-surface':'modal modal-wide transpose-modal'}>{loading?<div className="analysis-loading"><Music2 size={30}/><strong>{t('songs.preparing')}</strong></div>:error?<div className="form-error analysis-error">{error}</div>:<><div className="editor-view-switch"><button className={view==='original'?'active':''} onClick={()=>setView('original')} disabled={!hasSongPdf(song)}>{t('songs.originalPdf')}</button><button className={view==='edited'?'active':''} onClick={()=>setView('edited')}>{t('songs.editKey')}</button><span>{view==='original'?t('songs.originalHint'):t('songs.editableHint')}</span></div>{needsReview&&view==='edited'&&<div className="analysis-quality-warn" role="status"><p>{t('songs.snapshotReviewRequired')}</p>{hasSongPdf(song)?<button className="add-button compact" disabled={reanalyzing} onClick={()=>{setReanalyzing(true);setReloadToken((value)=>value+1)}}>{reanalyzing?t('songs.reanalyzing'):t('songs.reanalyze')}</button>:<p>{t('songs.reuploadHint')}</p>}</div>}<div className="sheet-toolbar"><label className={view==='original'||!snapshotVerified?'tool-disabled':''}><span>{t('songs.changeKey')}</span><select disabled={view==='original'||!snapshotVerified} value={targetKey||'–'} onChange={(event)=>changeTargetKey(event.target.value)}>{!targetKey&&<option value="–">–</option>}{GERMAN_EDITOR_KEYS.map((key)=><option key={key}>{key}</option>)}</select></label><div className={`columns-font-cluster${view==='original'?' tool-disabled':''}`}><div className={`tool-group${view==='original'?' tool-disabled':''}`}><span>{t('songs.columns')}</span><button disabled={view==='original'} className={columns===1?'active':''} onClick={()=>setColumns(1)}>1</button><button disabled={view==='original'} className={columns===2?'active':''} onClick={()=>setColumns(2)}><Columns2 size={16}/></button></div><div className={`tool-group font-tools${view==='original'?' tool-disabled':''}`}><span>{t('songs.font')}</span><button disabled={view==='original'} onClick={()=>setFontSize((size)=>Math.max(11,size-1))}>−</button><Type size={18}/><button disabled={view==='original'} onClick={()=>setFontSize((size)=>Math.min(28,size+1))}>+</button><button disabled={view==='original'} onClick={()=>setFontSize(16)} title={t('songs.resetFont')}><RotateCcw size={15}/></button></div></div><div className="tool-group scroll-tool"><span>{t('songs.autoScroll')}</span><button className={autoScroll?'active':''} onClick={()=>setAutoScroll((value)=>!value)}>{autoScroll?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group cajon-tool"><span>{t('songs.cajon')}</span><input aria-label={t('songs.tempoAria')} type="number" min="40" max="240" inputMode="numeric" value={bpmInput} onChange={(event)=>{const raw=event.target.value;setBpmInput(raw);if(raw==='')return;const n=Number(raw);if(Number.isFinite(n))setBpm(n)}} onBlur={()=>{const next=clampTempoBpm(bpmInput,{fallback:bpm});if(next==null){setBpmInput(String(bpm));return}setBpm(next);setBpmInput(String(next))}}/><button className={cajonOn?'active':''} onClick={()=>setCajonOn((value)=>!value)} title={t('songs.startCajon')}>{cajonOn?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group sheet-actions"><span>{t('songs.sheet')}</span><button onClick={printSheet} title={t('songs.print')}><Printer size={18}/></button><button onClick={download} title={t('songs.download')}><Download size={18}/></button><button onClick={share} title={t('songs.share')}><Share2 size={18}/></button><button onClick={()=>document.documentElement.requestFullscreen?.()} title={t('songs.fullscreen')}><Maximize2 size={18}/></button></div></div>{view==='original'?<div className="original-pdf-sheet"><AuthorizedFrame title={`${song.title} – ${t('songs.originalPdf')}`} path={originalUrl} hash="#toolbar=0&navpanes=0&view=FitH" songId={song.id} preferPageImages/></div>:<><article className="editor-paper"><header><div><h2>{song.title}</h2><p>{song.artist||t('brand.songbook')}</p><strong>{t('songs.editedVersion', { key: targetKey||'–' })}</strong></div><Music2 size={30}/></header><ChartSheet text={text} columns={columns} fontSize={fontSize} editable={snapshotVerified} onCommit={(shown)=>{const knownSource=normalizeEditorKey(sourceKey);const knownTarget=normalizeEditorKey(targetKey);setOverlayText(knownSource&&knownTarget?transposeEditorText(shown,knownTarget,knownSource):shown);setSaved('')}}/></article><div className="editor-bottom-actions">{saved&&<span className="editor-saved"><CheckCircle2 size={16}/>{saved}</span>}<button className="add-button compact" disabled={!snapshotVerified||!text.trim()||saving} onClick={saveEditor}><CheckCircle2 size={18}/>{saving?t('common.saving'):t('songs.saveEdited', { key: targetKey||'–' })}</button></div></>}</>}</section></div>
+  return <div className={`${embedded?'song-editor-page':'modal-backdrop'}${homeEmbedded?' home-song-editor':''}`} onMouseDown={(event)=>!embedded&&event.target===event.currentTarget&&close()}>{embedded&&<button className="back-button editor-back" onClick={close}><ChevronLeft size={18}/>{t('songs.toLibrary')}</button>}<section className={embedded?'song-editor-surface':'modal modal-wide transpose-modal'}>{loading?<div className="analysis-loading"><Music2 size={30}/><strong>{t('songs.preparing')}</strong></div>:error?<div className="form-error analysis-error">{error}</div>:<><div className="editor-view-switch"><button className={view==='original'?'active':''} onClick={()=>setView('original')} disabled={!hasSongPdf(song)}>{t('songs.originalPdf')}</button><button className={view==='edited'?'active':''} onClick={()=>setView('edited')}>{t('songs.editKey')}</button><span>{view==='original'?t('songs.originalHint'):t('songs.editableHint')}</span></div>{needsReview&&view==='edited'&&<div className="analysis-quality-warn" role="status"><p>{t('songs.snapshotReviewRequired')}</p>{hasSongPdf(song)?<button className="add-button compact" disabled={reanalyzing} onClick={()=>{setReanalyzing(true);setReloadToken((value)=>value+1)}}>{reanalyzing?t('songs.reanalyzing'):t('songs.reanalyze')}</button>:<p>{t('songs.reuploadHint')}</p>}</div>}<div className="sheet-toolbar"><label className={view==='original'||!snapshotVerified?'tool-disabled':''}><span>{t('songs.changeKey')}</span><select disabled={view==='original'||!snapshotVerified} value={targetKey||'–'} onChange={(event)=>changeTargetKey(event.target.value)}>{!targetKey&&<option value="–">–</option>}{GERMAN_EDITOR_KEYS.map((key)=><option key={key} value={key}>{displayEditorKeyLabel(key)}</option>)}</select></label><div className={`tool-group${view==='original'||!snapshotVerified?' tool-disabled':''}`}><span>{t('songs.simplifyChords')}</span><button disabled={view==='original'||!snapshotVerified} className={simplifyChords?'active':''} onClick={()=>setSimplifyPref(!simplifyChords)} title={t('songs.simplifyChordsHint')}>{simplifyChords?t('songs.simplifyOn'):t('songs.simplifyOff')}</button></div><div className={`columns-font-cluster${view==='original'?' tool-disabled':''}`}><div className={`tool-group${view==='original'?' tool-disabled':''}`}><span>{t('songs.columns')}</span><button disabled={view==='original'} className={columns===1?'active':''} onClick={()=>setColumns(1)}>1</button><button disabled={view==='original'} className={columns===2?'active':''} onClick={()=>setColumns(2)}><Columns2 size={16}/></button></div><div className={`tool-group font-tools${view==='original'?' tool-disabled':''}`}><span>{t('songs.font')}</span><button disabled={view==='original'} onClick={()=>setFontSize((size)=>Math.max(11,size-1))}>−</button><Type size={18}/><button disabled={view==='original'} onClick={()=>setFontSize((size)=>Math.min(28,size+1))}>+</button><button disabled={view==='original'} onClick={()=>setFontSize(16)} title={t('songs.resetFont')}><RotateCcw size={15}/></button></div></div><div className="tool-group scroll-tool"><span>{t('songs.autoScroll')}</span><button className={autoScroll?'active':''} onClick={()=>setAutoScroll((value)=>!value)}>{autoScroll?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group cajon-tool"><span>{t('songs.cajon')}</span><input aria-label={t('songs.tempoAria')} type="number" min="40" max="240" inputMode="numeric" value={bpmInput} onChange={(event)=>{const raw=event.target.value;setBpmInput(raw);if(raw==='')return;const n=Number(raw);if(Number.isFinite(n))setBpm(n)}} onBlur={()=>{const next=clampTempoBpm(bpmInput,{fallback:bpm});if(next==null){setBpmInput(String(bpm));return}setBpm(next);setBpmInput(String(next))}}/><button className={cajonOn?'active':''} onClick={()=>setCajonOn((value)=>!value)} title={t('songs.startCajon')}>{cajonOn?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group sheet-actions"><span>{t('songs.sheet')}</span><button onClick={printSheet} title={t('songs.print')}><Printer size={18}/></button><button onClick={download} title={t('songs.download')}><Download size={18}/></button><button onClick={share} title={t('songs.share')}><Share2 size={18}/></button><button onClick={()=>document.documentElement.requestFullscreen?.()} title={t('songs.fullscreen')}><Maximize2 size={18}/></button></div></div>{view==='original'?<div className="original-pdf-sheet"><AuthorizedFrame title={`${song.title} – ${t('songs.originalPdf')}`} path={originalUrl} hash="#toolbar=0&navpanes=0&view=FitH" songId={song.id} preferPageImages/></div>:<><article className="editor-paper"><header><div><h2>{song.title}</h2><p>{song.artist||t('brand.songbook')}</p><strong>{t('songs.editedVersion', { key: targetKey ? displayEditorKeyLabel(targetKey) : '–' })}</strong></div><Music2 size={30}/></header><ChartSheet text={text} columns={columns} fontSize={fontSize} editable={snapshotVerified} simplifyChords={simplifyChords} onCommit={(shown)=>{const knownSource=normalizeEditorKey(sourceKey);const knownTarget=normalizeEditorKey(targetKey);setOverlayText(knownSource&&knownTarget?transposeEditorText(shown,knownTarget,knownSource):shown);setSaved('')}}/></article><div className="editor-bottom-actions">{saved&&<span className="editor-saved"><CheckCircle2 size={16}/>{saved}</span>}<button className="add-button compact" disabled={!snapshotVerified||!text.trim()||saving} onClick={saveEditor}><CheckCircle2 size={18}/>{saving?t('common.saving'):t('songs.saveEdited', { key: targetKey||'–' })}</button></div></>}</>}</section></div>
 }
 
 function ScanDialog({onClose,onSave}) {
