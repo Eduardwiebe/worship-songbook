@@ -288,6 +288,10 @@ export const STRINGS = {
     de: 'Die automatische Erkennung ist unsicher. Bitte prüfe Titel, Text und Akkorde manuell — das Original findest du im Tab „Original-PDF“.',
     en: 'Automatic recognition is uncertain. Please review title, lyrics, and chords manually — see the Original PDF tab for reference.',
   },
+  'songs.snapshotReviewRequired': {
+    de: 'Die Originalfassung ist noch nicht verifiziert. Die Transposition bleibt bis zur Prüfung gesperrt.',
+    en: 'The original version has not been verified yet. Transposition remains locked until review.',
+  },
 
   'import.title': { de: 'Neue Songs', en: 'New songs' },
   'import.subtitle': { de: 'Mehrere PDFs importieren', en: 'Import multiple PDFs' },
@@ -333,6 +337,17 @@ export const STRINGS = {
   'scan.autoProcess': { de: 'Automatische Aufbereitung', en: 'Automatic processing' },
   'scan.processHint': { de: 'Originalseite bleibt erhalten. Akkorde und Lyrics werden serverseitig mit strukturierter OCR erkannt.', en: 'The original page is kept. Chords and lyrics are recognized server-side with structured OCR.' },
   'scan.processing': { de: 'Scan wird vorbereitet …', en: 'Preparing scan …' },
+  'scan.guideSources': { de: 'Bild, PDF oder Text importieren', en: 'Import image, PDF, or text' },
+  'scan.guideSourcesHint': { de: 'Kamera, Galerie, PDF/TXT-Datei oder Akkordtext einfügen — alles wird zum bearbeitbaren Lead-Sheet.', en: 'Camera, gallery, PDF/TXT file, or paste chord chart — all become an editable lead sheet.' },
+  'scan.pickFile': { de: 'PDF/Datei wählen', en: 'Choose PDF/file' },
+  'scan.pasteText': { de: 'Text einfügen', en: 'Paste text' },
+  'scan.pasteLabel': { de: 'Akkordtext (Akkorde über dem Text)', en: 'Chord chart (chords above lyrics)' },
+  'scan.pastePlaceholder': { de: 'G        D\nJesus, meine Hoffnung lebt\nEm       C\nDu bist immer bei mir', en: 'G        D\nJesus, my hope is alive\nEm       C\nYou are always with me' },
+  'scan.previewing': { de: 'PDF wird gelesen …', en: 'Reading PDF …' },
+  'scan.selectPages': { de: 'Song-Seiten auswählen', en: 'Select song pages' },
+  'scan.selectPagesHint': { de: '{count} Seite(n) ausgewählt · markierte Seiten werden zum Lead-Sheet', en: '{count} page(s) selected · marked pages become the lead sheet' },
+  'scan.unsupportedFile': { de: 'Bitte Bild, PDF oder TXT auswählen.', en: 'Please choose an image, PDF, or TXT file.' },
+  'scan.processHintExtended': { de: 'PDF-Textlage wird bevorzugt; sonst OCR/Scan. Text und Bilder landen im gleichen Lead-Sheet-Modell.', en: 'PDF text layer is preferred; otherwise OCR/scan. Text and images use the same lead-sheet model.' },
   'scan.create': { de: 'Scannen und Lead-Sheet erstellen', en: 'Scan and create lead sheet' },
 
   'sets.planning': { de: 'Setplanung', en: 'Set planning' },

@@ -31,6 +31,47 @@ export async function saveScannedSong(title, pages) {
   return data
 }
 
+/** Preview PDF pages for scan-import page selection. */
+export async function previewScanPdf(file) {
+  const form = new FormData()
+  form.append('pdf', file, file.name || 'import.pdf')
+  const response = await apiFetch('/api/scans/preview', { method: 'POST', body: form })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(data.error || tStatic('err.songsScan'))
+  return data
+}
+
+/**
+ * Unified scan/import create:
+ * - images: { pages: [{file}] }
+ * - pdf: { pdfFile, selectedPages?: number[] }
+ * - text: { text }
+ */
+export async function saveScanImport(title, { pages, pdfFile, selectedPages, text } = {}) {
+  const form = new FormData()
+  form.set('title', title)
+
+  if (typeof text === 'string' && text.trim()) {
+    form.set('text', text)
+  } else if (pdfFile) {
+    form.append('pdf', pdfFile, pdfFile.name || 'import.pdf')
+    if (Array.isArray(selectedPages) && selectedPages.length) {
+      form.set('selectedPages', JSON.stringify(selectedPages))
+    }
+  } else if (pages?.length) {
+    const prepared = await prepareScanPages(pages.map((page) => page.file || page))
+    prepared.forEach((file, index) => form.append('pages', file, `scan-${index + 1}.jpg`))
+  } else {
+    throw new Error(tStatic('err.songsScan'))
+  }
+
+  const response = await apiFetch('/api/scans', { method: 'POST', body: form })
+  const data = await response.json().catch(() => ({}))
+  if (response.status === 409 && data.needsPageSelection) return data
+  if (!response.ok) throw new Error(data.error || tStatic('err.songsScan'))
+  return data
+}
+
 export async function openSongPdf(song) {
   if (!song.hasPdf) return
   if (isNativeRuntime()) {
@@ -57,7 +98,9 @@ export async function updateSong(id, changes) {
 }
 
 export async function analyzeSongChords(id) { const r=await apiFetch(`/api/songs/${id}/analyze-chords`,{method:'POST'});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||tStatic('err.songsChords'));return data }
-export async function saveSongVariant(id,values) { const r=await apiFetch(`/api/songs/${id}/variants`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(values)});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||tStatic('err.songsVariant'));return data }
+export async function getSongOriginalSnapshot(id) { const r=await apiFetch(`/api/songs/${id}/snapshot`);const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||tStatic('err.songsChords'));return data }
+export async function getSongVariants(id) { const r=await apiFetch(`/api/songs/${id}/variants`);const data=await r.json().catch(()=>[]);if(!r.ok)throw new Error(data.error||tStatic('err.songsVariant'));return data }
+export async function saveSongVariant(id,values) { const payload={targetKey:values.targetKey,overlayText:values.overlayText};const r=await apiFetch(`/api/songs/${id}/variants`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||tStatic('err.songsVariant'));return data }
 
 export async function openSongChart(song,key) {
   const path = `/api/songs/${song.id}/chart?key=${encodeURIComponent(key)}`

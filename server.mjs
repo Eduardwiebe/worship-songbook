@@ -9,7 +9,6 @@ import { createAuth, initializeAuth } from './auth.mjs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import {
-  chordPattern,
   chordTokens,
   cleanOcrText,
   isChordLine,
@@ -17,10 +16,26 @@ import {
   scoreLeadsheetQuality,
   shouldRunOcr,
 } from './lib/leadsheetAnalysis.mjs'
+import { inferKeyFromChords, inferKeyFromLeadsheet, normalizeEditorKey } from './lib/editorKey.mjs'
 import { reconstructFromFlatText, reconstructLeadsheet } from './lib/leadsheetReconstruct.mjs'
+import {
+  analyzePdfPageText,
+  parseChordOverLyricsText,
+  suggestSongPageIndices,
+} from './lib/chordTextParse.mjs'
 import { visionAvailable, recognizeMusicPages } from './lib/visionProviders/index.mjs'
 import { visionResultToApi } from './lib/visionLeadsheet.mjs'
-import { editorPitchName, inferKeyFromChords, inferKeyFromLeadsheet, normalizeEditorKey, resolveScanSourceKey } from './lib/editorKey.mjs'
+import {
+  SongTrustError,
+  getSongSnapshotState,
+  initializeSongTrustSchema,
+  migrateLegacySongTrust,
+  persistScanSnapshot,
+  saveVariantFromVerifiedSnapshot,
+  sha256,
+  snapshotStateResponse,
+  snapshotSummaryForSong,
+} from './lib/songTrust.mjs'
 const execFileAsync=promisify(execFile)
 
 const OCR_PYTHON = process.env.SONGBOOK_OCR_PYTHON || '/var/www/songbook/.venv-ocr/bin/python'
@@ -93,6 +108,10 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
   applied_at TEXT NOT NULL
 );`)
 try{db.exec(`ALTER TABLE onboarding_state ADD COLUMN manual_restart INTEGER NOT NULL DEFAULT 0`)}catch{}
+
+initializeSongTrustSchema(db)
+const songTrustMigration = await migrateLegacySongTrust(db, { readDocument: readFile })
+if (songTrustMigration.applied) console.log('song trust migration', JSON.stringify(songTrustMigration))
 
 const getOnboardingState=userId=>{
   const row=db.prepare(`
@@ -175,44 +194,16 @@ const saveOnboardingState=(userId,value)=>{
 const makeInitials=(name)=>{const parts=name.trim().split(/\s+/).filter(Boolean);return parts.length>1?(parts[0][0]+parts.at(-1)[0]).toUpperCase():parts[0]?.slice(0,2).toUpperCase()||''}
 const json = (res, status, body) => { res.writeHead(status, {'content-type':'application/json'}); res.end(JSON.stringify(body)) }
 const bodyJson = async (req) => { const chunks=[]; for await (const c of req) chunks.push(c); return JSON.parse(Buffer.concat(chunks).toString() || '{}') }
-const songRows = (ownerId,bandId='') => (bandId?db.prepare('SELECT s.id,s.title,s.artist,s.song_key AS key,s.source_key AS sourceKey,s.preferred_key AS preferredKey,s.file_name AS fileName,s.file_size AS fileSize,s.sort_order AS sortOrder,s.created_at AS createdAt,s.is_protected AS isProtected,1 AS hasPdf FROM songs s JOIN band_songs bs ON bs.song_id=s.id WHERE bs.band_id=? ORDER BY s.sort_order DESC').all(bandId):db.prepare('SELECT id,title,artist,song_key AS key,source_key AS sourceKey,preferred_key AS preferredKey,file_name AS fileName,file_size AS fileSize,sort_order AS sortOrder,created_at AS createdAt,is_protected AS isProtected,1 AS hasPdf FROM songs WHERE owner_id=? ORDER BY sort_order DESC').all(ownerId)).map(song=>({...song,originalKey:song.sourceKey||'',isProtected:Boolean(song.isProtected),variantKeys:db.prepare('SELECT target_key FROM song_variants WHERE song_id=? ORDER BY created_at DESC').all(song.id).map(row=>row.target_key)}))
-const pitchMap={C:0,Cis:1,'C#':1,Des:1,Db:1,D:2,Dis:3,'D#':3,Es:3,Eb:3,E:4,F:5,Fis:6,'F#':6,Ges:6,Gb:6,G:7,Gis:8,'G#':8,As:8,Ab:8,A:9,Ais:10,'A#':10,Bb:10,B:11,H:11}
-const namesSharp=['C','Cis','D','Dis','E','F','Fis','G','Gis','A','Ais','B'];const namesFlat=['C','Des','D','Es','E','F','Ges','G','As','A','Bb','B']
-const pitchName=(idx,targetKey)=>editorPitchName(idx,targetKey)
-const transposeRoot=(root,shift,targetKey)=>{const value=pitchMap[root];return value===undefined?root:pitchName((value+shift+120)%12,targetKey)}
-const transposeText=(text,sourceKey,targetKey)=>{const shift=pitchMap[targetKey]-pitchMap[sourceKey];return text.split('\n').map(line=>isChordLine(line)?line.replace(chordPattern,(full,root,suffix)=>{const slash=suffix.match(/\/(Cis|Des|Dis|Es|Fis|Ges|Gis|As|Ais|C#|Db|D#|Eb|F#|Gb|G#|Ab|A#|Bb|[CDEFGABH])$/);let nextSuffix=suffix;if(slash)nextSuffix=suffix.slice(0,-slash[0].length)+'/'+transposeRoot(slash[1],shift,targetKey);return transposeRoot(root,shift,targetKey)+nextSuffix}):line).join('\n')}
-
-function persistRecognizedScanKey(songId, result, storedSourceKey = '') {
-  const resolved = resolveScanSourceKey({
-    visionKey: result?.key,
-    text: result?.text,
-    storedKey: storedSourceKey,
-  })
-  const key = resolved.key
-  if (key && !normalizeEditorKey(storedSourceKey)) {
-    db.prepare('UPDATE songs SET source_key=?,song_key=CASE WHEN song_key IS NULL OR song_key=\'\' OR song_key=? THEN ? ELSE song_key END WHERE id=?').run(key, '–', key, songId)
-  }
-  if (key && result?.text) {
-    const existing = db.prepare('SELECT 1 FROM song_variants WHERE song_id=? AND source_key=target_key LIMIT 1').get(songId)
-    if (!existing) {
-      db.prepare('INSERT INTO song_variants (song_id,target_key,source_key,content,created_at) VALUES (?,?,?,?,?)').run(songId, key, key, result.text, new Date().toISOString())
-    }
-  }
-  console.log('scan-key', JSON.stringify({
-    songId,
-    visionKey: result?.key || '',
-    tonartKey: inferKeyFromLeadsheet(result?.text),
-    chordKey: inferKeyFromChords(result?.text).key,
-    resolved: key,
-    source: resolved.source,
-    needsReview: resolved.needsReview,
-    stored: storedSourceKey || '',
-    dbSourceKey: key || '',
-    dbSongKey: key || '–',
-    delta: 0,
-  }))
-  return resolved
-}
+const songRows = (ownerId,bandId='') => (bandId
+  ? db.prepare('SELECT s.id,s.title,s.artist,s.song_key AS key,s.preferred_key AS preferredKey,s.file_name AS fileName,s.file_size AS fileSize,s.sort_order AS sortOrder,s.created_at AS createdAt,s.is_protected AS isProtected,1 AS hasPdf FROM songs s JOIN band_songs bs ON bs.song_id=s.id WHERE bs.band_id=? ORDER BY s.sort_order DESC').all(bandId)
+  : db.prepare('SELECT id,title,artist,song_key AS key,preferred_key AS preferredKey,file_name AS fileName,file_size AS fileSize,sort_order AS sortOrder,created_at AS createdAt,is_protected AS isProtected,1 AS hasPdf FROM songs WHERE owner_id=? ORDER BY sort_order DESC').all(ownerId)
+).map((song) => {
+  const trust = snapshotSummaryForSong(db, song.id)
+  const variantKeys = trust.snapshotId
+    ? db.prepare('SELECT target_key FROM song_variants WHERE song_id=? AND snapshot_id=? ORDER BY created_at DESC').all(song.id, trust.snapshotId).map((row) => row.target_key)
+    : []
+  return { ...song, ...trust, isProtected: Boolean(song.isProtected), variantKeys }
+})
 
 async function extractPdfText(pdfPath) {
   try {
@@ -286,6 +277,123 @@ async function structuredOcrFromPdf(pdfPath) {
     return null
   } finally {
     await rm(rendered.dir, { recursive: true, force: true })
+  }
+}
+
+
+async function extractPdfTextForPage(pdfPath, pageNumber) {
+  try {
+    const result = await execFileAsync('/usr/bin/pdftotext', ['-f', String(pageNumber), '-l', String(pageNumber), '-layout', '-nopgbrk', pdfPath, '-'], { maxBuffer: 8 * 1024 * 1024 })
+    return cleanOcrText(result.stdout)
+  } catch {
+    return ''
+  }
+}
+
+async function pdfPageCount(pdfPath) {
+  try {
+    const result = await execFileAsync('/usr/bin/pdfinfo', [pdfPath], { maxBuffer: 2 * 1024 * 1024 })
+    const match = String(result.stdout || '').match(/Pages:\s*(\d+)/i)
+    return match ? Number(match[1]) : 0
+  } catch {
+    return 0
+  }
+}
+
+async function extractPdfPages(pdfPath, selectedPages, outputPath) {
+  const dir = await mkdtemp(join(tmpdir(), 'songbook-pdf-pages-'))
+  try {
+    await execFileAsync('/usr/bin/pdfseparate', [pdfPath, join(dir, 'page-%d.pdf')], { maxBuffer: 20 * 1024 * 1024 })
+    const files = (await readdir(dir)).filter((name) => name.endsWith('.pdf')).sort((a, b) => {
+      const na = Number(a.match(/(\d+)/)?.[1] || 0)
+      const nb = Number(b.match(/(\d+)/)?.[1] || 0)
+      return na - nb
+    })
+    const picks = selectedPages.map((index) => files[index]).filter(Boolean)
+    if (!picks.length) throw new Error('Keine gültigen PDF-Seiten ausgewählt.')
+    if (picks.length === 1) {
+      await writeFile(outputPath, await readFile(join(dir, picks[0])))
+    } else {
+      await execFileAsync('/usr/bin/pdfunite', [...picks.map((name) => join(dir, name)), outputPath], { maxBuffer: 30 * 1024 * 1024 })
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+}
+
+async function textToReferencePdf(text, outputPath, title = 'Lead Sheet') {
+  const dir = await mkdtemp(join(tmpdir(), 'songbook-text-pdf-'))
+  try {
+    const lines = String(text || '').split('\n')
+    const linesPerPage = 52
+    const pagePaths = []
+    for (let start = 0; start < Math.max(lines.length, 1); start += linesPerPage) {
+      const chunk = lines.slice(start, start + linesPerPage)
+      const pageIndex = Math.floor(start / linesPerPage) + 1
+      const pngPath = join(dir, `page-${String(pageIndex).padStart(2, '0')}.png`)
+      const pyPath = join(dir, `render-${pageIndex}.py`)
+      const script = [
+        'from PIL import Image, ImageDraw, ImageFont',
+        'img = Image.new("RGB", (1654, 2339), "white")',
+        'draw = ImageDraw.Draw(img)',
+        'try:',
+        '    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 28)',
+        'except Exception:',
+        '    font = ImageFont.load_default()',
+        `title = ${JSON.stringify(String(title || 'Lead Sheet'))}`,
+        'draw.text((72, 48), title[:80], fill=(30,30,30), font=font)',
+        `lines = ${JSON.stringify(chunk)}`,
+        'y = 110',
+        'for line in lines:',
+        '    draw.text((72, y), line[:110], fill=(20,20,20), font=font)',
+        '    y += 36',
+        `img.save(${JSON.stringify(pngPath)})`,
+      ].join('\n')
+      await writeFile(pyPath, script)
+      await execFileAsync('/usr/bin/python3', [pyPath], { maxBuffer: 10 * 1024 * 1024, timeout: 30000 })
+      pagePaths.push(pngPath)
+    }
+    await execFileAsync('/usr/bin/python3', ['/var/www/songbook/scan_to_pdf.py', outputPath, ...pagePaths], { maxBuffer: 30 * 1024 * 1024, timeout: 90000 })
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+}
+
+async function previewPdfImport(pdfPath) {
+  const count = await pdfPageCount(pdfPath)
+  const pageCount = Math.max(count || 1, 1)
+  const summaries = []
+  for (let page = 1; page <= pageCount; page += 1) {
+    const pageText = await extractPdfTextForPage(pdfPath, page)
+    const analysis = analyzePdfPageText(pageText)
+    summaries.push({
+      index: page - 1,
+      pageNumber: page,
+      score: analysis.score,
+      hasMusic: analysis.hasMusic,
+      hasTextLayer: Boolean(analysis.text),
+      previewText: analysis.text.slice(0, 280),
+    })
+  }
+  const suggested = suggestSongPageIndices(summaries)
+  const dir = await mkdtemp(join(tmpdir(), 'songbook-pdf-preview-'))
+  try {
+    await execFileAsync('/usr/bin/pdftoppm', ['-jpeg', '-r', '72', pdfPath, join(dir, 'page')], { maxBuffer: 40 * 1024 * 1024, timeout: 90000 })
+    const files = (await readdir(dir)).filter((name) => name.endsWith('.jpg') || name.endsWith('.jpeg')).sort()
+    const pages = []
+    for (let i = 0; i < files.length; i += 1) {
+      const data = await readFile(join(dir, files[i]))
+      const summary = summaries[i] || { index: i, pageNumber: i + 1, score: 0, hasMusic: false, hasTextLayer: false, previewText: '' }
+      pages.push({
+        ...summary,
+        mime: 'image/jpeg',
+        dataUrl: `data:image/jpeg;base64,${data.toString('base64')}`,
+        suggested: suggested.includes(summary.index),
+      })
+    }
+    return { pageCount: pages.length || pageCount, pages, suggested }
+  } finally {
+    await rm(dir, { recursive: true, force: true })
   }
 }
 
@@ -1103,23 +1211,147 @@ http.createServer(async (req,res) => { try {
     db.exec('BEGIN'); try { for (let i=0;i<files.length;i++) { const file=files[i]; const id=randomUUID(); const path=`${root}/pdfs/${id}.pdf`; await writeFile(path, Buffer.from(await file.arrayBuffer())); db.prepare('INSERT INTO songs (id,title,artist,file_name,file_size,pdf_path,sort_order,created_at,song_key,owner_id) VALUES (?,?,?,?,?,?,?,?,?,?)').run(id,titles[i]||file.name.replace(/\.pdf$/i,''),'Importierte PDF',file.name,file.size,path,base-i,new Date().toISOString(),'–',user.id);if(bandId)db.prepare('INSERT INTO band_songs VALUES (?,?)').run(bandId,id) } db.exec('COMMIT') } catch(e){db.exec('ROLLBACK');throw e}
     return json(res,201,songRows(user.id,bandId).slice(0,files.length))
   }
+  if(req.method==='POST'&&url.pathname==='/api/scans/preview'){
+    const request=new Request(url,{method:'POST',headers:req.headers,body:Readable.toWeb(req),duplex:'half'})
+    const form=await request.formData()
+    const pdf=form.get('pdf')
+    if(!pdf||typeof pdf==='string')return json(res,400,{error:'Bitte eine PDF-Datei hochladen.'})
+    const name=String(pdf.name||'').toLowerCase()
+    if((pdf.type&&pdf.type!=='application/pdf'&&pdf.type!=='application/x-pdf')||(!name.endsWith('.pdf')&&pdf.type!=='application/pdf'))return json(res,400,{error:'Bitte eine PDF-Datei auswählen.'})
+    if(pdf.size>20*1024*1024)return json(res,400,{error:'PDF darf maximal 20 MB groß sein.'})
+    const dir=await mkdtemp(join(tmpdir(),'songbook-scan-preview-'))
+    const tempPdf=join(dir,'source.pdf')
+    try{
+      await writeFile(tempPdf,Buffer.from(await pdf.arrayBuffer()))
+      const preview=await previewPdfImport(tempPdf)
+      return json(res,200,preview)
+    }catch(error){
+      console.error('pdf preview failed:',error?.message||error)
+      return json(res,422,{error:error?.message||'PDF-Vorschau fehlgeschlagen.'})
+    }finally{
+      await rm(dir,{recursive:true,force:true})
+    }
+  }
   if(req.method==='POST'&&url.pathname==='/api/scans'){
-    const request=new Request(url,{method:'POST',headers:req.headers,body:Readable.toWeb(req),duplex:'half'});const form=await request.formData();const title=String(form.get('title')||'').trim();const pages=form.getAll('pages');
-    if(!title||!pages.length||pages.length>8)return json(res,400,{error:'Bitte Titel und 1 bis 8 Scan-Seiten angeben.'});if(pages.some(page=>!String(page.type).startsWith('image/')||page.size>20*1024*1024))return json(res,400,{error:'Bitte nur Bilder bis 20 MB pro Seite verwenden.'});
-    const dir=await mkdtemp(join(tmpdir(),'songbook-scan-'));const id=randomUUID();const path=`${root}/pdfs/${id}.pdf`;try{const inputs=[];for(let index=0;index<pages.length;index++){const input=join(dir,`page-${String(index).padStart(2,'0')}`);await writeFile(input,Buffer.from(await pages[index].arrayBuffer()));inputs.push(input)}await execFileAsync('/usr/bin/python3',['/var/www/songbook/scan_to_pdf.py',path,...inputs],{maxBuffer:20*1024*1024,timeout:90000})}finally{await rm(dir,{recursive:true,force:true})}
-    db.prepare('INSERT INTO songs (id,title,artist,file_name,file_size,pdf_path,sort_order,created_at,song_key,source_key,owner_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id,title,'Gescannter Import',`${title}.pdf`,pages.reduce((sum,page)=>sum+page.size,0),path,Date.now(),new Date().toISOString(),'–','',user.id);if(bandId)db.prepare('INSERT INTO band_songs VALUES (?,?)').run(bandId,id)
+    const request=new Request(url,{method:'POST',headers:req.headers,body:Readable.toWeb(req),duplex:'half'})
+    const form=await request.formData()
+    const title=String(form.get('title')||'').trim()
+    const pages=form.getAll('pages')
+    const pdf=form.get('pdf')
+    const textRaw=form.get('text')
+    const selectedPagesRaw=String(form.get('selectedPages')||'').trim()
+    let selectedPages=[]
+    if(selectedPagesRaw){
+      try{selectedPages=JSON.parse(selectedPagesRaw)}catch{return json(res,400,{error:'selectedPages ist ungültig.'})}
+      if(!Array.isArray(selectedPages)||selectedPages.some((value)=>!Number.isInteger(value)||value<0))return json(res,400,{error:'selectedPages ist ungültig.'})
+    }
+    if(!title)return json(res,400,{error:'Bitte einen Songtitel angeben.'})
+
+    const id=randomUUID()
+    const path=`${root}/pdfs/${id}.pdf`
+    let artist='Gescannter Import'
+    let fileName=`${title}.pdf`
+    let fileSize=0
     let scanResult=null
-    try{scanResult=await analyzeSongPdf(path,{forceScan:true,titleHint:title})}catch(error){console.error('scan analyze failed:',error?.message||error)}
-    if(scanResult?.text)persistRecognizedScanKey(id,scanResult,'')
+    let forceScan=true
+
+    if(typeof textRaw==='string' && textRaw.trim()){
+      const parsed=parseChordOverLyricsText(textRaw,{titleHint:title,injectTonart:true})
+      if(!parsed.text)return json(res,422,{error:'Aus dem Text konnte kein Lead-Sheet erkannt werden.'})
+      await textToReferencePdf(parsed.text,path,title)
+      fileSize=Buffer.byteLength(parsed.text,'utf8')
+      artist='Text-Import'
+      scanResult={
+        text:parsed.text,
+        key:parsed.key,
+        method:parsed.method,
+        quality:parsed.quality,
+        needsReview:parsed.needsReview,
+        avgConfidence:parsed.chordConfidence||null,
+      }
+      forceScan=false
+    }else if(pdf && typeof pdf!=='string'){
+      const name=String(pdf.name||'').toLowerCase()
+      if((pdf.type&&pdf.type!=='application/pdf'&&pdf.type!=='application/x-pdf')||(!name.endsWith('.pdf')&&pdf.type!=='application/pdf'))return json(res,400,{error:'Bitte eine PDF-Datei auswählen.'})
+      if(pdf.size>20*1024*1024)return json(res,400,{error:'PDF darf maximal 20 MB groß sein.'})
+      const dir=await mkdtemp(join(tmpdir(),'songbook-scan-pdf-'))
+      const sourcePdf=join(dir,'source.pdf')
+      try{
+        await writeFile(sourcePdf,Buffer.from(await pdf.arrayBuffer()))
+        const count=await pdfPageCount(sourcePdf)
+        if(count>1 && !selectedPages.length){
+          const preview=await previewPdfImport(sourcePdf)
+          return json(res,409,{error:'Mehrseitige PDF – bitte Seiten auswählen.',needsPageSelection:true,...preview})
+        }
+        const pagesToUse=selectedPages.length?selectedPages:(count<=1?[0]:[])
+        if(!pagesToUse.length)return json(res,400,{error:'Bitte die Song-Seiten auswählen.'})
+        if(pagesToUse.length>8)return json(res,400,{error:'Bitte höchstens 8 Seiten für einen Song auswählen.'})
+        await extractPdfPages(sourcePdf,pagesToUse,path)
+        fileSize=pdf.size
+        artist='PDF-Import'
+        fileName=String(pdf.name||`${title}.pdf`)
+        // Prefer embedded text layer; OCR/vision only when needed.
+        forceScan=false
+        try{scanResult=await analyzeSongPdf(path,{forceScan:false,titleHint:title})}catch(error){console.error('pdf analyze failed:',error?.message||error)}
+        if(scanResult?.text){
+          const chords=inferKeyFromChords(scanResult.text)
+          let key=normalizeEditorKey(scanResult.key)||inferKeyFromLeadsheet(scanResult.text)||normalizeEditorKey(chords.key)
+          if(key && !inferKeyFromLeadsheet(scanResult.text)){
+            scanResult={...scanResult,text:`TONART: ${key}\n\n${scanResult.text}`,key}
+          }else if(key){
+            scanResult={...scanResult,key}
+          }
+        }
+      }finally{
+        await rm(dir,{recursive:true,force:true})
+      }
+    }else{
+      if(!pages.length||pages.length>8)return json(res,400,{error:'Bitte Titel und 1 bis 8 Scan-Seiten angeben.'})
+      if(pages.some(page=>!String(page.type).startsWith('image/')||page.size>20*1024*1024))return json(res,400,{error:'Bitte nur Bilder bis 20 MB pro Seite verwenden.'})
+      const dir=await mkdtemp(join(tmpdir(),'songbook-scan-'))
+      try{
+        const inputs=[]
+        for(let index=0;index<pages.length;index++){
+          const input=join(dir,`page-${String(index).padStart(2,'0')}`)
+          await writeFile(input,Buffer.from(await pages[index].arrayBuffer()))
+          inputs.push(input)
+        }
+        await execFileAsync('/usr/bin/python3',['/var/www/songbook/scan_to_pdf.py',path,...inputs],{maxBuffer:20*1024*1024,timeout:90000})
+      }finally{
+        await rm(dir,{recursive:true,force:true})
+      }
+      fileSize=pages.reduce((sum,page)=>sum+page.size,0)
+      forceScan=true
+      try{scanResult=await analyzeSongPdf(path,{forceScan:true,titleHint:title})}catch(error){console.error('scan analyze failed:',error?.message||error)}
+      if(scanResult?.text){
+        const chords=inferKeyFromChords(scanResult.text)
+        let key=normalizeEditorKey(scanResult.key)||inferKeyFromLeadsheet(scanResult.text)||normalizeEditorKey(chords.key)
+        if(key && !inferKeyFromLeadsheet(scanResult.text)){
+          scanResult={...scanResult,text:`TONART: ${key}\n\n${scanResult.text}`,key}
+        }else if(key){
+          scanResult={...scanResult,key}
+        }
+      }
+    }
+
+    db.prepare('INSERT INTO songs (id,title,artist,file_name,file_size,pdf_path,sort_order,created_at,song_key,source_key,owner_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id,title,artist,fileName,fileSize,path,Date.now(),new Date().toISOString(),'–','',user.id)
+    if(bandId)db.prepare('INSERT INTO band_songs VALUES (?,?)').run(bandId,id)
+    persistScanSnapshot(db,{
+      songId:id,
+      pdfPath:path,
+      documentHash:sha256(await readFile(path)),
+      result:scanResult||{method:forceScan?'scan_failed':'import_failed',needsReview:true},
+    })
     return json(res,201,songRows(user.id,bandId).find(song=>song.id===id))
   }
   const protectedSong=url.pathname.match(/^\/api\/songs\/([^/]+)/)
   if(protectedSong&&!(bandId?db.prepare('SELECT 1 FROM band_songs WHERE song_id=? AND band_id=?').get(protectedSong[1],bandId):db.prepare('SELECT 1 FROM songs WHERE id=? AND owner_id=?').get(protectedSong[1],user.id)))return json(res,404,{error:'Song nicht gefunden'})
   const pdfMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/pdf$/)
   if(req.method==='GET'&&pdfMatch){const row=db.prepare('SELECT pdf_path,file_name FROM songs WHERE id=?').get(pdfMatch[1]);if(!row)return json(res,404,{error:'Nicht gefunden'});const data=await readFile(row.pdf_path);res.writeHead(200,{'content-type':'application/pdf','content-disposition':`inline; filename*=UTF-8''${encodeURIComponent(row.file_name)}`});return res.end(data)}
+  const snapshotMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/snapshot$/)
+  if(req.method==='GET'&&snapshotMatch){return json(res,200,snapshotStateResponse(getSongSnapshotState(db,snapshotMatch[1])))}
   const analyzeMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/analyze-chords$/)
-  if(req.method==='POST'&&analyzeMatch){const saved=db.prepare('SELECT content,source_key FROM song_variants WHERE song_id=? AND source_key=target_key ORDER BY created_at DESC LIMIT 1').get(analyzeMatch[1]);if(saved?.content){const song=db.prepare('SELECT source_key FROM songs WHERE id=?').get(analyzeMatch[1]);const resolved=resolveScanSourceKey({visionKey:saved.source_key,text:saved.content,storedKey:song?.source_key});const key=resolved.key;const chordLines=saved.content.split('\n').filter(isChordLine);const quality=scoreLeadsheetQuality(saved.content);return json(res,200,{text:saved.content,method:'Kontrollierte Fassung',chordCount:chordLines.reduce((sum,line)=>sum+chordTokens(line).length,0),chordLines:chordLines.length,quality,needsReview:quality.needsReview||resolved.needsReview||!key,key,sourceKey:key,originalKey:key})}}
-  if(req.method==='POST'&&analyzeMatch){const row=db.prepare('SELECT pdf_path,artist,title,source_key FROM songs WHERE id=?').get(analyzeMatch[1]);if(!row)return json(res,404,{error:'Song nicht gefunden'});const result=await analyzeSongPdf(row.pdf_path,{forceScan:row.artist==='Gescannter Import',titleHint:row.title||''});if(!result.text)return json(res,422,{error:'Aus dieser PDF konnte kein Text erkannt werden.'});const resolved=persistRecognizedScanKey(analyzeMatch[1],result,row.source_key);const key=resolved.key;return json(res,200,{...result,key,sourceKey:key,originalKey:key,needsReview:Boolean(result.needsReview)||resolved.needsReview||!key})}
+  if(req.method==='POST'&&analyzeMatch){return json(res,200,snapshotStateResponse(getSongSnapshotState(db,analyzeMatch[1])))}
   const pagesMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/pages$/)
   if(req.method==='GET'&&pagesMatch){
     const row=db.prepare('SELECT pdf_path FROM songs WHERE id=?').get(pagesMatch[1])
@@ -1139,12 +1371,28 @@ http.createServer(async (req,res) => { try {
     }
   }
   const variantMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/variants$/)
-  if(req.method==='POST'&&variantMatch){const b=await bodyJson(req);if(pitchMap[b.sourceKey]===undefined||pitchMap[b.targetKey]===undefined)return json(res,400,{error:'Ungültige Tonart'});const content=transposeText(b.text,b.sourceKey,b.targetKey);db.prepare('INSERT INTO song_variants (song_id,target_key,source_key,content,created_at) VALUES (?,?,?,?,?) ON CONFLICT(song_id,target_key) DO UPDATE SET source_key=excluded.source_key,content=excluded.content,created_at=excluded.created_at').run(variantMatch[1],b.targetKey,b.sourceKey,content,new Date().toISOString());db.prepare('UPDATE songs SET source_key=?,preferred_key=?,song_key=? WHERE id=?').run(b.sourceKey,b.targetKey,b.targetKey,variantMatch[1]);return json(res,201,{targetKey:b.targetKey,sourceKey:b.sourceKey,content})}
-  if(req.method==='GET'&&variantMatch){const rows=db.prepare('SELECT target_key AS targetKey,source_key AS sourceKey,created_at AS createdAt FROM song_variants WHERE song_id=? ORDER BY created_at DESC').all(variantMatch[1]);return json(res,200,rows)}
+  if(req.method==='POST'&&variantMatch){
+    const b=await bodyJson(req)
+    try{return json(res,201,saveVariantFromVerifiedSnapshot(db,variantMatch[1],{targetKey:b.targetKey,overlayText:b.overlayText}))}
+    catch(error){if(error instanceof SongTrustError)return json(res,error.status,{error:error.message,code:error.code,snapshotStatus:'review_required'});throw error}
+  }
+  if(req.method==='GET'&&variantMatch){const snapshot=getSongSnapshotState(db,variantMatch[1]).snapshot;if(!snapshot)return json(res,200,[]);const rows=db.prepare('SELECT target_key AS targetKey,source_key AS sourceKey,snapshot_id AS snapshotId,overlay_text AS overlayText,created_at AS createdAt FROM song_variants WHERE song_id=? AND snapshot_id=? ORDER BY created_at DESC').all(variantMatch[1],snapshot.id);return json(res,200,rows)}
   const chartMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/chart$/)
-  if(req.method==='GET'&&chartMatch){const key=url.searchParams.get('key');const row=db.prepare('SELECT s.title,v.content,v.target_key AS targetKey FROM song_variants v JOIN songs s ON s.id=v.song_id WHERE v.song_id=? AND v.target_key=?').get(chartMatch[1],key);if(!row)return json(res,404,{error:'Fassung nicht gefunden'});const escape=value=>value.replace(/[&<>]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[char]));res.writeHead(200,{'content-type':'text/html; charset=utf-8'});return res.end(`<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escape(row.title)} – ${escape(row.targetKey)}</title><style>body{margin:0;background:#f3f0e8;color:#171717;font:16px/1.45 ui-monospace,monospace}main{max-width:900px;margin:auto;background:white;min-height:100vh;padding:36px;box-sizing:border-box}h1{font:700 26px system-ui;margin:0 0 6px}.key{color:#785d1f;font:700 14px system-ui;margin-bottom:28px}pre{white-space:pre-wrap;font:inherit}@media print{body{background:white}main{padding:0}}</style></head><body><main><h1>${escape(row.title)}</h1><div class="key">Tonart: ${escape(row.targetKey)}</div><pre>${escape(row.content)}</pre></main></body></html>`)}
+  if(req.method==='GET'&&chartMatch){const key=url.searchParams.get('key');const row=db.prepare("SELECT s.title,v.content,v.target_key AS targetKey FROM song_variants v JOIN songs s ON s.id=v.song_id JOIN song_original_snapshots snap ON snap.id=v.snapshot_id AND snap.song_id=v.song_id AND snap.status='verified' WHERE v.song_id=? AND v.target_key=?").get(chartMatch[1],key);if(!row)return json(res,404,{error:'Fassung nicht gefunden'});const escape=value=>value.replace(/[&<>]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[char]));res.writeHead(200,{'content-type':'text/html; charset=utf-8'});return res.end(`<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escape(row.title)} – ${escape(row.targetKey)}</title><style>body{margin:0;background:#f3f0e8;color:#171717;font:16px/1.45 ui-monospace,monospace}main{max-width:900px;margin:auto;background:white;min-height:100vh;padding:36px;box-sizing:border-box}h1{font:700 26px system-ui;margin:0 0 6px}.key{color:#785d1f;font:700 14px system-ui;margin-bottom:28px}pre{white-space:pre-wrap;font:inherit}@media print{body{background:white}main{padding:0}}</style></head><body><main><h1>${escape(row.title)}</h1><div class="key">Tonart: ${escape(row.targetKey)}</div><pre>${escape(row.content)}</pre></main></body></html>`)}
   const songMatch=url.pathname.match(/^\/api\/songs\/([^/]+)$/)
-  if(req.method==='PATCH'&&songMatch){const b=await bodyJson(req);db.prepare('UPDATE songs SET title=?,artist=?,song_key=? WHERE id=? AND owner_id=?').run(b.title,b.artist||'Importierte PDF',b.key||'–',songMatch[1],user.id);return json(res,200,{...b,id:songMatch[1],hasPdf:1})}
+  if(req.method==='PATCH'&&songMatch){
+    const b=await bodyJson(req)
+    const current=db.prepare('SELECT title,artist,song_key FROM songs WHERE id=?').get(songMatch[1])
+    const title=String(b.title??current?.title??'').trim()
+    const artist=String(b.artist??current?.artist??'Importierte PDF').trim()||'Importierte PDF'
+    const selectedKey=String(b.key??current?.song_key??'–').trim()||'–'
+    if(!title)return json(res,400,{error:'Der Songtitel darf nicht leer sein.'})
+    const changed=bandId
+      ? db.prepare('UPDATE songs SET title=?,artist=?,song_key=? WHERE id=?').run(title,artist,selectedKey,songMatch[1])
+      : db.prepare('UPDATE songs SET title=?,artist=?,song_key=? WHERE id=? AND owner_id=?').run(title,artist,selectedKey,songMatch[1],user.id)
+    if(!changed.changes)return json(res,404,{error:'Song nicht gefunden'})
+    return json(res,200,songRows(user.id,bandId).find(song=>song.id===songMatch[1]))
+  }
   if(req.method==='DELETE'&&songMatch){const row=db.prepare('SELECT pdf_path,is_protected FROM songs WHERE id=? AND owner_id=?').get(songMatch[1],user.id);if(!row)return json(res,404,{error:'Nicht gefunden'});if(row.is_protected)return json(res,403,{error:'Dieser bestehende Admin-Song ist geschützt.'});db.exec('BEGIN');try{db.prepare('DELETE FROM song_variants WHERE song_id=?').run(songMatch[1]);db.prepare('DELETE FROM band_songs WHERE song_id=?').run(songMatch[1]);const all=db.prepare('SELECT id,song_ids,leaders,song_keys FROM sets').all();for(const set of all){const ids=JSON.parse(set.song_ids).filter(id=>id!==songMatch[1]);const leaders=JSON.parse(set.leaders||'{}');const songKeys=JSON.parse(set.song_keys||'{}');delete leaders[songMatch[1]];delete songKeys[songMatch[1]];db.prepare('UPDATE sets SET song_ids=?,leaders=?,song_keys=? WHERE id=?').run(JSON.stringify(ids),JSON.stringify(leaders),JSON.stringify(songKeys),set.id)}db.prepare('DELETE FROM songs WHERE id=? AND owner_id=?').run(songMatch[1],user.id);db.exec('COMMIT')}catch(e){db.exec('ROLLBACK');throw e}await unlink(row.pdf_path).catch(()=>{});return json(res,200,{ok:true})}
   if(req.method==='GET'&&url.pathname==='/api/sets'){const rows=(bandId?db.prepare('SELECT * FROM sets WHERE band_id=? ORDER BY created_at DESC').all(bandId):db.prepare('SELECT * FROM sets WHERE owner_id=? AND band_id IS NULL ORDER BY created_at DESC').all(user.id)).map(r=>({...r,isProtected:Boolean(r.is_protected),songIds:JSON.parse(r.song_ids),leaders:JSON.parse(r.leaders||'{}'),songKeys:JSON.parse(r.song_keys||'{}'),eventTime:r.event_time||'',techNotes:r.tech_notes||'',technicianId:r.technician_id||'',arrivalTime:r.arrival_time||'',createdAt:r.created_at,song_ids:undefined,song_keys:undefined,created_at:undefined,event_time:undefined,tech_notes:undefined,technician_id:undefined,arrival_time:undefined}));return json(res,200,rows)}
   if(req.method==='POST'&&url.pathname==='/api/sets'){const b=await bodyJson(req);const set={id:randomUUID(),title:b.title,date:b.date,eventTime:b.eventTime||'',arrivalTime:b.arrivalTime||'',band:b.band||band?.name||'',theme:b.theme||'',venue:b.venue||'',techNotes:'',technicianId:'',songIds:[],leaders:{},songKeys:{},createdAt:new Date().toISOString(),isProtected:false,bandId:bandId||null};db.prepare('INSERT INTO sets (id,title,date,song_ids,created_at,leaders,event_time,tech_notes,technician_id,band,theme,venue,arrival_time,song_keys,owner_id,band_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(set.id,set.title,set.date,'[]',set.createdAt,'{}',set.eventTime,'','',set.band,set.theme,set.venue,set.arrivalTime,'{}',user.id,bandId||null);return json(res,201,set)}

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import './App.css'
 import './extra.css'
-import { analyzeSongChords, deleteSong, getImportedSongs, hasSongPdf, openSongChart, openSongPdf, saveImportedSongs, saveScannedSong, saveSongVariant, songChartUrl, songPdfUrl, updateSong } from './songStore'
+import { deleteSong, getImportedSongs, getSongOriginalSnapshot, getSongVariants, hasSongPdf, openSongChart, openSongPdf, previewScanPdf, saveImportedSongs, saveScanImport, saveSongVariant, songChartUrl, songPdfUrl, updateSong } from './songStore'
 import { createSet, deleteSet, getSets, saveSet } from './setStore'
 import { deleteMember, getTeam, memberPhoto, saveMember } from './teamStore'
 import { createAppointment, deleteAppointment, getAppointments } from './scheduleStore'
@@ -25,11 +25,9 @@ import { AboutDialog, UpdateDialog } from './AboutDialogs'
 import {
   GERMAN_EDITOR_KEYS,
   applyEditorKeyChange,
-  displayEditorText,
-  inferKeyFromLeadsheet,
   normalizeEditorKey,
-  resolveEditorSourceKey,
-  resolveScanSourceKey,
+  projectEditorSnapshot,
+  resolveEditorSnapshot,
   transposeEditorText,
 } from '../../lib/editorKey.mjs'
 import { installNativeDesktopChrome } from './nativeDesktop'
@@ -291,7 +289,7 @@ function App() {
       <NavLink to="/sets" onClick={closeMenu}><ListMusic size={20}/><span>{t('nav.sets')}</span></NavLink>
       <button type="button" onClick={()=>setMenuOpen(true)} aria-label={t('nav.more')}><MoreHorizontal size={20}/><span>{t('nav.more')}</span></button>
     </nav>
-    {dialogOpen && <ImportDialog onClose={() => setDialogOpen(false)} onImport={async (items) => { const storedSongs = await saveImportedSongs(items); setSongs((current) => [...storedSongs, ...current]); setDialogOpen(false); navigate('/songs') }} onScan={async(title,pages)=>{const song=await saveScannedSong(title,pages);setSongs(current=>[song,...current]);setDialogOpen(false);navigate(`/songs/${song.id}/editor`)}}/>} 
+    {dialogOpen && <ImportDialog onClose={() => setDialogOpen(false)} onImport={async (items) => { const storedSongs = await saveImportedSongs(items); setSongs((current) => [...storedSongs, ...current]); setDialogOpen(false); navigate('/songs') }} onScan={async(title,payload)=>{const song=await saveScanImport(title,payload);if(song?.needsPageSelection)throw new Error(song.error||'Bitte Song-Seiten auswählen.');setSongs(current=>[song,...current]);setDialogOpen(false);navigate(`/songs/${song.id}/editor`)}}/>} 
     {createSetOpen && <CreateSetDialog onClose={() => setCreateSetOpen(false)} onCreate={async (values) => { const next = await createSet(values); setSets((current) => [next, ...current]); setCreateSetOpen(false); navigate(`/sets/${next.id}`) }}/>} 
     {editingSong && <EditSongDialog song={editingSong} onClose={() => setEditingSong(null)} onSave={async (changes) => { const updated = await updateSong(editingSong.id, changes); setSongs((current) => current.map((song) => song.id === editingSong.id ? {...song, ...updated} : song)); setEditingSong(null) }}/>} 
     {teamDialogOpen && <TeamDialog onClose={() => setTeamDialogOpen(false)} onSave={async (values) => { const member=await saveMember(values);setTeam((current)=>[...current,member].sort((a,b)=>a.name.localeCompare(b.name)));setTeamDialogOpen(false) }}/>} 
@@ -1154,9 +1152,9 @@ function SongEditorRoute({songs,setSongs,navigate}) {
 
 function TransposeDialog({song,onClose,onSave,onKeysResolved,embedded=false,homeEmbedded=false}) {
   const { t } = useI18n()
-  const initialKey=resolveEditorSourceKey(song);const [originalText,setOriginalText]=useState('');const [sourceKey,setSourceKey]=useState(initialKey);const [targetKey,setTargetKey]=useState(initialKey);const [error,setError]=useState('');const [loading,setLoading]=useState(true);const [saving,setSaving]=useState(false);const [saved,setSaved]=useState('');const [needsReview,setNeedsReview]=useState(false);const [fontSize,setFontSize]=useState(16);const [columns,setColumns]=useState(1);const [autoScroll,setAutoScroll]=useState(false);const [bpm,setBpm]=useState(120);const [cajonOn,setCajonOn]=useState(false);const audioContextRef=useRef(null);const [view,setView]=useState(hasSongPdf(song)?'original':'edited')
-  const text=displayEditorText(originalText,sourceKey,targetKey)
-  useEffect(()=>{analyzeSongChords(song.id).then((data)=>{const resolved=resolveScanSourceKey({visionKey:data.key||data.sourceKey||data.originalKey,text:data.text,storedKey:song.sourceKey||song.originalKey});const recognized=resolved.key||resolveEditorSourceKey(song, data.key||data.sourceKey||data.originalKey)||inferKeyFromLeadsheet(data.text);setOriginalText(data.text);setSourceKey(recognized);setTargetKey(recognized);if(recognized)onKeysResolved?.({sourceKey:recognized,originalKey:recognized,key:recognized});setNeedsReview(Boolean(data.needsReview)||resolved.needsReview||!recognized);const tempo=data.text.match(/TEMPO:\s*(\d{2,3})\s*BPM/i);if(tempo)setBpm(Math.min(240,Math.max(40,Number(tempo[1]))));setLoading(false)}).catch((caught)=>{setError(caught.message);setLoading(false)})},[song.id])
+  const [originalText,setOriginalText]=useState('');const [overlayText,setOverlayText]=useState('');const [sourceKey,setSourceKey]=useState('');const [targetKey,setTargetKey]=useState('');const [snapshotVerified,setSnapshotVerified]=useState(false);const [error,setError]=useState('');const [loading,setLoading]=useState(true);const [saving,setSaving]=useState(false);const [saved,setSaved]=useState('');const [needsReview,setNeedsReview]=useState(false);const [fontSize,setFontSize]=useState(16);const [columns,setColumns]=useState(1);const [autoScroll,setAutoScroll]=useState(false);const [bpm,setBpm]=useState(120);const [cajonOn,setCajonOn]=useState(false);const audioContextRef=useRef(null);const [view,setView]=useState(hasSongPdf(song)?'original':'edited')
+  const projection=projectEditorSnapshot({originalText,overlayText,sourceKey,selectedKey:targetKey});const text=projection.text
+  useEffect(()=>{let active=true;(async()=>{try{const data=await getSongOriginalSnapshot(song.id);if(!active)return;const original=resolveEditorSnapshot(data);if(!original.ok){setOriginalText('');setOverlayText('');setSourceKey('');setTargetKey('');setSnapshotVerified(false);setNeedsReview(true);setLoading(false);return}const variants=await getSongVariants(song.id);if(!active)return;const preferred=normalizeEditorKey(song.preferredKey)||normalizeEditorKey(song.key);const current=variants.find((variant)=>normalizeEditorKey(variant.targetKey)===preferred);const selected=normalizeEditorKey(current?.targetKey)||preferred||original.sourceKey;const overlay=typeof current?.overlayText==='string'&&current.overlayText?current.overlayText:original.originalText;setOriginalText(original.originalText);setOverlayText(overlay);setSourceKey(original.sourceKey);setTargetKey(selected);setSnapshotVerified(true);setNeedsReview(false);onKeysResolved?.({sourceKey:original.sourceKey,originalKey:original.sourceKey,sourceKeyStatus:'verified',sourceKeyVerified:true,snapshotStatus:'verified',snapshotId:original.snapshotId,key:selected,preferredKey:selected});const tempo=overlay.match(/TEMPO:\s*(\d{2,3})\s*BPM/i);if(tempo)setBpm(Math.min(240,Math.max(40,Number(tempo[1]))));setLoading(false)}catch(caught){if(active){setError(caught.message);setLoading(false)}}})();return()=>{active=false}},[song.id])
   useEffect(()=>{if(!autoScroll)return;const timer=window.setInterval(()=>window.scrollBy({top:1,behavior:'auto'}),70);return()=>window.clearInterval(timer)},[autoScroll])
   useEffect(()=>{if(!cajonOn)return;const AudioContext=window.AudioContext||window.webkitAudioContext;const context=audioContextRef.current||new AudioContext();audioContextRef.current=context;context.resume();let beat=0;const strike=()=>{const now=context.currentTime;const strong=beat%4===0;const master=context.createGain();master.gain.setValueAtTime(strong?.11:.045,now);master.gain.exponentialRampToValueAtTime(.001,now+(strong?.14:.075));master.connect(context.destination);const length=Math.floor(context.sampleRate*(strong?.14:.075));const buffer=context.createBuffer(1,length,context.sampleRate);const data=buffer.getChannelData(0);for(let i=0;i<length;i++)data[i]=(Math.random()*2-1)*(1-i/length);const noise=context.createBufferSource();const filter=context.createBiquadFilter();filter.type='bandpass';filter.frequency.value=strong?720:1750;filter.Q.value=strong?.8:1.4;noise.buffer=buffer;noise.connect(filter);filter.connect(master);noise.start(now);if(strong){const tone=context.createOscillator();const toneGain=context.createGain();tone.frequency.setValueAtTime(115,now);tone.frequency.exponentialRampToValueAtTime(58,now+.11);toneGain.gain.setValueAtTime(.09,now);toneGain.gain.exponentialRampToValueAtTime(.001,now+.13);tone.connect(toneGain);toneGain.connect(context.destination);tone.start(now);tone.stop(now+.14)}beat+=1};strike();const timer=window.setInterval(strike,60000/bpm);return()=>window.clearInterval(timer)},[cajonOn,bpm])
   useEffect(()=>()=>{audioContextRef.current?.close()},[])
@@ -1166,31 +1164,60 @@ function TransposeDialog({song,onClose,onSave,onKeysResolved,embedded=false,home
     lockBodyScroll()
     return ()=>unlockBodyScroll()
   },[embedded])
-  const changeTargetKey=(next)=>{const applied=applyEditorKeyChange(originalText,sourceKey,next);setSourceKey(applied.sourceKey);setTargetKey(applied.targetKey)}
+  const changeTargetKey=(next)=>{const applied=applyEditorKeyChange(overlayText,sourceKey,next);if(!applied.blocked)setTargetKey(applied.targetKey)}
   const saveEditor=async()=>{
     setSaving(true);setSaved('')
     try{
       const knownSource=normalizeEditorKey(sourceKey)
       const knownTarget=normalizeEditorKey(targetKey)||knownSource
-      await onSave({text:originalText,sourceKey:knownSource||knownTarget,targetKey:knownTarget})
+      if(!snapshotVerified||!knownSource||!knownTarget)throw new Error(t('songs.snapshotReviewRequired'))
+      await onSave({overlayText,targetKey:knownTarget})
       setSaved(t('songs.savedInKey', { key: knownTarget }))
     }finally{setSaving(false)}
   }
   const originalUrl=songPdfUrl(song);const share=async()=>{const data=view==='original'?{title:song.title,url:new URL(originalUrl,window.location.origin).href}:{title:song.title,text:`${song.title}\n\n${text}`};if(navigator.share)await navigator.share(data);else{await navigator.clipboard.writeText(data.url||data.text);setSaved(t('songs.copiedClipboard'))}}
   const download=async()=>{const link=document.createElement('a');if(view==='original'){try{const href=await authorizedObjectUrl(originalUrl);link.href=href;link.download=song.fileName||`${song.title}.pdf`;link.click();if(href.startsWith('blob:'))setTimeout(()=>URL.revokeObjectURL(href),30000)}catch{link.href=originalUrl;link.download=song.fileName||`${song.title}.pdf`;link.click()}}else{link.href=URL.createObjectURL(new Blob([`${song.title}\n\n${text}`],{type:'text/plain;charset=utf-8'}));link.download=`${song.title}.txt`;link.click();URL.revokeObjectURL(link.href)}}
   const printSheet=async()=>{if(view==='original'){try{const href=await authorizedObjectUrl(originalUrl);window.open(`${href}#toolbar=1`,'_blank','noopener')}catch{window.open(`${originalUrl}#toolbar=1`,'_blank','noopener')}}else window.print()}
-  return <div className={`${embedded?'song-editor-page':'modal-backdrop'}${homeEmbedded?' home-song-editor':''}`} onMouseDown={(event)=>!embedded&&event.target===event.currentTarget&&close()}>{embedded&&<button className="back-button editor-back" onClick={close}><ChevronLeft size={18}/>{t('songs.toLibrary')}</button>}<section className={embedded?'song-editor-surface':'modal modal-wide transpose-modal'}>{loading?<div className="analysis-loading"><Music2 size={30}/><strong>{t('songs.preparing')}</strong></div>:error?<div className="form-error analysis-error">{error}</div>:<><div className="editor-view-switch"><button className={view==='original'?'active':''} onClick={()=>setView('original')} disabled={!hasSongPdf(song)}>{t('songs.originalPdf')}</button><button className={view==='edited'?'active':''} onClick={()=>setView('edited')}>{t('songs.editKey')}</button><span>{view==='original'?t('songs.originalHint'):t('songs.editableHint')}</span></div>{needsReview&&view==='edited'&&<p className="analysis-quality-warn" role="status">{t('songs.qualityWarn')}</p>}<div className="sheet-toolbar"><label className={view==='original'?'tool-disabled':''}><span>{t('songs.changeKey')}</span><select disabled={view==='original'} value={targetKey||'–'} onChange={(event)=>changeTargetKey(event.target.value)}>{!targetKey&&<option value="–">–</option>}{GERMAN_EDITOR_KEYS.map((key)=><option key={key}>{key}</option>)}</select></label><div className={`tool-group${view==='original'?' tool-disabled':''}`}><span>{t('songs.columns')}</span><button disabled={view==='original'} className={columns===1?'active':''} onClick={()=>setColumns(1)}>1</button><button disabled={view==='original'} className={columns===2?'active':''} onClick={()=>setColumns(2)}><Columns2 size={18}/></button></div><div className={`tool-group font-tools${view==='original'?' tool-disabled':''}`}><span>{t('songs.font')}</span><button disabled={view==='original'} onClick={()=>setFontSize((size)=>Math.max(11,size-1))}>−</button><Type size={18}/><button disabled={view==='original'} onClick={()=>setFontSize((size)=>Math.min(28,size+1))}>+</button><button disabled={view==='original'} onClick={()=>setFontSize(16)} title={t('songs.resetFont')}><RotateCcw size={17}/></button></div><div className="tool-group scroll-tool"><span>{t('songs.autoScroll')}</span><button className={autoScroll?'active':''} onClick={()=>setAutoScroll((value)=>!value)}>{autoScroll?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group cajon-tool"><span>{t('songs.cajon')}</span><input aria-label={t('songs.tempoAria')} type="number" min="40" max="240" value={bpm} onChange={(event)=>setBpm(Math.min(240,Math.max(40,Number(event.target.value)||40)))}/><button className={cajonOn?'active':''} onClick={()=>setCajonOn((value)=>!value)} title={t('songs.startCajon')}>{cajonOn?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group sheet-actions"><span>{t('songs.sheet')}</span><button onClick={printSheet} title={t('songs.print')}><Printer size={18}/></button><button onClick={download} title={t('songs.download')}><Download size={18}/></button><button onClick={share} title={t('songs.share')}><Share2 size={18}/></button><button onClick={()=>document.documentElement.requestFullscreen?.()} title={t('songs.fullscreen')}><Maximize2 size={18}/></button></div></div>{view==='original'?<div className="original-pdf-sheet"><AuthorizedFrame title={`${song.title} – ${t('songs.originalPdf')}`} path={originalUrl} hash="#toolbar=0&navpanes=0&view=FitH" songId={song.id} preferPageImages/></div>:<><article className="editor-paper"><header><div><h2>{song.title}</h2><p>{song.artist||t('brand.songbook')}</p><strong>{t('songs.editedVersion', { key: targetKey })}</strong></div><Music2 size={30}/></header><pre key={targetKey||'unknown'} className={`chart-sheet columns-${columns}`} style={{fontSize}} contentEditable suppressContentEditableWarning spellCheck="false" onBlur={(event)=>{const shown=event.currentTarget.innerText;const knownSource=normalizeEditorKey(sourceKey);const knownTarget=normalizeEditorKey(targetKey);setOriginalText(knownSource&&knownTarget?transposeEditorText(shown,knownTarget,knownSource):shown);setSaved('')}}>{text}</pre></article><div className="editor-bottom-actions">{saved&&<span className="editor-saved"><CheckCircle2 size={16}/>{saved}</span>}<button className="add-button compact" disabled={!text.trim()||saving} onClick={saveEditor}><CheckCircle2 size={18}/>{saving?t('common.saving'):t('songs.saveEdited', { key: targetKey })}</button></div></>}</>}</section></div>
+  return <div className={`${embedded?'song-editor-page':'modal-backdrop'}${homeEmbedded?' home-song-editor':''}`} onMouseDown={(event)=>!embedded&&event.target===event.currentTarget&&close()}>{embedded&&<button className="back-button editor-back" onClick={close}><ChevronLeft size={18}/>{t('songs.toLibrary')}</button>}<section className={embedded?'song-editor-surface':'modal modal-wide transpose-modal'}>{loading?<div className="analysis-loading"><Music2 size={30}/><strong>{t('songs.preparing')}</strong></div>:error?<div className="form-error analysis-error">{error}</div>:<><div className="editor-view-switch"><button className={view==='original'?'active':''} onClick={()=>setView('original')} disabled={!hasSongPdf(song)}>{t('songs.originalPdf')}</button><button className={view==='edited'?'active':''} onClick={()=>setView('edited')}>{t('songs.editKey')}</button><span>{view==='original'?t('songs.originalHint'):t('songs.editableHint')}</span></div>{needsReview&&view==='edited'&&<p className="analysis-quality-warn" role="status">{t('songs.snapshotReviewRequired')}</p>}<div className="sheet-toolbar"><label className={view==='original'||!snapshotVerified?'tool-disabled':''}><span>{t('songs.changeKey')}</span><select disabled={view==='original'||!snapshotVerified} value={targetKey||'–'} onChange={(event)=>changeTargetKey(event.target.value)}>{!targetKey&&<option value="–">–</option>}{GERMAN_EDITOR_KEYS.map((key)=><option key={key}>{key}</option>)}</select></label><div className={`tool-group${view==='original'?' tool-disabled':''}`}><span>{t('songs.columns')}</span><button disabled={view==='original'} className={columns===1?'active':''} onClick={()=>setColumns(1)}>1</button><button disabled={view==='original'} className={columns===2?'active':''} onClick={()=>setColumns(2)}><Columns2 size={18}/></button></div><div className={`tool-group font-tools${view==='original'?' tool-disabled':''}`}><span>{t('songs.font')}</span><button disabled={view==='original'} onClick={()=>setFontSize((size)=>Math.max(11,size-1))}>−</button><Type size={18}/><button disabled={view==='original'} onClick={()=>setFontSize((size)=>Math.min(28,size+1))}>+</button><button disabled={view==='original'} onClick={()=>setFontSize(16)} title={t('songs.resetFont')}><RotateCcw size={17}/></button></div><div className="tool-group scroll-tool"><span>{t('songs.autoScroll')}</span><button className={autoScroll?'active':''} onClick={()=>setAutoScroll((value)=>!value)}>{autoScroll?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group cajon-tool"><span>{t('songs.cajon')}</span><input aria-label={t('songs.tempoAria')} type="number" min="40" max="240" value={bpm} onChange={(event)=>setBpm(Math.min(240,Math.max(40,Number(event.target.value)||40)))}/><button className={cajonOn?'active':''} onClick={()=>setCajonOn((value)=>!value)} title={t('songs.startCajon')}>{cajonOn?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group sheet-actions"><span>{t('songs.sheet')}</span><button onClick={printSheet} title={t('songs.print')}><Printer size={18}/></button><button onClick={download} title={t('songs.download')}><Download size={18}/></button><button onClick={share} title={t('songs.share')}><Share2 size={18}/></button><button onClick={()=>document.documentElement.requestFullscreen?.()} title={t('songs.fullscreen')}><Maximize2 size={18}/></button></div></div>{view==='original'?<div className="original-pdf-sheet"><AuthorizedFrame title={`${song.title} – ${t('songs.originalPdf')}`} path={originalUrl} hash="#toolbar=0&navpanes=0&view=FitH" songId={song.id} preferPageImages/></div>:<><article className="editor-paper"><header><div><h2>{song.title}</h2><p>{song.artist||t('brand.songbook')}</p><strong>{t('songs.editedVersion', { key: targetKey||'–' })}</strong></div><Music2 size={30}/></header><pre key={targetKey||'unknown'} className={`chart-sheet columns-${columns}`} style={{fontSize}} contentEditable={snapshotVerified} suppressContentEditableWarning spellCheck="false" onBlur={(event)=>{if(!snapshotVerified)return;const shown=event.currentTarget.innerText;const knownSource=normalizeEditorKey(sourceKey);const knownTarget=normalizeEditorKey(targetKey);setOverlayText(knownSource&&knownTarget?transposeEditorText(shown,knownTarget,knownSource):shown);setSaved('')}}>{text}</pre></article><div className="editor-bottom-actions">{saved&&<span className="editor-saved"><CheckCircle2 size={16}/>{saved}</span>}<button className="add-button compact" disabled={!snapshotVerified||!text.trim()||saving} onClick={saveEditor}><CheckCircle2 size={18}/>{saving?t('common.saving'):t('songs.saveEdited', { key: targetKey||'–' })}</button></div></>}</>}</section></div>
 }
 
 function ScanDialog({onClose,onSave}) {
   const { t } = useI18n()
   const close=()=>dismissModal(onClose)
   const avoidAutoFocus=useAvoidMobileAutoFocus()
-  const cameraRef=useRef(null);const galleryRef=useRef(null);const [title,setTitle]=useState('');const [pages,setPages]=useState([]);const [saving,setSaving]=useState(false);const [error,setError]=useState('');const [nativeScanner,setNativeScanner]=useState(false);const [scanningNative,setScanningNative]=useState(false)
+  const cameraRef=useRef(null)
+  const galleryRef=useRef(null)
+  const fileRef=useRef(null)
+  const [title,setTitle]=useState('')
+  const [pages,setPages]=useState([])
+  const [pdfFile,setPdfFile]=useState(null)
+  const [pdfPages,setPdfPages]=useState([])
+  const [selectedPdfPages,setSelectedPdfPages]=useState([])
+  const [pasteText,setPasteText]=useState('')
+  const [mode,setMode]=useState('images') // images | pdf | text
+  const [saving,setSaving]=useState(false)
+  const [previewing,setPreviewing]=useState(false)
+  const [error,setError]=useState('')
+  const [nativeScanner,setNativeScanner]=useState(false)
+  const [scanningNative,setScanningNative]=useState(false)
+
   useEffect(()=>{let alive=true;import('./documentScanner').then(m=>m.isNativeDocumentScannerAvailable()).then(ok=>{if(alive)setNativeScanner(ok)}).catch(()=>{});return()=>{alive=false}},[])
-  const add=files=>{const next=Array.from(files||[]).filter(file=>file.type.startsWith('image/'));if(!next.length)return;setPages(current=>[...current,...next.slice(0,8-current.length).map(file=>({id:crypto.randomUUID(),file,url:URL.createObjectURL(file)}))])}
+  useEffect(()=>()=>{pages.forEach((page)=>URL.revokeObjectURL(page.url))},[])
+
+  const clearImagePages=()=>setPages((current)=>{current.forEach((page)=>URL.revokeObjectURL(page.url));return []})
+  const resetPdf=()=>{setPdfFile(null);setPdfPages([]);setSelectedPdfPages([])}
+
+  const add=files=>{
+    const next=Array.from(files||[]).filter(file=>file.type.startsWith('image/'))
+    if(!next.length)return
+    setMode('images')
+    resetPdf()
+    setPasteText('')
+    setPages(current=>[...current,...next.slice(0,8-current.length).map(file=>({id:crypto.randomUUID(),file,url:URL.createObjectURL(file)}))])
+  }
   const remove=id=>setPages(current=>{const page=current.find(item=>item.id===id);if(page)URL.revokeObjectURL(page.url);return current.filter(item=>item.id!==id)})
   const move=(index,offset)=>setPages(current=>{const target=index+offset;if(target<0||target>=current.length)return current;const next=[...current];[next[index],next[target]]=[next[target],next[index]];return next})
+
   const openNativeScanner=async()=>{
     setScanningNative(true);setError('')
     try{
@@ -1203,8 +1230,107 @@ function ScanDialog({onClose,onSave}) {
     finally{setScanningNative(false)}
   }
   const openPrimaryCapture=()=>{if(nativeScanner)openNativeScanner();else cameraRef.current?.click()}
-  return <ModalBackdrop onClose={onClose}><section className="modal modal-wide scan-modal"><div className="modal-header"><div><p className="eyebrow">{t('scan.title')}</p><h2>{t('scan.subtitle')}</h2></div><button className="icon-button" onClick={close}><X size={20}/></button></div><div className="scan-guide"><span>1</span><p><strong>{nativeScanner?t('scan.guideNative'):t('scan.guide')}</strong><small>{nativeScanner?t('scan.guideHintNative'):t('scan.guideHint')}</small></p></div><input ref={cameraRef} className="file-input" type="file" accept="image/*" capture="environment" onChange={event=>{add(event.target.files);event.target.value=''}}/><input ref={galleryRef} className="file-input" type="file" accept="image/*" multiple onChange={event=>{add(event.target.files);event.target.value=''}}/><div className="scan-actions"><button className="scan-camera-button" disabled={scanningNative||pages.length>=8} onClick={openPrimaryCapture}><FileText size={24}/><span><strong>{scanningNative?t('scan.scanning'):(pages.length?t('scan.nextPage'):(nativeScanner?t('scan.openDocumentScanner'):t('scan.openCamera')))}</strong><small>{nativeScanner?t('scan.visionKitHint'):t('scan.upTo8')}</small></span></button><button className="scan-gallery-button" onClick={()=>galleryRef.current?.click()}><Upload size={21}/>{t('scan.pickImages')}</button>{nativeScanner&&<button type="button" className="scan-gallery-button" onClick={()=>cameraRef.current?.click()}>{t('scan.fallbackCamera')}</button>}</div>{pages.length>0&&<><label className="field scan-title"><span>{t('scan.songTitle')}</span><div><Music2 size={18}/><input value={title} onChange={event=>setTitle(event.target.value)} placeholder={t('scan.titlePlaceholder')} autoFocus={!avoidAutoFocus}/></div></label><div className="scan-pages">{pages.map((page,index)=><article key={page.id}><img src={page.url} alt={t('scan.pageAlt', { n: index+1 })}/><span>{t('scan.pageN', { n: index+1 })}</span><div><button disabled={index===0} onClick={()=>move(index,-1)}><ArrowUp size={16}/></button><button disabled={index===pages.length-1} onClick={()=>move(index,1)}><ArrowDown size={16}/></button><button onClick={()=>remove(page.id)}><Trash2 size={16}/></button></div></article>)}</div></>}{error&&<p className="form-error">{error}</p>}<div className="scan-processing-note"><CheckCircle2 size={18}/><span><strong>{t('scan.autoProcess')}</strong><small>{t('scan.processHint')}</small></span></div><div className="modal-actions"><button className="cancel-button" onClick={close} disabled={saving}>{t('common.back')}</button><button className="add-button compact" disabled={!title.trim()||!pages.length||saving} onClick={async()=>{setSaving(true);setError('');try{await onSave(title.trim(),pages)}catch(e){setError(e.message);setSaving(false)}}}><Upload size={18}/>{saving?t('scan.processing'):t('scan.create')}</button></div></section></ModalBackdrop>
+
+  const loadPdfPreview=async(file)=>{
+    setPreviewing(true);setError('')
+    try{
+      const preview=await previewScanPdf(file)
+      setMode('pdf')
+      clearImagePages()
+      setPasteText('')
+      setPdfFile(file)
+      setPdfPages(preview.pages||[])
+      const suggested=(preview.suggested?.length?preview.suggested:((preview.pages||[]).length===1?[0]:[])).slice(0,8)
+      setSelectedPdfPages(suggested)
+      if(!title.trim() && file.name) setTitle(file.name.replace(/\.pdf$/i,''))
+    }catch(e){setError(e.message||t('scan.failed'));resetPdf()}
+    finally{setPreviewing(false)}
+  }
+
+  const onPickFiles=async(fileList)=>{
+    const files=Array.from(fileList||[])
+    if(!files.length)return
+    const file=files[0]
+    const name=String(file.name||'').toLowerCase()
+    if(file.type==='application/pdf' || name.endsWith('.pdf')){
+      await loadPdfPreview(file)
+      return
+    }
+    if(file.type==='text/plain' || name.endsWith('.txt')){
+      const text=await file.text()
+      setMode('text')
+      clearImagePages()
+      resetPdf()
+      setPasteText(text)
+      if(!title.trim() && file.name) setTitle(file.name.replace(/\.txt$/i,''))
+      return
+    }
+    if(file.type.startsWith('image/')){
+      add(files)
+      return
+    }
+    setError(t('scan.unsupportedFile'))
+  }
+
+  const togglePdfPage=(index)=>{
+    setSelectedPdfPages((current)=>{
+      if(current.includes(index)) return current.filter((value)=>value!==index)
+      if(current.length>=8) return current
+      return [...current,index].sort((a,b)=>a-b)
+    })
+  }
+
+  const canSubmit=Boolean(title.trim()) && (
+    (mode==='images' && pages.length>0) ||
+    (mode==='pdf' && pdfFile && selectedPdfPages.length>0) ||
+    (mode==='text' && pasteText.trim())
+  )
+
+  const submit=async()=>{
+    setSaving(true);setError('')
+    try{
+      if(mode==='text') await onSave(title.trim(),{text:pasteText})
+      else if(mode==='pdf') await onSave(title.trim(),{pdfFile,selectedPages:selectedPdfPages})
+      else await onSave(title.trim(),{pages})
+    }catch(e){setError(e.message);setSaving(false)}
+  }
+
+  return <ModalBackdrop onClose={onClose}><section className="modal modal-wide scan-modal">
+    <div className="modal-header"><div><p className="eyebrow">{t('scan.title')}</p><h2>{t('scan.subtitle')}</h2></div><button className="icon-button" onClick={close}><X size={20}/></button></div>
+    <div className="scan-guide"><span>1</span><p><strong>{t('scan.guideSources')}</strong><small>{t('scan.guideSourcesHint')}</small></p></div>
+    <input ref={cameraRef} className="file-input" type="file" accept="image/*" capture="environment" onChange={event=>{add(event.target.files);event.target.value=''}}/>
+    <input ref={galleryRef} className="file-input" type="file" accept="image/*" multiple onChange={event=>{add(event.target.files);event.target.value=''}}/>
+    <input ref={fileRef} className="file-input" type="file" accept="image/*,application/pdf,text/plain,.pdf,.txt" onChange={event=>{onPickFiles(event.target.files);event.target.value=''}}/>
+    <div className="scan-actions scan-actions-extended">
+      <button type="button" className="scan-camera-button" disabled={scanningNative||pages.length>=8} onClick={openPrimaryCapture}><FileText size={24}/><span><strong>{scanningNative?t('scan.scanning'):(pages.length?t('scan.nextPage'):(nativeScanner?t('scan.openDocumentScanner'):t('scan.openCamera')))}</strong><small>{nativeScanner?t('scan.visionKitHint'):t('scan.upTo8')}</small></span></button>
+      <button type="button" className="scan-gallery-button" onClick={()=>galleryRef.current?.click()}><Upload size={21}/>{t('scan.pickImages')}</button>
+      <button type="button" className="scan-gallery-button" onClick={()=>fileRef.current?.click()} disabled={previewing}>{previewing?t('scan.previewing'):t('scan.pickFile')}</button>
+      <button type="button" className={`scan-gallery-button${mode==='text'?' selected':''}`} onClick={()=>{setMode('text');clearImagePages();resetPdf()}}>{t('scan.pasteText')}</button>
+      {nativeScanner&&<button type="button" className="scan-gallery-button" onClick={()=>cameraRef.current?.click()}>{t('scan.fallbackCamera')}</button>}
+    </div>
+
+    <label className="field scan-title"><span>{t('scan.songTitle')}</span><div><Music2 size={18}/><input value={title} onChange={event=>setTitle(event.target.value)} placeholder={t('scan.titlePlaceholder')} autoFocus={!avoidAutoFocus}/></div></label>
+
+    {mode==='text'&&<label className="field scan-paste"><span>{t('scan.pasteLabel')}</span><textarea value={pasteText} onChange={(event)=>setPasteText(event.target.value)} rows={12} placeholder={t('scan.pastePlaceholder')}/></label>}
+
+    {mode==='pdf'&&pdfPages.length>0&&<>
+      <div className="scan-page-select-head"><strong>{t('scan.selectPages')}</strong><small>{t('scan.selectPagesHint',{count:selectedPdfPages.length})}</small></div>
+      <div className="scan-pages scan-pdf-pages">{pdfPages.map((page)=><article key={page.index} className={selectedPdfPages.includes(page.index)?'selected':''}>
+        <button type="button" className="scan-page-toggle" onClick={()=>togglePdfPage(page.index)}>
+          <img src={page.dataUrl} alt={t('scan.pageAlt',{n:page.pageNumber})}/>
+          <span>{t('scan.pageN',{n:page.pageNumber})}{page.suggested?' ★':''}</span>
+        </button>
+      </article>)}</div>
+    </>}
+
+    {mode==='images'&&pages.length>0&&<div className="scan-pages">{pages.map((page,index)=><article key={page.id}><img src={page.url} alt={t('scan.pageAlt', { n: index+1 })}/><span>{t('scan.pageN', { n: index+1 })}</span><div><button disabled={index===0} onClick={()=>move(index,-1)}><ArrowUp size={16}/></button><button disabled={index===pages.length-1} onClick={()=>move(index,1)}><ArrowDown size={16}/></button><button onClick={()=>remove(page.id)}><Trash2 size={16}/></button></div></article>)}</div>}
+
+    {error&&<p className="form-error">{error}</p>}
+    <div className="scan-processing-note"><CheckCircle2 size={18}/><span><strong>{t('scan.autoProcess')}</strong><small>{t('scan.processHintExtended')}</small></span></div>
+    <div className="modal-actions"><button className="cancel-button" onClick={close} disabled={saving}>{t('common.back')}</button><button className="add-button compact" disabled={!canSubmit||saving||previewing} onClick={submit}><Upload size={18}/>{saving?t('scan.processing'):t('scan.create')}</button></div>
+  </section></ModalBackdrop>
 }
+
 
 function ImportDialog({onClose, onImport, onScan}) {
   const { t } = useI18n()
