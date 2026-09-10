@@ -28,6 +28,10 @@ import { deinterleaveTwoColumnLayout, softFormatChordChart } from './lib/chartLa
 import { visionAvailable, recognizeMusicPages } from './lib/visionProviders/index.mjs'
 import { visionResultToApi } from './lib/visionLeadsheet.mjs'
 import {
+  persistSongCover,
+  queueResolveSongCover,
+} from './lib/songCover.mjs'
+import {
   SongTrustError,
   getSongSnapshotState,
   initializeSongTrustSchema,
@@ -48,6 +52,7 @@ const OMR_SCRIPT = process.env.SONGBOOK_OMR_SCRIPT || '/var/www/songbook/omr_str
 
 const root = '/var/www/songbook/data'
 await mkdir(`${root}/pdfs`, {recursive: true})
+await mkdir(`${root}/covers`, {recursive: true})
 const db = new DatabaseSync(`${root}/songbook.sqlite`)
 db.exec(`CREATE TABLE IF NOT EXISTS songs (id TEXT PRIMARY KEY,title TEXT NOT NULL,artist TEXT,file_name TEXT,file_size INTEGER,pdf_path TEXT,sort_order INTEGER,created_at TEXT,song_key TEXT DEFAULT '–');
 CREATE TABLE IF NOT EXISTS sets (id TEXT PRIMARY KEY,title TEXT NOT NULL,date TEXT,song_ids TEXT NOT NULL,created_at TEXT,leaders TEXT DEFAULT '{}',event_time TEXT DEFAULT '',tech_notes TEXT DEFAULT '',technician_id TEXT DEFAULT '',band TEXT DEFAULT '',theme TEXT DEFAULT '',venue TEXT DEFAULT '',arrival_time TEXT DEFAULT '');
@@ -65,6 +70,7 @@ try { db.exec("ALTER TABLE sets ADD COLUMN tech_notes TEXT DEFAULT ''") } catch 
 try { db.exec("ALTER TABLE sets ADD COLUMN technician_id TEXT DEFAULT ''") } catch {}
 for(const column of ['band','theme','venue','arrival_time']){try{db.exec(`ALTER TABLE sets ADD COLUMN ${column} TEXT DEFAULT ''`)}catch{}}
 for(const column of ['source_key','preferred_key']){try{db.exec(`ALTER TABLE songs ADD COLUMN ${column} TEXT DEFAULT ''`)}catch{}}
+for(const column of ['cover_path','cover_mime','cover_source']){try{db.exec(`ALTER TABLE songs ADD COLUMN ${column} TEXT DEFAULT ''`)}catch{}}
 initializeAuth(db)
 db.exec(`CREATE TABLE IF NOT EXISTS bands (id TEXT PRIMARY KEY,name TEXT NOT NULL UNIQUE,description TEXT NOT NULL DEFAULT '',created_by TEXT NOT NULL,created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS band_members (band_id TEXT NOT NULL,user_id TEXT NOT NULL,role TEXT NOT NULL DEFAULT 'member',joined_at TEXT NOT NULL,PRIMARY KEY(band_id,user_id));
@@ -199,14 +205,23 @@ const makeInitials=(name)=>{const parts=name.trim().split(/\s+/).filter(Boolean)
 const json = (res, status, body) => { res.writeHead(status, {'content-type':'application/json'}); res.end(JSON.stringify(body)) }
 const bodyJson = async (req) => { const chunks=[]; for await (const c of req) chunks.push(c); return JSON.parse(Buffer.concat(chunks).toString() || '{}') }
 const songRows = (ownerId,bandId='') => (bandId
-  ? db.prepare('SELECT s.id,s.title,s.artist,s.song_key AS key,s.preferred_key AS preferredKey,s.file_name AS fileName,s.file_size AS fileSize,s.sort_order AS sortOrder,s.created_at AS createdAt,s.is_protected AS isProtected,1 AS hasPdf FROM songs s JOIN band_songs bs ON bs.song_id=s.id WHERE bs.band_id=? ORDER BY s.sort_order DESC').all(bandId)
-  : db.prepare('SELECT id,title,artist,song_key AS key,preferred_key AS preferredKey,file_name AS fileName,file_size AS fileSize,sort_order AS sortOrder,created_at AS createdAt,is_protected AS isProtected,1 AS hasPdf FROM songs WHERE owner_id=? ORDER BY sort_order DESC').all(ownerId)
+  ? db.prepare('SELECT s.id,s.title,s.artist,s.song_key AS key,s.preferred_key AS preferredKey,s.file_name AS fileName,s.file_size AS fileSize,s.sort_order AS sortOrder,s.created_at AS createdAt,s.is_protected AS isProtected,1 AS hasPdf,s.cover_path AS coverPath,s.cover_source AS coverSource FROM songs s JOIN band_songs bs ON bs.song_id=s.id WHERE bs.band_id=? ORDER BY s.sort_order DESC').all(bandId)
+  : db.prepare('SELECT id,title,artist,song_key AS key,preferred_key AS preferredKey,file_name AS fileName,file_size AS fileSize,sort_order AS sortOrder,created_at AS createdAt,is_protected AS isProtected,1 AS hasPdf,cover_path AS coverPath,cover_source AS coverSource FROM songs WHERE owner_id=? ORDER BY sort_order DESC').all(ownerId)
 ).map((song) => {
   const trust = snapshotSummaryForSong(db, song.id)
   const variantKeys = trust.snapshotId
     ? db.prepare('SELECT target_key FROM song_variants WHERE song_id=? AND snapshot_id=? ORDER BY created_at DESC').all(song.id, trust.snapshotId).map((row) => row.target_key)
     : []
-  return { ...song, ...trust, isProtected: Boolean(song.isProtected), variantKeys }
+  return {
+    ...song,
+    ...trust,
+    isProtected: Boolean(song.isProtected),
+    variantKeys,
+    hasCover: Boolean(song.coverPath),
+    coverUrl: song.coverPath ? `/api/songs/${song.id}/cover` : '',
+    coverSource: song.coverSource || '',
+    coverPath: undefined,
+  }
 })
 
 async function extractPdfText(pdfPath) {
@@ -1282,7 +1297,11 @@ http.createServer(async (req,res) => { try {
     if(!files.length||files.length>50)return json(res,400,{error:'Bitte 1 bis 50 PDF-Dateien auswählen.'})
     if(files.some(file=>(file.type&&file.type!=='application/pdf')||!file.name.toLowerCase().endsWith('.pdf')||file.size>20*1024*1024))return json(res,400,{error:'Bitte nur PDF-Dateien bis maximal 20 MB importieren.'})
     db.exec('BEGIN'); try { for (let i=0;i<files.length;i++) { const file=files[i]; const id=randomUUID(); const path=`${root}/pdfs/${id}.pdf`; await writeFile(path, Buffer.from(await file.arrayBuffer())); db.prepare('INSERT INTO songs (id,title,artist,file_name,file_size,pdf_path,sort_order,created_at,song_key,owner_id) VALUES (?,?,?,?,?,?,?,?,?,?)').run(id,titles[i]||file.name.replace(/\.pdf$/i,''),'Importierte PDF',file.name,file.size,path,base-i,new Date().toISOString(),'–',user.id);if(bandId)db.prepare('INSERT INTO band_songs VALUES (?,?)').run(bandId,id) } db.exec('COMMIT') } catch(e){db.exec('ROLLBACK');throw e}
-    return json(res,201,songRows(user.id,bandId).slice(0,files.length))
+    const createdSongs=songRows(user.id,bandId).slice(0,files.length)
+    for (const song of createdSongs) {
+      queueResolveSongCover(db,{songId:song.id,title:song.title,artist:song.artist,key:song.key||song.preferredKey||'',root})
+    }
+    return json(res,201,createdSongs) /* cover-bulk */
   }
   if(req.method==='POST'&&url.pathname==='/api/scans/preview'){
     const request=new Request(url,{method:'POST',headers:req.headers,body:Readable.toWeb(req),duplex:'half'})
@@ -1397,10 +1416,31 @@ http.createServer(async (req,res) => { try {
       documentHash:sha256(await readFile(path)),
       result:scanResult||{method:forceScan?'scan_failed':'import_failed',needsReview:true},
     })
-    return json(res,201,songRows(user.id,bandId).find(song=>song.id===id))
+    const created=songRows(user.id,bandId).find(song=>song.id===id)
+    queueResolveSongCover(db,{songId:id,title,artist,key:created?.key||created?.preferredKey||'',root})
+    return json(res,201,created) /* cover-scan */
   }
   const protectedSong=url.pathname.match(/^\/api\/songs\/([^/]+)/)
   if(protectedSong&&!(bandId?db.prepare('SELECT 1 FROM band_songs WHERE song_id=? AND band_id=?').get(protectedSong[1],bandId):db.prepare('SELECT 1 FROM songs WHERE id=? AND owner_id=?').get(protectedSong[1],user.id)))return json(res,404,{error:'Song nicht gefunden'})
+  /* cover-endpoints */
+  const coverMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/cover$/)
+  if(req.method==='GET'&&coverMatch){
+    const row=db.prepare('SELECT cover_path,cover_mime FROM songs WHERE id=?').get(coverMatch[1])
+    if(!row?.cover_path)return json(res,404,{error:'Kein Cover'})
+    const data=await readFile(row.cover_path)
+    res.writeHead(200,{'content-type':row.cover_mime||'image/jpeg','cache-control':'private,max-age=86400'})
+    return res.end(data)
+  }
+  const resolveCoverMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/resolve-cover$/)
+  if(req.method==='POST'&&resolveCoverMatch){
+    const row=db.prepare('SELECT id,title,artist,song_key,preferred_key,cover_path FROM songs WHERE id=?').get(resolveCoverMatch[1])
+    if(!row)return json(res,404,{error:'Song nicht gefunden'})
+    if(row.cover_path){
+      return json(res,200,{ok:true,hasCover:true,coverUrl:`/api/songs/${row.id}/cover`,coverSource:db.prepare('SELECT cover_source FROM songs WHERE id=?').get(row.id)?.cover_source||''})
+    }
+    const resolved=await persistSongCover(db,{songId:row.id,title:row.title,artist:row.artist||'',key:row.preferred_key||row.song_key||'',root})
+    return json(res,200,{ok:true,...resolved})
+  }
   const pdfMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/pdf$/)
   if(req.method==='GET'&&pdfMatch){const row=db.prepare('SELECT pdf_path,file_name FROM songs WHERE id=?').get(pdfMatch[1]);if(!row)return json(res,404,{error:'Nicht gefunden'});const data=await readFile(row.pdf_path);res.writeHead(200,{'content-type':'application/pdf','content-disposition':`inline; filename*=UTF-8''${encodeURIComponent(row.file_name)}`});return res.end(data)}
   const snapshotMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/snapshot$/)
@@ -1476,7 +1516,7 @@ http.createServer(async (req,res) => { try {
     if(!changed.changes)return json(res,404,{error:'Song nicht gefunden'})
     return json(res,200,songRows(user.id,bandId).find(song=>song.id===songMatch[1]))
   }
-  if(req.method==='DELETE'&&songMatch){const row=db.prepare('SELECT pdf_path,is_protected FROM songs WHERE id=? AND owner_id=?').get(songMatch[1],user.id);if(!row)return json(res,404,{error:'Nicht gefunden'});if(row.is_protected)return json(res,403,{error:'Dieser bestehende Admin-Song ist geschützt.'});db.exec('BEGIN');try{db.prepare('DELETE FROM song_variants WHERE song_id=?').run(songMatch[1]);db.prepare('DELETE FROM band_songs WHERE song_id=?').run(songMatch[1]);const all=db.prepare('SELECT id,song_ids,leaders,song_keys FROM sets').all();for(const set of all){const ids=JSON.parse(set.song_ids).filter(id=>id!==songMatch[1]);const leaders=JSON.parse(set.leaders||'{}');const songKeys=JSON.parse(set.song_keys||'{}');delete leaders[songMatch[1]];delete songKeys[songMatch[1]];db.prepare('UPDATE sets SET song_ids=?,leaders=?,song_keys=? WHERE id=?').run(JSON.stringify(ids),JSON.stringify(leaders),JSON.stringify(songKeys),set.id)}db.prepare('DELETE FROM songs WHERE id=? AND owner_id=?').run(songMatch[1],user.id);db.exec('COMMIT')}catch(e){db.exec('ROLLBACK');throw e}await unlink(row.pdf_path).catch(()=>{});return json(res,200,{ok:true})}
+  if(req.method==='DELETE'&&songMatch){const row=db.prepare('SELECT pdf_path,cover_path,is_protected FROM songs WHERE id=? AND owner_id=?').get(songMatch[1],user.id);if(!row)return json(res,404,{error:'Nicht gefunden'});if(row.is_protected)return json(res,403,{error:'Dieser bestehende Admin-Song ist geschützt.'});db.exec('BEGIN');try{db.prepare('DELETE FROM song_variants WHERE song_id=?').run(songMatch[1]);db.prepare('DELETE FROM band_songs WHERE song_id=?').run(songMatch[1]);const all=db.prepare('SELECT id,song_ids,leaders,song_keys FROM sets').all();for(const set of all){const ids=JSON.parse(set.song_ids).filter(id=>id!==songMatch[1]);const leaders=JSON.parse(set.leaders||'{}');const songKeys=JSON.parse(set.song_keys||'{}');delete leaders[songMatch[1]];delete songKeys[songMatch[1]];db.prepare('UPDATE sets SET song_ids=?,leaders=?,song_keys=? WHERE id=?').run(JSON.stringify(ids),JSON.stringify(leaders),JSON.stringify(songKeys),set.id)}db.prepare('DELETE FROM songs WHERE id=? AND owner_id=?').run(songMatch[1],user.id);db.exec('COMMIT')}catch(e){db.exec('ROLLBACK');throw e}await unlink(row.pdf_path).catch(()=>{});await unlink(row.cover_path).catch(()=>{});return json(res,200,{ok:true})} /* cover-delete */
   if(req.method==='GET'&&url.pathname==='/api/sets'){const rows=(bandId?db.prepare('SELECT * FROM sets WHERE band_id=? ORDER BY created_at DESC').all(bandId):db.prepare('SELECT * FROM sets WHERE owner_id=? AND band_id IS NULL ORDER BY created_at DESC').all(user.id)).map(r=>({...r,isProtected:Boolean(r.is_protected),songIds:JSON.parse(r.song_ids),leaders:JSON.parse(r.leaders||'{}'),songKeys:JSON.parse(r.song_keys||'{}'),eventTime:r.event_time||'',techNotes:r.tech_notes||'',technicianId:r.technician_id||'',arrivalTime:r.arrival_time||'',createdAt:r.created_at,song_ids:undefined,song_keys:undefined,created_at:undefined,event_time:undefined,tech_notes:undefined,technician_id:undefined,arrival_time:undefined}));return json(res,200,rows)}
   if(req.method==='POST'&&url.pathname==='/api/sets'){const b=await bodyJson(req);const set={id:randomUUID(),title:b.title,date:b.date,eventTime:b.eventTime||'',arrivalTime:b.arrivalTime||'',band:b.band||band?.name||'',theme:b.theme||'',venue:b.venue||'',techNotes:'',technicianId:'',songIds:[],leaders:{},songKeys:{},createdAt:new Date().toISOString(),isProtected:false,bandId:bandId||null};db.prepare('INSERT INTO sets (id,title,date,song_ids,created_at,leaders,event_time,tech_notes,technician_id,band,theme,venue,arrival_time,song_keys,owner_id,band_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(set.id,set.title,set.date,'[]',set.createdAt,'{}',set.eventTime,'','',set.band,set.theme,set.venue,set.arrivalTime,'{}',user.id,bandId||null);return json(res,201,set)}
   const setMatch=url.pathname.match(/^\/api\/sets\/([^/]+)$/)

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.1.4 — 2026-09-10
+
+### Library covers & tiles
+- Home **Songs direkt öffnen** tiles: title overlay at top, smaller note icon on the right, play control bottom-left, cover image background (gradient fallback).
+- **/songs** library stays a searchable action list; rows show a small cover thumbnail when available.
+- On PDF/scan/text import, the API resolves a cover (iTunes Search artwork cached under `data/covers/`, else procedural SVG from title/artist/key).
+- Lazy one-shot backfill for existing songs without covers when the library loads.
+- Song model exposes `hasCover` / `coverUrl`; `GET /api/songs/:id/cover`, `POST /api/songs/:id/resolve-cover`.
+
 All notable changes to Worship Songbook are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),

@@ -119,3 +119,19 @@ export function songPdfUrl(song) {
 export function songChartUrl(song,key) {
   return song?.id ? apiUrl(`/api/songs/${song.id}/chart?key=${encodeURIComponent(key)}`) : ''
 }
+
+
+export function songCoverPath(song) {
+  if (!song?.id) return ''
+  if (song.coverUrl) return song.coverUrl
+  if (song.hasCover) return `/api/songs/${song.id}/cover`
+  return ''
+}
+
+/** Lazy one-shot cover resolve for songs without cached artwork. */
+export async function resolveSongCover(id) {
+  const response = await apiFetch(`/api/songs/${id}/resolve-cover`, { method: 'POST' })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(data.error || 'Cover konnte nicht geladen werden.')
+  return data
+}
