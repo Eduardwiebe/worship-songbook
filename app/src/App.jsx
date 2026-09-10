@@ -32,8 +32,9 @@ import {
 } from '../../lib/editorKey.mjs'
 import {
   softFormatChordChart,
-  parseChartRows,
+  parseChartBlocks,
   normalizeChartInnerText,
+  wordStacksToChordLyric,
 } from '../../lib/chartLayout.mjs'
 import { installNativeDesktopChrome } from './nativeDesktop'
 import { ModalBackdrop } from './ModalBackdrop'
@@ -1156,9 +1157,47 @@ function SongEditorRoute({songs,setSongs,navigate}) {
 }
 
 
+function serializeChartSheetDom(root) {
+  if (!root) return ''
+  const parts = []
+  for (const child of Array.from(root.children || [])) {
+    const cls = child.classList || { contains: () => false }
+    if (cls.contains('chart-blank')) {
+      if (parts.length && parts[parts.length - 1] !== '') parts.push('')
+      continue
+    }
+    if (cls.contains('chart-section')) {
+      const label = String(child.innerText || '').trim().replace(/^\[|\]$/g, '')
+      parts.push(`[${label}]`)
+      continue
+    }
+    if (cls.contains('chart-meta')) {
+      parts.push(String(child.innerText || '').replace(/\s+$/g, ''))
+      continue
+    }
+    if (cls.contains('chart-pair')) {
+      const stacks = Array.from(child.querySelectorAll('.chart-stack')).map((el) => {
+        const chord = String(el.querySelector('.chart-stack-chord')?.innerText || '').replace(/\u00a0/g, ' ').trim()
+        const word = String(el.querySelector('.chart-stack-word')?.innerText || '').replace(/\u00a0/g, ' ').trim()
+        return { chord, word }
+      })
+      const packed = wordStacksToChordLyric(stacks)
+      if (packed.chordLine.trim()) parts.push(packed.chordLine)
+      parts.push(packed.lyricLine)
+      continue
+    }
+    if (cls.contains('chart-chords') || cls.contains('chart-lyrics')) {
+      parts.push(String(child.innerText || '').replace(/\s+$/g, ''))
+    }
+  }
+  return parts.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
 function ChartSheet({ text, columns, fontSize, editable, onCommit }) {
   const display = softFormatChordChart(text || '')
-  const rows = parseChartRows(display)
+  // Wrap long pairs so iPad never needs horizontal pan; stacks keep chords on syllables.
+  const maxCols = columns === 2 ? 28 : 44
+  const blocks = parseChartBlocks(display, { maxCols })
   return (
     <div
       key={display}
@@ -1169,20 +1208,32 @@ function ChartSheet({ text, columns, fontSize, editable, onCommit }) {
       spellCheck="false"
       onBlur={(event) => {
         if (!editable || !onCommit) return
-        const shown = normalizeChartInnerText(event.currentTarget.innerText)
+        const shown = normalizeChartInnerText(serializeChartSheetDom(event.currentTarget))
         if (shown === normalizeChartInnerText(display)) return
         onCommit(shown)
       }}
     >
-      {rows.map((row, index) => {
-        if (row.kind === 'blank') return <div key={index} className="chart-blank">&nbsp;</div>
-        if (row.kind === 'section') {
-          const label = row.text.trim().replace(/^\[|\]$/g, '')
+      {blocks.map((block, index) => {
+        if (block.kind === 'blank') return <div key={index} className="chart-blank">&nbsp;</div>
+        if (block.kind === 'section') {
+          const label = String(block.text || '').trim().replace(/^\[|\]$/g, '')
           return <div key={index} className="chart-section">{label}</div>
         }
-        if (row.kind === 'meta') return <div key={index} className="chart-meta">{row.text}</div>
-        if (row.kind === 'chords') return <div key={index} className="chart-chords">{row.text}</div>
-        return <div key={index} className="chart-lyrics">{row.text}</div>
+        if (block.kind === 'meta') return <div key={index} className="chart-meta">{block.text}</div>
+        if (block.kind === 'pair') {
+          return (
+            <div key={index} className="chart-pair">
+              {(block.stacks || []).map((stack, stackIndex) => (
+                <span key={stackIndex} className="chart-stack">
+                  <span className="chart-stack-chord">{stack.chord || '\u00a0'}</span>
+                  <span className="chart-stack-word">{stack.word || '\u00a0'}</span>
+                </span>
+              ))}
+            </div>
+          )
+        }
+        if (block.kind === 'chords') return <div key={index} className="chart-chords">{block.text}</div>
+        return <div key={index} className="chart-lyrics">{block.text}</div>
       })}
     </div>
   )

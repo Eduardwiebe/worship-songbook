@@ -274,3 +274,26 @@ main,
     align-items: stretch;
   }
 }
+
+
+/* Song editor / iPad playability: never force horizontal pan */
+.home-song-editor,
+.song-editor-page,
+.song-editor-surface,
+.sheet-toolbar,
+.editor-paper,
+.chart-sheet {
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+.sheet-toolbar {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 1024px) {
+  .chart-sheet.columns-2 {
+    column-count: 1;
+  }
+}

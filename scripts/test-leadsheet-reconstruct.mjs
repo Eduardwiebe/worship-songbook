@@ -9,7 +9,15 @@ import {
   placeChordsAboveLyric,
   reconstructLeadsheet,
 } from '../lib/leadsheetReconstruct.mjs'
-import { softFormatChordChart, packChordsAboveLyrics, collapseGluedSlashBassAnchors } from '../lib/chartLayout.mjs'
+import {
+  softFormatChordChart,
+  packChordsAboveLyrics,
+  collapseGluedSlashBassAnchors,
+  chordLyricToWordStacks,
+  wrapChordLyricPair,
+  deinterleaveTwoColumnLayout,
+  parseChartBlocks,
+} from '../lib/chartLayout.mjs'
 import { cleanOcrText } from '../lib/leadsheetAnalysis.mjs'
 import { transposeEditorText } from '../lib/editorKey.mjs'
 
@@ -259,3 +267,71 @@ const glued = collapseGluedSlashBassAnchors([
 assert(glued.length === 1 && glued[0].chord === 'F/G', `glued bass collapse: ${JSON.stringify(glued)}`)
 assert(softFormatChordChart('F/GG\nJesus').startsWith('F/G'), `soft format glued F/GG → ${softFormatChordChart('F/GG\nJesus')}`)
 console.log('OK glued slash bass collapse')
+
+// --- Jesus zu dir … exact syllable packing (SongSelect acceptance) ---
+const jesusFull = 'Jesus zu dir kann ich so kommen wie ich bin'
+const jesusAnchors = [
+  { chord: 'D', index: jesusFull.indexOf('Jesus') },
+  { chord: 'G', index: jesusFull.indexOf('dir') },
+  { chord: 'Asus', index: jesusFull.indexOf('kommen') },
+  { chord: 'A', index: jesusFull.indexOf('wie') },
+  { chord: 'D', index: jesusFull.indexOf('bin') },
+]
+assert(jesusAnchors[0].index === 0, 'D index 0')
+assert(jesusAnchors[1].index === jesusFull.indexOf('d'), 'G over d of dir')
+assert(jesusAnchors[2].index === jesusFull.indexOf('kommen'), 'Asus over kommen')
+assert(jesusAnchors[3].index === jesusFull.indexOf('wie'), 'A over wie')
+assert(jesusAnchors[4].index === jesusFull.indexOf('bin'), 'D over bin')
+
+const jesusPackedFull = packChordsAboveLyrics(jesusFull, jesusAnchors)
+assert(jesusPackedFull.chordLine[0] === 'D', `D on J got ${JSON.stringify(jesusPackedFull.chordLine)}`)
+assert(jesusPackedFull.chordLine.indexOf('G') === jesusFull.indexOf('dir'), `G column ${jesusPackedFull.chordLine.indexOf('G')}`)
+assert(jesusPackedFull.chordLine.indexOf('Asus') === jesusFull.indexOf('kommen'), `Asus column`)
+assert(jesusPackedFull.chordLine[jesusFull.indexOf('wie')] === 'A', `A column at wie, got ${JSON.stringify(jesusPackedFull.chordLine)}`)
+// Last D may sit at bin; allow pack push only if overlap — Asus ends before wie
+assert(jesusPackedFull.chordLine.lastIndexOf('D') === jesusFull.indexOf('bin'), `final D on bin, got ${JSON.stringify(jesusPackedFull.chordLine)}`)
+
+const jesusSoft = softFormatChordChart(`${jesusPackedFull.chordLine}\n${jesusFull}`)
+const softChord = jesusSoft.split('\n')[0]
+const softLyric = jesusSoft.split('\n')[1]
+assert(softLyric === jesusFull, `soft-format must not destroy lyrics: ${softLyric}`)
+assert(softChord.indexOf('G') === jesusFull.indexOf('dir'), `soft-format must not drift G: ${softChord}`)
+assert(softChord.indexOf('Asus') === jesusFull.indexOf('kommen'), `soft-format must not drift Asus`)
+assert(softChord[jesusFull.indexOf('wie')] === 'A', `soft-format must not drift A: ${softChord}`)
+assert(softChord.lastIndexOf('D') === jesusFull.indexOf('bin'), `soft-format must not drift final D`)
+console.log('OK Jesus zu dir packing + soft-format preserves spacing')
+
+const stacks = chordLyricToWordStacks(jesusPackedFull.chordLine, jesusFull)
+const byWord = Object.fromEntries(stacks.filter((s) => s.chord).map((s) => [s.word, s.chord]))
+assert(byWord.Jesus === 'D', `stack Jesus→D got ${JSON.stringify(stacks)}`)
+assert(byWord.dir === 'G', 'stack dir→G')
+assert(byWord.kommen === 'Asus', 'stack kommen→Asus')
+assert(byWord.wie === 'A', 'stack wie→A')
+assert(byWord.bin === 'D', 'stack bin→D')
+console.log('OK Jesus word stacks lock chords to syllables')
+
+const wrapped = wrapChordLyricPair(jesusPackedFull.chordLine, jesusFull, 28)
+assert(wrapped.length >= 2, `expected wrap at 28 cols, got ${wrapped.length}`)
+assert(wrapped.every((row) => row.lyricLine.length <= 32), 'wrapped lyric segments short enough')
+const wrappedJoined = wrapped.map((row) => row.lyricLine).join(' ')
+assert(wrappedJoined === jesusFull, `wrap must preserve words: ${wrappedJoined}`)
+const wrapStacks = wrapped.flatMap((row) => chordLyricToWordStacks(row.chordLine, row.lyricLine))
+assert(wrapStacks.find((s) => s.word === 'bin')?.chord === 'D', 'wrapped bin keeps D')
+console.log('OK Jesus phrase wrap keeps chord+lyric pairs')
+
+const twoCol = [
+  'VERSE 1                          CHORUS 2',
+  'D     G        Asus A       D    G        D',
+  'Jesus zu dir kann ich so         Du bist gut und',
+  'kommen wie ich bin               treu',
+].join('\n')
+const split = deinterleaveTwoColumnLayout(twoCol)
+assert(/VERSE 1/i.test(split) && /Jesus zu dir/i.test(split) && /CHORUS 2/i.test(split), `2-col left-then-right got:\n${split}`)
+assert(split.indexOf('Jesus') < split.indexOf('Du bist'), `lyrics left before right:\n${split}`)
+assert(split.indexOf('VERSE 1') < split.indexOf('CHORUS 2'), 'left column before right')
+console.log('OK 2-column deinterleave reading order')
+
+const blocks = parseChartBlocks(`${jesusPackedFull.chordLine}\n${jesusFull}`, { maxCols: 44 })
+assert(blocks.some((b) => b.kind === 'pair'), 'parseChartBlocks emits pair')
+assert(blocks.find((b) => b.kind === 'pair').stacks.find((s) => s.word === 'dir')?.chord === 'G', 'pair stacks G on dir')
+console.log('OK parseChartBlocks pair for Jesus line')

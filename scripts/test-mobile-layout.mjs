@@ -25,7 +25,12 @@ const checks = [
   ['text-size-adjust 100%', /text-size-adjust:\s*100%/.test(mobileCss)],
   ['form control 16px at tablet', /\.field input,[\s\S]*font-size:\s*16px/.test(mobileCss)],
   ['modalLock module present', existsSync(join(root, 'app/src/modalLock.js'))],
+  ['sheet-toolbar wraps', /\.sheet-toolbar\s*\{[^}]*flex-wrap:\s*wrap/.test(extraCss)],
+  ['sheet-toolbar no overflow-x auto', !/\.sheet-toolbar\{[^}]*overflow-x:\s*auto/.test(extraCss.replace(/\s+/g,''))],
+  ['chart-sheet overflow-x hidden', /\.chart-sheet\s*\{[^}]*overflow-x:\s*hidden/.test(extraCss)],
+  ['chart-pair break-inside avoid', /chart-pair[^}]*break-inside:\s*avoid/.test(extraCss)],
 ]
+
 
 let failed = 0
 for (const [label, ok] of checks) {

@@ -23,6 +23,7 @@ import {
   parseChordOverLyricsText,
   suggestSongPageIndices,
 } from './lib/chordTextParse.mjs'
+import { deinterleaveTwoColumnLayout, softFormatChordChart } from './lib/chartLayout.mjs'
 import { visionAvailable, recognizeMusicPages } from './lib/visionProviders/index.mjs'
 import { visionResultToApi } from './lib/visionLeadsheet.mjs'
 import {
@@ -210,7 +211,7 @@ const songRows = (ownerId,bandId='') => (bandId
 async function extractPdfText(pdfPath) {
   try {
     const result = await execFileAsync('/usr/bin/pdftotext', ['-layout', '-nopgbrk', pdfPath, '-'], { maxBuffer: 20 * 1024 * 1024 })
-    return cleanOcrText(result.stdout)
+    return softFormatChordChart(deinterleaveTwoColumnLayout(cleanOcrText(result.stdout)))
   } catch {
     return ''
   }
@@ -286,7 +287,7 @@ async function structuredOcrFromPdf(pdfPath) {
 async function extractPdfTextForPage(pdfPath, pageNumber) {
   try {
     const result = await execFileAsync('/usr/bin/pdftotext', ['-f', String(pageNumber), '-l', String(pageNumber), '-layout', '-nopgbrk', pdfPath, '-'], { maxBuffer: 8 * 1024 * 1024 })
-    return cleanOcrText(result.stdout)
+    return softFormatChordChart(deinterleaveTwoColumnLayout(cleanOcrText(result.stdout)))
   } catch {
     return ''
   }
