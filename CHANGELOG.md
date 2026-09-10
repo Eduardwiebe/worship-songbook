@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.1.7 — 2026-09-10
+
+### SongSelect key detection / transpose
+- Trust explicit SongSelect headers (`Key - E`, `Key - C`, TONART) over diatonic chord-scale guesses when borrowed chords mislead scoring (Bb in C → F, bVII D in E → A).
+- Verified snapshots now persist with `sourceKey` from the document header even when chord analysis disagrees — unlocks editable lead sheet + transpose.
+- Soft-repair (`Erneut analysieren` / open editor) upgrades existing review_required snapshots that already have the header in stored text.
+- Tests: Key - E / Key - C header parse + persist with verified snapshot despite chord conflict.
+- Auto-repaired live songs: *Ich trau auf dich o Herr* (C), *Würdig und herrlich ist das Lamm* (E).
+
 ## 1.0.1.6 — 2026-09-10
 
 ### Editor toolbar readability (iPad)

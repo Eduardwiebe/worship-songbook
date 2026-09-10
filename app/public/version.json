@@ -1,9 +1,9 @@
 {
   "name": "Lyruma Songbook",
-  "version": "1.0.1.6",
+  "version": "1.0.1.7",
   "releasedAt": "2026-09-10",
   "releaseUrl": "https://songbook.lyruma.app",
-  "notes": "Songbook editor toolbar: readable Einfach/Voll toggle, no overlapping labels, stronger Notenblatt contrast.",
+  "notes": "SongSelect Key - E / Key - C headers trusted for editable lead sheets and transpose.",
   "channel": "web",
   "canReload": true
 }

@@ -133,4 +133,84 @@ if (repairState.status !== 'verified') {
 }
 
 assert(inferKeyFromLeadsheet('Key - D | Time - 4/4') === 'D', 'Key - D header')
-console.log('PASS scan snapshot persist + transpose G→A + soft repair')
+// SongSelect headers with borrowed chords must still verify (Key - C / Key - E).
+const songSelectC = `Key - C | Time - 4/4
+
+[VERS 1]
+    C        Bb/C   C
+Ich trau auf dich o Herr
+    Em   Am           Dm Gsus
+Ich sage Du bist mein Gott
+   Am     Em         F  G
+In deiner Hand steht meine Zeit
+   Dm                F/G    C Csus
+In deiner Hand steht meine Zeit
+`
+const songSelectE = `Key - E | Time - 4/4
+
+[Refrain]
+E           B/D#             C#m C#m/B
+Würdig und herrlich ist das Lamm
+E/G#        F#/A#    B
+Jesus dir allein sei Ehre
+E         E7               A
+Du der du sitzt auf deinem Thron
+E/B     B           E
+Dir sei Ruhm in Ewigkeit
+
+[BRIDGE]
+     D           A/E     E
+Halleluja sei erhoben o Herr
+        D             A/E        E
+Du bist König und wir beugen uns Herr
+      C#m    C#m/B         B
+In Anbetung singen wir zu dir
+`
+
+assert(inferKeyFromLeadsheet('Key - E | Time - 4/4') === 'E', 'Key - E header')
+assert(inferKeyFromLeadsheet('Key - C | Time - 4/4') === 'C', 'Key - C header')
+
+const evalC = evaluateScanSnapshotVerification({
+  text: songSelectC,
+  key: 'C',
+  method: 'PDF-Text',
+  needsReview: true,
+  avgConfidence: 0.9,
+})
+assert(evalC.documentKey === 'C', 'SongSelect C documentKey')
+assert(evalC.chordKey === 'F', 'borrowed Bb makes chord scorer prefer F')
+assert(evalC.resolved.key === 'C', 'document Key - C wins over chord F')
+assert(evalC.resolved.needsReview === false, 'document key conflict is not review-blocking')
+assert(evalC.verified === true, 'SongSelect C verifies despite chord conflict')
+assert(evalC.detectedKey === 'C', 'detectedKey C')
+
+const evalE = evaluateScanSnapshotVerification({
+  text: songSelectE,
+  key: 'E',
+  method: 'PDF-Text',
+  needsReview: true,
+  avgConfidence: 0.9,
+})
+assert(evalE.documentKey === 'E', 'SongSelect E documentKey')
+assert(evalE.chordKey === 'A', 'borrowed D makes chord scorer prefer A')
+assert(evalE.resolved.key === 'E', 'document Key - E wins over chord A')
+assert(evalE.verified === true && evalE.detectedKey === 'E', 'SongSelect E verifies')
+
+db.prepare(`
+  INSERT INTO songs (id,title,artist,file_name,file_size,pdf_path,sort_order,created_at,song_key,source_key,owner_id)
+  VALUES (?,?,?,?,?,?,?,?,?,?,?)
+`).run('song-e', 'Würdig', 'PDF-Import', 'e.pdf', 100, '/tmp/e.pdf', 3, new Date().toISOString(), '–', '', 'user')
+
+persistScanSnapshot(db, {
+  songId: 'song-e',
+  pdfPath: '/tmp/e.pdf',
+  documentHash: 'eee',
+  result: { text: songSelectE, key: 'E', method: 'PDF-Text', needsReview: true },
+})
+const stateE = snapshotStateResponse(getSongSnapshotState(db, 'song-e'))
+assert(stateE.sourceKeyVerified === true && stateE.sourceKey === 'E', 'persisted SongSelect E verified')
+const softE = repairSongSnapshotFromStoredText(db, 'song-e')
+assert(softE.repaired === false && softE.reason === 'already_verified', 'soft repair no-op when verified')
+
+console.log('PASS scan snapshot persist + transpose G→A + soft repair + SongSelect Key - C/E')
+
