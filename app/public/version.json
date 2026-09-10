@@ -1,9 +1,9 @@
 {
   "name": "Lyruma Songbook",
-  "version": "1.0.1.5",
+  "version": "1.0.1.6",
   "releasedAt": "2026-09-10",
   "releaseUrl": "https://songbook.lyruma.app",
-  "notes": "German chord spelling (H/B/Cis) and simplified band chords after transpose; original PDF unchanged.",
+  "notes": "Songbook editor toolbar: readable Einfach/Voll toggle, no overlapping labels, stronger Notenblatt contrast.",
   "channel": "web",
   "canReload": true
 }

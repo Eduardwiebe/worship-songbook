@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1.6 — 2026-09-10
+
+### Editor toolbar readability (iPad)
+- **Einfach/Voll** simplify toggle: wider control (no clipping), darker active blue for contrast in light + dark themes.
+- Toolbar groups no longer shrink under labels — **Auto-Scroll** / **BPM / Cajón** / **Akkorde** / **Notenblatt** stop overlapping; wrap cleanly on iPad widths.
+- Toolbar labels darkened (`#2a3540`, bold) for contrast on the light editor paper background.
+
 ## 1.0.1.5 — 2026-09-10
 
 ### Chords: German spelling + simplify

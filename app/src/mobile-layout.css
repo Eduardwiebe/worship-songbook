@@ -295,7 +295,6 @@ main,
 .home-song-editor,
 .song-editor-page,
 .song-editor-surface,
-.sheet-toolbar,
 .editor-paper,
 .chart-sheet {
   max-width: 100%;
@@ -304,18 +303,21 @@ main,
 }
 
 .sheet-toolbar {
+  max-width: 100%;
+  box-sizing: border-box;
   flex-wrap: wrap;
+  overflow-x: hidden;
 }
 
 @media (max-width: 1024px) {
   .sheet-toolbar {
-    gap: 5px 6px;
-    padding: 6px 8px;
+    gap: 8px 12px;
+    padding: 8px 10px;
   }
   .sheet-toolbar .tool-group button,
   .sheet-toolbar select,
   .cajon-tool input {
-    height: 30px;
+    height: 34px;
   }
   .chart-sheet.columns-2 {
     column-count: 2;
