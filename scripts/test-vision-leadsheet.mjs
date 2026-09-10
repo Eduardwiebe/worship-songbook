@@ -126,3 +126,32 @@ assert(/Alpha beta/.test(transposed), 'lyrics unchanged by transpose')
 console.log('OK transposition')
 
 console.log('test-vision-leadsheet: all passed')
+
+const slashDoc = {
+  title: 'Slash',
+  key: 'G',
+  confidence: 0.9,
+  sections: [{
+    type: 'verse',
+    number: 1,
+    lines: [{
+      lyrics: 'Jesus meine',
+      chords: [{ chord: 'F', index: 0 }, { chord: 'G', index: 1 }],
+    }],
+  }],
+}
+const slashOmr = {
+  pages: [{
+    tokens: [
+      { text: 'F', bbox: [10, 10, 30, 30], source: 'audiveris-chord' },
+      { text: 'G', bbox: [12, 42, 32, 62], source: 'audiveris-chord' },
+    ],
+  }],
+}
+const slashValidated = validateVisionWithOmr(JSON.parse(JSON.stringify(slashDoc)), slashOmr)
+const slashChords = slashValidated.sections[0].lines[0].chords
+assert(slashChords.length === 1 && slashChords[0].chord === 'F/G', `vision slash merge: ${JSON.stringify(slashChords)}`)
+const slashRendered = leadsheetFromVision(slashValidated)
+assert(!/F\/GG/.test(slashRendered), `must not render F/GG:\n${slashRendered}`)
+assert(/F\/G/.test(slashRendered), `must render F/G:\n${slashRendered}`)
+console.log('OK vision OMR slash merge drops leftover bass')

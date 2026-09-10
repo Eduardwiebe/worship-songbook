@@ -81,3 +81,17 @@ if (!pageAnalysis.hasMusic || pageAnalysis.score < 40) throw new Error('PDF page
 console.log('OK PDF text-layer page analysis')
 
 console.log('All chord-text/PDF import unit checks passed')
+
+const leading = parseChordOverLyricsText(`  G     D
+Jesus meine`)
+const leadChord = leading.text.split('\n').find(isChordLine)
+if (!leadChord || leadChord.indexOf('G') !== 0 && leadChord.indexOf('G') !== 2) {
+  // After soft format over "Jesus meine", G should be at 0
+}
+if (!leading.text.includes('Jesus meine')) throw new Error('leading sample lost lyrics')
+const leadPacked = leading.text.split('\n')
+const gLine = leadPacked.find(isChordLine)
+if (!gLine || gLine.indexOf('G') !== 0 || gLine.indexOf('D') !== 6) {
+  throw new Error(`expected G at 0 and D at 6, got ${JSON.stringify(gLine)} in\n${leading.text}`)
+}
+console.log('OK leading chord spaces align to Jesus meine')

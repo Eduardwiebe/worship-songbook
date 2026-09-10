@@ -135,3 +135,14 @@ try {
 }
 
 console.log('test-editor-original-key: all passed')
+
+const jesus = `G     D
+Jesus meine`
+const jesusA = displayEditorText(jesus, 'G', 'A')
+assert(jesusA.split('\n')[0] === 'A     E', `G→A columns: ${JSON.stringify(jesusA.split('\\n')[0])}`)
+assert(jesusA.split('\n')[1] === 'Jesus meine', 'lyrics stay')
+const jesusSlash = displayEditorText(`F/G   Am
+Jesus meine`, 'G', 'A')
+assert(jesusSlash.split('\n')[0].startsWith('G/A'), `slash transpose got ${JSON.stringify(jesusSlash.split('\\n')[0])}`)
+assert(jesusSlash.split('\n')[0].indexOf('Bm') === 6, 'Am→Bm keeps column')
+console.log('PASS Jesus meine transpose column alignment + slash token')

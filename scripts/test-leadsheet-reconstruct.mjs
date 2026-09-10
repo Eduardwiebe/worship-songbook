@@ -4,10 +4,14 @@
  */
 import {
   isValidChordToken,
+  mergeChordCandidates,
   normalizeEngravedLyrics,
   placeChordsAboveLyric,
   reconstructLeadsheet,
 } from '../lib/leadsheetReconstruct.mjs'
+import { softFormatChordChart, packChordsAboveLyrics, collapseGluedSlashBassAnchors } from '../lib/chartLayout.mjs'
+import { cleanOcrText } from '../lib/leadsheetAnalysis.mjs'
+import { transposeEditorText } from '../lib/editorKey.mjs'
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg)
@@ -208,3 +212,50 @@ assert(/Hoffnung/.test(sequential.text.slice(sequential.text.indexOf('[Strophe 2
 console.log('OK sequential numbered verses')
 
 console.log('test-leadsheet-reconstruct: all passed')
+// Slash stack F over G → F/G single token
+const slashMerge = mergeChordCandidates([
+  { text: 'F', bbox: [100, 40, 120, 60], confidence: 0.95, source: 'ocr' },
+  { text: 'G', bbox: [102, 70, 122, 90], confidence: 0.95, source: 'ocr' },
+])
+assert(slashMerge.chords.length === 1 && slashMerge.chords[0].text === 'F/G', `stacked slash got ${JSON.stringify(slashMerge.chords)}`)
+console.log('OK stacked F/G slash merge')
+
+// Jesus meine alignment fixture
+const jesusLyric = 'Jesus meine'
+const jesusChords = [
+  { text: 'G', bbox: [10, 10, 30, 30], confidence: 0.99 },
+  { text: 'D', bbox: [70, 10, 90, 30], confidence: 0.99 },
+]
+const jesusLine = {
+  tokens: [
+    { text: 'Jesus', bbox: [10, 50, 60, 70], confidence: 0.99, line_index: 1 },
+    { text: 'meine', bbox: [70, 50, 120, 70], confidence: 0.99, line_index: 1 },
+  ],
+}
+const jesusPlaced = placeChordsAboveLyric(jesusChords, jesusLine, jesusLyric)
+assert(jesusPlaced.chordLine[0] === 'G', `G must sit on J, got ${JSON.stringify(jesusPlaced.chordLine)}`)
+assert(jesusPlaced.chordLine.indexOf('D') === jesusLyric.indexOf('meine'), `D must sit on m, got ${JSON.stringify(jesusPlaced.chordLine)}`)
+const jesusPacked = packChordsAboveLyrics(jesusLyric, [{ chord: 'G', index: 0 }, { chord: 'D', index: 6 }])
+assert(jesusPacked.chordLine === 'G     D', `pack expected 'G     D', got ${JSON.stringify(jesusPacked.chordLine)}`)
+const jesusChart = `${jesusPacked.chordLine}\n${jesusLyric}`
+const jesusRound = softFormatChordChart(jesusChart)
+assert(jesusRound.includes('G     D') || jesusRound.split('\n')[0].indexOf('G') === 0, `round-trip chords:\n${jesusRound}`)
+assert(jesusRound.includes('Jesus meine'), 'round-trip lyrics')
+const transposed = transposeEditorText(jesusChart, 'G', 'A')
+assert(transposed.split('\n')[0].indexOf('A') === 0, 'G→A keeps column 0')
+assert(transposed.split('\n')[0].indexOf('E') === 6, `G→A keeps D→E column, got ${JSON.stringify(transposed.split('\n')[0])}`)
+assert(transposed.split('\n')[1] === 'Jesus meine', 'lyrics unchanged')
+console.log('OK Jesus meine alignment round-trip + transpose')
+
+// cleanOcrText must preserve leading chord spaces
+const spaced = cleanOcrText('  G     D\nJesus meine')
+assert(spaced.startsWith('  G'), `leading spaces preserved, got ${JSON.stringify(spaced)}`)
+console.log('OK cleanOcrText preserves chord columns')
+
+const glued = collapseGluedSlashBassAnchors([
+  { chord: 'F/G', index: 0 },
+  { chord: 'G', index: 3 },
+])
+assert(glued.length === 1 && glued[0].chord === 'F/G', `glued bass collapse: ${JSON.stringify(glued)}`)
+assert(softFormatChordChart('F/GG\nJesus').startsWith('F/G'), `soft format glued F/GG → ${softFormatChordChart('F/GG\nJesus')}`)
+console.log('OK glued slash bass collapse')

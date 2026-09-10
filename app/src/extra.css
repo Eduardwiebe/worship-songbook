@@ -216,8 +216,13 @@ html[data-theme="light"] body { color:#152131;background:#edf1f5; } html[data-th
 .editor-paper { width:min(100%,1120px);min-height:1120px;box-sizing:border-box;margin:0 auto;padding:32px 44px 70px;color:#171b1f;background:#fff; }
 .editor-paper>header { display:flex;align-items:start;justify-content:space-between;border-bottom:1px solid #e5e8ea;padding-bottom:18px; }
 .editor-paper h2 { margin:0 0 4px;font-size:25px; }.editor-paper p { margin:0 0 7px;color:#626d76; }.editor-paper strong { font-size:12px; }
-.chart-sheet { min-height:900px;margin:28px 0 0;outline:0;color:#111;background:#fff;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.62;white-space:pre-wrap;overflow:visible; }
+.chart-sheet { min-height:900px;margin:28px 0 0;outline:0;color:#1a222b;background:#fff;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-ligatures:none;line-height:1.35;white-space:pre;overflow-x:auto;overflow-y:visible;tab-size:4; }
 .chart-sheet.columns-2 { column-count:2;column-gap:60px;column-rule:1px solid #edf0f2; }
+.chart-sheet .chart-chords { color:#c62828;font-weight:700;letter-spacing:0;min-height:1.15em; }
+.chart-sheet .chart-lyrics { color:#15202b;font-weight:500;margin:0 0 0.85em;min-height:1.15em; }
+.chart-sheet .chart-section { margin:1.15em 0 0.45em;color:#8a6a1f;font-weight:850;letter-spacing:.04em;text-transform:uppercase;font-size:0.92em; }
+.chart-sheet .chart-meta { color:#6b7785;font-weight:700;margin:0 0 0.8em; }
+.chart-sheet .chart-blank { min-height:0.55em; }
 .original-pdf-sheet { width:min(100%,1120px);min-height:420px;height:auto;margin:0 auto;background:#fff;overflow:auto; }.original-pdf-sheet iframe,.original-pdf-sheet embed { width:100%;height:min(85vh,1500px);border:0;background:#fff; }.original-pages { display:grid;gap:16px;width:100%;padding:8px 0 24px;background:#fff; }.original-page-image { display:block;width:100%;height:auto;max-width:100%;object-fit:contain;background:#fff; }
 .editor-bottom-actions { display:flex;align-items:center;justify-content:flex-end;gap:12px;border-top:1px solid #dde3e7;padding:14px 18px;background:#fff; }
 @media (max-width:800px){.editor-view-switch{align-items:flex-start;flex-wrap:wrap}.editor-view-switch>span{width:100%;margin:0}.sheet-toolbar{overflow-x:auto;align-items:end}.sheet-actions{margin-left:0}.editor-paper{min-height:900px;padding:25px 20px 50px}.chart-sheet.columns-2{column-count:1}.home-song-editor .song-editor-surface{margin:0}.tool-group>span,.sheet-toolbar label>span{white-space:nowrap}.original-pdf-sheet{height:820px}}
