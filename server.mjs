@@ -2,7 +2,8 @@ import http from 'node:http'
 import { Readable } from 'node:stream'
 import { mkdir, writeFile, readFile, unlink, mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 import { randomUUID } from 'node:crypto'
 import { createAuth, initializeAuth } from './auth.mjs'
@@ -581,6 +582,14 @@ const bandCookie=(id,maxAge=2592000)=>`songbook_band=${id}; Path=/; HttpOnly; Se
 http.createServer(async (req,res) => { try {
   const url = new URL(req.url, 'http://localhost')
   if (req.method==='GET' && url.pathname==='/api/health') return json(res,200,{ok:true})
+  if (req.method==='GET' && url.pathname==='/api/version') {
+    try {
+      const raw = await readFile(join(dirname(fileURLToPath(import.meta.url)), 'app/public/version.json'), 'utf8')
+      return json(res, 200, JSON.parse(raw))
+    } catch {
+      return json(res, 200, { version: '1.0.1.3', releaseUrl: 'https://songbook.lyruma.app', channel: 'web', canReload: true })
+    }
+  }
   if(url.pathname.startsWith('/api/auth/'))return await auth.route(req,res,url,bodyJson)
   const access=auth.authenticate(req,res,url);if(!access)return;const user=access.user
   const band=selectedBand(req,user);const bandId=band?.id||''

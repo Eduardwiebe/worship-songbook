@@ -141,10 +141,11 @@ export const STRINGS = {
   'updates.upToDate': { de: 'Lyruma Songbook ist auf dem neuesten Stand.', en: 'Lyruma Songbook is up to date.' },
   'updates.available': { de: 'Version {version} ist verfügbar.', en: 'Version {version} is available.' },
   'updates.current': { de: 'Installierte Version: {version}', en: 'Installed version: {version}' },
+  'updates.reload': { de: 'App neu laden', en: 'Reload app' },
   'updates.openRelease': { de: 'Release-Seite öffnen', en: 'Open release page' },
   'updates.close': { de: 'Schließen', en: 'Close' },
   'updates.error': { de: 'Aktualisierungen konnten nicht geprüft werden.', en: 'Could not check for updates.' },
-  'updates.phaseNote': { de: 'Automatischer Download/Installation folgt später mit sicherer Release-Signierung.', en: 'Automatic download/install comes later with secure release signing.' },
+  'updates.phaseNote': { de: 'Im Browser reicht ein Neuladen der Seite. Native Desktop-/Store-Updates folgen über die Release-Seite bzw. den Store.', en: 'In the browser, reloading the page is enough. Native desktop/store updates use the release page or the store.' },
   'updates.iosStoreManaged': { de: 'Auf dem iPhone laufen Aktualisierungen über den App Store oder TestFlight — nicht über die Desktop-Release-Prüfung.', en: 'On iPhone, updates come from the App Store or TestFlight — not via the desktop release check.' },
   'updates.iosStoreHint': { de: 'Öffentliche iOS-Updates kommen später über App Store / TestFlight. Diese Desktop-Prüfung gilt nicht für die iPhone-App.', en: 'Public iOS updates will come via App Store / TestFlight later. This desktop check does not apply to the iPhone app.' },
 

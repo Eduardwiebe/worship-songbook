@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **About dialog (dark):** "Webseiten" label contrast; musical-note logo instead of letter "L".
+- **Update check:** prefer server `/version.json` manifest so older installs can discover **1.0.1.3** (GitHub Releases fallback kept).
+
+### Changed
+
+- App version bumped to **1.0.1.3** (`appMeta`, `package.json`, Tauri/`Cargo.toml`, public `version.json`).
+
+
 ### Added
 
 - **iOS VisionKit document scanner** (`app/src-tauri/plugins/document-scanner`): native page detect/crop/perspective via `VNDocumentCameraViewController`; HTML camera remains fallback.

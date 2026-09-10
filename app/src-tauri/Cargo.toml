@@ -1,6 +1,6 @@
 [package]
 name = "worship-songbook"
-version = "0.1.2"
+version = "1.0.1.3"
 description = "Lyruma Songbook – native shell for the web app"
 authors = ["Eduard Wiebe"]
 license = "Apache-2.0"

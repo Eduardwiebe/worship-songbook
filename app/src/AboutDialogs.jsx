@@ -20,7 +20,7 @@ export function AboutDialog({ onClose }) {
       <section className="modal about-modal">
         <div className="modal-header">
           <div className="about-brand">
-            <span className="brand-mark">L</span>
+            <span className="header-songbook-mark" aria-hidden="true"><Music2 size={22}/></span>
             <div>
               <p className="eyebrow">{t('header.eyebrow')}</p>
               <h2>{t('about.title')}</h2>
@@ -90,8 +90,16 @@ export function UpdateDialog({ result, onClose }) {
           )}
         </div>
         <div className="modal-actions">
+          {available && result?.canReload && (
+            <button type="button" className="add-button compact" onClick={() => {
+              try { if (typeof caches !== 'undefined') caches.keys().then((keys) => keys.forEach((k) => caches.delete(k))).catch(() => {}) } catch {}
+              window.location.reload()
+            }}>
+              {t('updates.reload')}
+            </button>
+          )}
           {available && (
-            <button type="button" className="add-button compact" onClick={() => openExternal(result.releaseUrl || URL_GITHUB_RELEASES)}>
+            <button type="button" className={result?.canReload ? 'cancel-button' : 'add-button compact'} onClick={() => openExternal(result.releaseUrl || URL_GITHUB_RELEASES)}>
               {t('updates.openRelease')}
             </button>
           )}
