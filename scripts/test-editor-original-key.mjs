@@ -53,6 +53,9 @@ assert(resolveEditorSourceKey({ status: 'review_required', sourceKey: 'C', origi
 assert(resolveEditorSourceKey({ sourceKey: 'C', key: 'D' }) === '', 'legacy song fields are not source truth')
 assert(resolveEditorSnapshot({ ...verifiedEnvelope.snapshot, originalText: 'client tamper' }).ok === false, 'tampered original text fails snapshot structure')
 assert(inferKeyFromLeadsheet('TONART: C · TEMPO: 156 BPM') === 'C', 'infer TONART C')
+assert(inferKeyFromLeadsheet('Key - D | Time - 4/4') === 'D', 'infer Key - D chart header')
+assert(inferKeyFromLeadsheet('TONART: G') === 'G', 'infer TONART G still works')
+
 
 const cChords = `C
 F

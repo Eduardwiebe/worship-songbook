@@ -16,7 +16,7 @@ import {
   scoreLeadsheetQuality,
   shouldRunOcr,
 } from './lib/leadsheetAnalysis.mjs'
-import { inferKeyFromChords, inferKeyFromLeadsheet, normalizeEditorKey } from './lib/editorKey.mjs'
+import { inferKeyFromChords, inferKeyFromLeadsheet, normalizeEditorKey, resolveScanSourceKey } from './lib/editorKey.mjs'
 import { reconstructFromFlatText, reconstructLeadsheet } from './lib/leadsheetReconstruct.mjs'
 import {
   analyzePdfPageText,
@@ -31,6 +31,8 @@ import {
   initializeSongTrustSchema,
   migrateLegacySongTrust,
   persistScanSnapshot,
+  repairSongSnapshotFromStoredText,
+  replaceScanSnapshot,
   saveVariantFromVerifiedSnapshot,
   sha256,
   snapshotStateResponse,
@@ -504,6 +506,48 @@ async function analyzeSongPdf(pdfPath, { forceScan = false, titleHint = '' } = {
     elapsedMs: structured?.elapsed_ms ?? null,
   }
 }
+
+function finalizeScanResult(scanResult) {
+  if (!scanResult?.text) {
+    return scanResult || { method: 'import_failed', needsReview: true, text: '', key: '' }
+  }
+  let text = String(scanResult.text || '')
+  const chords = inferKeyFromChords(text)
+  const visionKey = normalizeEditorKey(
+    scanResult?.document?.key
+    || (String(scanResult?.method || '').startsWith('Vision/') ? scanResult?.key : ''),
+  )
+  let key = visionKey
+    || normalizeEditorKey(scanResult.key)
+    || inferKeyFromLeadsheet(text)
+    || normalizeEditorKey(chords.key)
+  if (key && !inferKeyFromLeadsheet(text)) {
+    text = `TONART: ${key}
+
+${text}`
+  }
+  const resolved = resolveScanSourceKey({
+    visionKey,
+    text,
+    visionConfidence: scanResult?.avgConfidence,
+  })
+  const finalKey = resolved.key || key || ''
+  if (finalKey && !inferKeyFromLeadsheet(text)) {
+    text = `TONART: ${finalKey}
+
+${text}`
+  }
+  const qualityNeedsReview = Boolean(scanResult?.quality?.needsReview)
+  // Preserve quality warnings only when the original key remains unresolved/conflicting.
+  const needsReview = Boolean(resolved.needsReview || !finalKey || (qualityNeedsReview && !resolved.key))
+  return {
+    ...scanResult,
+    text,
+    key: finalKey,
+    needsReview,
+  }
+}
+
 const auth=createAuth(db,json)
 const cookieValue=(req,name)=>String(req.headers.cookie||'').split(';').map(value=>value.trim()).find(value=>value.startsWith(`${name}=`))?.slice(name.length+1)||''
 const selectedBand=(req,user)=>{
@@ -1261,14 +1305,14 @@ http.createServer(async (req,res) => { try {
       await textToReferencePdf(parsed.text,path,title)
       fileSize=Buffer.byteLength(parsed.text,'utf8')
       artist='Text-Import'
-      scanResult={
+      scanResult=finalizeScanResult({
         text:parsed.text,
         key:parsed.key,
         method:parsed.method,
         quality:parsed.quality,
         needsReview:parsed.needsReview,
         avgConfidence:parsed.chordConfidence||null,
-      }
+      })
       forceScan=false
     }else if(pdf && typeof pdf!=='string'){
       const name=String(pdf.name||'').toLowerCase()
@@ -1292,16 +1336,7 @@ http.createServer(async (req,res) => { try {
         fileName=String(pdf.name||`${title}.pdf`)
         // Prefer embedded text layer; OCR/vision only when needed.
         forceScan=false
-        try{scanResult=await analyzeSongPdf(path,{forceScan:false,titleHint:title})}catch(error){console.error('pdf analyze failed:',error?.message||error)}
-        if(scanResult?.text){
-          const chords=inferKeyFromChords(scanResult.text)
-          let key=normalizeEditorKey(scanResult.key)||inferKeyFromLeadsheet(scanResult.text)||normalizeEditorKey(chords.key)
-          if(key && !inferKeyFromLeadsheet(scanResult.text)){
-            scanResult={...scanResult,text:`TONART: ${key}\n\n${scanResult.text}`,key}
-          }else if(key){
-            scanResult={...scanResult,key}
-          }
-        }
+        try{scanResult=finalizeScanResult(await analyzeSongPdf(path,{forceScan:false,titleHint:title}))}catch(error){console.error('pdf analyze failed:',error?.message||error)}
       }finally{
         await rm(dir,{recursive:true,force:true})
       }
@@ -1322,16 +1357,7 @@ http.createServer(async (req,res) => { try {
       }
       fileSize=pages.reduce((sum,page)=>sum+page.size,0)
       forceScan=true
-      try{scanResult=await analyzeSongPdf(path,{forceScan:true,titleHint:title})}catch(error){console.error('scan analyze failed:',error?.message||error)}
-      if(scanResult?.text){
-        const chords=inferKeyFromChords(scanResult.text)
-        let key=normalizeEditorKey(scanResult.key)||inferKeyFromLeadsheet(scanResult.text)||normalizeEditorKey(chords.key)
-        if(key && !inferKeyFromLeadsheet(scanResult.text)){
-          scanResult={...scanResult,text:`TONART: ${key}\n\n${scanResult.text}`,key}
-        }else if(key){
-          scanResult={...scanResult,key}
-        }
-      }
+      try{scanResult=finalizeScanResult(await analyzeSongPdf(path,{forceScan:true,titleHint:title}))}catch(error){console.error('scan analyze failed:',error?.message||error)}
     }
 
     db.prepare('INSERT INTO songs (id,title,artist,file_name,file_size,pdf_path,sort_order,created_at,song_key,source_key,owner_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id,title,artist,fileName,fileSize,path,Date.now(),new Date().toISOString(),'–','',user.id)
@@ -1351,7 +1377,35 @@ http.createServer(async (req,res) => { try {
   const snapshotMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/snapshot$/)
   if(req.method==='GET'&&snapshotMatch){return json(res,200,snapshotStateResponse(getSongSnapshotState(db,snapshotMatch[1])))}
   const analyzeMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/analyze-chords$/)
-  if(req.method==='POST'&&analyzeMatch){return json(res,200,snapshotStateResponse(getSongSnapshotState(db,analyzeMatch[1])))}
+  if(req.method==='POST'&&analyzeMatch){
+    const songId=analyzeMatch[1]
+    const soft=repairSongSnapshotFromStoredText(db,songId)
+    if(soft.repaired){
+      return json(res,200,{...snapshotStateResponse(soft.state),reanalyzed:true,mode:'soft_repair'})
+    }
+    const row=db.prepare('SELECT pdf_path,title FROM songs WHERE id=?').get(songId)
+    if(!row?.pdf_path){
+      return json(res,200,{...snapshotStateResponse(getSongSnapshotState(db,songId)),reanalyzed:false,mode:'no_pdf',reason:soft.reason||'no_pdf'})
+    }
+    let scanResult=null
+    try{
+      scanResult=finalizeScanResult(await analyzeSongPdf(row.pdf_path,{forceScan:true,titleHint:row.title||''}))
+    }catch(error){
+      console.error('reanalyze failed:',error?.message||error)
+      return json(res,422,{error:error?.message||'Erneute Analyse fehlgeschlagen.',reanalyzed:false})
+    }
+    if(!scanResult?.text){
+      return json(res,422,{error:'Aus dem Original-PDF konnte kein Lead-Sheet erkannt werden.',reanalyzed:false})
+    }
+    const documentHash=sha256(await readFile(row.pdf_path))
+    replaceScanSnapshot(db,{
+      songId,
+      pdfPath:row.pdf_path,
+      documentHash,
+      result:scanResult,
+    })
+    return json(res,200,{...snapshotStateResponse(getSongSnapshotState(db,songId)),reanalyzed:true,mode:'pdf_reanalyze',method:scanResult.method||''})
+  }
   const pagesMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/pages$/)
   if(req.method==='GET'&&pagesMatch){
     const row=db.prepare('SELECT pdf_path FROM songs WHERE id=?').get(pagesMatch[1])

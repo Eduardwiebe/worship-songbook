@@ -431,6 +431,9 @@ export default {
     keyPlaceholder: "e.g. D, Em, or F#",
     copiedClipboard: "Copied to clipboard",
     searchPlaceholder: "Search songs…",
+    reanalyze: "Re-analyze",
+    reanalyzing: "Re-analyzing …",
+    reuploadHint: "No original PDF is available. Please re-import the song via book scan / text / PDF scan.",
     snapshotReviewRequired: "The original version has not been verified yet. Transposition remains locked until review.",
   },
   common: {

@@ -288,6 +288,12 @@ export const STRINGS = {
     de: 'Die automatische Erkennung ist unsicher. Bitte prüfe Titel, Text und Akkorde manuell — das Original findest du im Tab „Original-PDF“.',
     en: 'Automatic recognition is uncertain. Please review title, lyrics, and chords manually — see the Original PDF tab for reference.',
   },
+  'songs.reanalyze': { de: 'Erneut analysieren', en: 'Re-analyze' },
+  'songs.reanalyzing': { de: 'Analysiert erneut …', en: 'Re-analyzing …' },
+  'songs.reuploadHint': {
+    de: 'Kein Original-PDF vorhanden. Bitte den Song erneut über „Aus einem Buch scannen“ / Text / PDF-Scan importieren.',
+    en: 'No original PDF is available. Please re-import the song via book scan / text / PDF scan.',
+  },
   'songs.snapshotReviewRequired': {
     de: 'Die Originalfassung ist noch nicht verifiziert. Die Transposition bleibt bis zur Prüfung gesperrt.',
     en: 'The original version has not been verified yet. Transposition remains locked until review.',

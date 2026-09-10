@@ -431,6 +431,9 @@ export default {
     keyPlaceholder: "z. B. D, Em oder F#",
     copiedClipboard: "In die Zwischenablage kopiert",
     searchPlaceholder: "Songs durchsuchen…",
+    reanalyze: "Erneut analysieren",
+    reanalyzing: "Analysiert erneut …",
+    reuploadHint: "Kein Original-PDF vorhanden. Bitte den Song erneut über „Aus einem Buch scannen“ / Text / PDF-Scan importieren.",
     snapshotReviewRequired: "Die Originalfassung ist noch nicht verifiziert. Die Transposition bleibt bis zur Prüfung gesperrt.",
   },
   common: {
