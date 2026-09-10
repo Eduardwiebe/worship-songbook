@@ -124,10 +124,14 @@ html[data-theme="light"] body { color:#152131;background:#edf1f5; } html[data-th
 .pdf-stage iframe { width: 100%; height: 100%; border: 0; background: #fff; pointer-events: none; }
 .pdf-stage .no-pdf { display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 0; }
 .pdf-stage .no-pdf strong { color: #edf2f7; font-size: 28px; }
-.stage-arrow { position: absolute; z-index: 2; top: 50%; width: 48px; height: 72px; border: 1px solid rgba(255,255,255,.14); display: grid; place-items: center; transform: translateY(-50%); color: #fff; background: rgba(5,12,22,.7); backdrop-filter: blur(6px); }
-.stage-arrow.left { left: 10px; border-radius: 13px; }
-.stage-arrow.right { right: 10px; border-radius: 13px; }
-.stage-arrow:disabled { opacity: .15; }
+.stage-arrow { position: absolute; z-index: 2; top: 50%; width: 44px; min-width: 44px; height: 96px; min-height: 44px; border: 0; border-radius: 0; display: grid; place-items: center; transform: translateY(-50%); color: rgba(255,255,255,.42); background: transparent; backdrop-filter: none; -webkit-tap-highlight-color: transparent; cursor: pointer; opacity: 1; transition: color .15s ease, background-color .15s ease, opacity .15s ease; }
+.stage-arrow.left { left: 0; }
+.stage-arrow.right { right: 0; }
+.stage-arrow:hover, .stage-arrow:focus-visible { color: rgba(255,255,255,.92); background: rgba(5,12,22,.18); outline: none; }
+.stage-arrow:active { color: rgba(255,255,255,.95); background: rgba(5,12,22,.28); }
+.stage-arrow:disabled { opacity: .2; pointer-events: none; }
+.stage-arrow svg { opacity: .45; transition: opacity .15s ease; }
+.stage-arrow:hover svg, .stage-arrow:focus-visible svg, .stage-arrow:active svg { opacity: 1; }
 .run-mode footer { display: grid; grid-template-columns: 150px 1fr 150px; align-items: center; gap: 20px; padding: 24px 30px; border-top: 1px solid rgba(255,255,255,.08); }
 .run-mode footer button { border: 1px solid rgba(255,255,255,.1); border-radius: 12px; display: flex; justify-content: center; align-items: center; gap: 7px; padding: 12px; color: #edf2f7; background: #0d1a2b; }
 .run-mode footer button:disabled { opacity: .25; }
