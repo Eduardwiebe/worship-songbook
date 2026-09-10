@@ -104,6 +104,21 @@ main,
     gap: 8px;
   }
 
+  /* Keep multi-PDF import order rows horizontal on tablet/phone */
+  .import-item {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .import-main,
+  .import-title {
+    min-width: 0;
+  }
+
+  .order-actions {
+    flex-shrink: 0;
+  }
+
   .leader-select,
   .set-song-options {
     grid-column: 1 / -1;
