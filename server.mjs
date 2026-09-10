@@ -17,7 +17,7 @@ import {
   shouldRunOcr,
 } from './lib/leadsheetAnalysis.mjs'
 import { inferKeyFromChords, inferKeyFromLeadsheet, normalizeEditorKey, resolveScanSourceKey } from './lib/editorKey.mjs'
-import { reconstructFromFlatText, reconstructLeadsheet } from './lib/leadsheetReconstruct.mjs'
+import { reconstructFromFlatText, reconstructLeadsheet, reconstructFromPdfBBox } from './lib/leadsheetReconstruct.mjs'
 import {
   analyzePdfPageText,
   parseChordOverLyricsText,
@@ -210,6 +210,16 @@ const songRows = (ownerId,bandId='') => (bandId
 
 async function extractPdfText(pdfPath) {
   try {
+    // Prefer geometric bbox reconstruction for SongSelect-style charts (accurate chord X).
+    try {
+      const bbox = await execFileAsync('/usr/bin/pdftotext', ['-bbox', '-nopgbrk', pdfPath, '-'], { maxBuffer: 30 * 1024 * 1024 })
+      const rebuilt = reconstructFromPdfBBox(bbox.stdout || '')
+      if (rebuilt?.text && scoreLeadsheetQuality(rebuilt.text).score >= 40) {
+        return softFormatChordChart(rebuilt.text)
+      }
+    } catch (bboxError) {
+      console.warn('pdftotext bbox reconstruct failed:', bboxError?.message || bboxError)
+    }
     const result = await execFileAsync('/usr/bin/pdftotext', ['-layout', '-nopgbrk', pdfPath, '-'], { maxBuffer: 20 * 1024 * 1024 })
     return softFormatChordChart(deinterleaveTwoColumnLayout(cleanOcrText(result.stdout)))
   } catch {
@@ -286,6 +296,15 @@ async function structuredOcrFromPdf(pdfPath) {
 
 async function extractPdfTextForPage(pdfPath, pageNumber) {
   try {
+    try {
+      const bbox = await execFileAsync('/usr/bin/pdftotext', ['-f', String(pageNumber), '-l', String(pageNumber), '-bbox', '-nopgbrk', pdfPath, '-'], { maxBuffer: 12 * 1024 * 1024 })
+      const rebuilt = reconstructFromPdfBBox(bbox.stdout || '')
+      if (rebuilt?.text && scoreLeadsheetQuality(rebuilt.text).score >= 40) {
+        return softFormatChordChart(rebuilt.text)
+      }
+    } catch (bboxError) {
+      console.warn('pdftotext bbox page reconstruct failed:', bboxError?.message || bboxError)
+    }
     const result = await execFileAsync('/usr/bin/pdftotext', ['-f', String(pageNumber), '-l', String(pageNumber), '-layout', '-nopgbrk', pdfPath, '-'], { maxBuffer: 8 * 1024 * 1024 })
     return softFormatChordChart(deinterleaveTwoColumnLayout(cleanOcrText(result.stdout)))
   } catch {

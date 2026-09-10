@@ -29,6 +29,10 @@ const checks = [
   ['sheet-toolbar no overflow-x auto', !/\.sheet-toolbar\{[^}]*overflow-x:\s*auto/.test(extraCss.replace(/\s+/g,''))],
   ['chart-sheet overflow-x hidden', /\.chart-sheet\s*\{[^}]*overflow-x:\s*hidden/.test(extraCss)],
   ['chart-pair break-inside avoid', /chart-pair[^}]*break-inside:\s*avoid/.test(extraCss)],
+  ['tablet keeps columns-2', /@media \(max-width: 1024px\)[\s\S]*?\.chart-sheet\.columns-2\s*\{[^}]*column-count:\s*2/.test(mobileCss)],
+  ['phone may collapse columns-2', /@media \(max-width: 560px\)[\s\S]*\.chart-sheet\.columns-2\s*\{[^}]*column-count:\s*1/.test(mobileCss + extraCss)],
+  ['compact sheet-toolbar padding', /\.sheet-toolbar\s*\{[^}]*padding:\s*8px 10px/.test(extraCss) || /\.sheet-toolbar\s*\{[^}]*padding:\s*6px/.test(extraCss)],
+  ['columns-font-cluster', /columns-font-cluster/.test(extraCss)],
 ]
 
 

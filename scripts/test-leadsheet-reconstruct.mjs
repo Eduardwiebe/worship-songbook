@@ -8,6 +8,9 @@ import {
   normalizeEngravedLyrics,
   placeChordsAboveLyric,
   reconstructLeadsheet,
+  joinChordSuffixFragments,
+  reconstructFromPdfBBox,
+  parsePdfBBoxDocument,
 } from '../lib/leadsheetReconstruct.mjs'
 import {
   softFormatChordChart,
@@ -17,7 +20,9 @@ import {
   wrapChordLyricPair,
   deinterleaveTwoColumnLayout,
   parseChartBlocks,
+  attachOrphanChordLines,
 } from '../lib/chartLayout.mjs'
+import { parseTempoBpm, clampTempoBpm } from '../lib/leadsheetAnalysis.mjs'
 import { cleanOcrText } from '../lib/leadsheetAnalysis.mjs'
 import { transposeEditorText } from '../lib/editorKey.mjs'
 
@@ -335,3 +340,110 @@ const blocks = parseChartBlocks(`${jesusPackedFull.chordLine}\n${jesusFull}`, { 
 assert(blocks.some((b) => b.kind === 'pair'), 'parseChartBlocks emits pair')
 assert(blocks.find((b) => b.kind === 'pair').stacks.find((s) => s.word === 'dir')?.chord === 'G', 'pair stacks G on dir')
 console.log('OK parseChartBlocks pair for Jesus line')
+
+// --- BPM parse / clamp (header variants) ---
+assert(parseTempoBpm('Key - D | Tempo - 60 | Time - 4/4') === 60, 'Tempo - 60')
+assert(parseTempoBpm('TONART: C · TEMPO: 156 BPM') === 156, 'TEMPO: 156 BPM')
+assert(parseTempoBpm('BPM: 72') === 72, 'BPM: 72')
+assert(parseTempoBpm('♩ = 90') === 90, 'metronome 90')
+assert(parseTempoBpm('no tempo here') == null, 'missing tempo')
+assert(clampTempoBpm('60') === 60, 'clamp 60')
+assert(clampTempoBpm('6') === 40, 'clamp up from 6')
+assert(clampTempoBpm('999') === 240, 'clamp down')
+assert(clampTempoBpm('', { fallback: 120 }) === 120, 'empty keeps fallback')
+console.log('OK BPM parse/clamp')
+
+// --- Generic SongSelect 2-col: never split Em7 mid-token ---
+const genericTwoCol = [
+  'VERSE 1                               CHORUS 1',
+  'D          Em7          Asus A        G     D',
+  'Lord you are holy and near            We sing aloud',
+].join('\n')
+const genericSplit = deinterleaveTwoColumnLayout(genericTwoCol)
+assert(/Em7/.test(genericSplit), `Em7 must survive deinterleave:\n${genericSplit}`)
+assert(!/^[^]*\bE\b[^]*\bm7\b/m.test(genericSplit.split('CHORUS')[0] || ''), 'must not orphan m7')
+assert(genericSplit.indexOf('Lord you are') < genericSplit.indexOf('We sing'), 'left before right generic')
+console.log('OK generic 2-col keeps Em7 intact')
+
+// --- Orphan chord lines attach to previous lyric ---
+const withOrphan = softFormatChordChart([
+  'G/D    D     Em7   Asus',
+  'Du hast gesagt dass jeder kommen darf',
+  'A A2 A',
+  '',
+  'D/F#',
+  'Ich muss',
+].join('\n'))
+assert(!/^A A2 A$/m.test(withOrphan), `orphan chord line should attach:\n${withOrphan}`)
+assert(/kommen darf/.test(withOrphan), 'lyric kept')
+console.log('OK orphan chord lines attach')
+
+// --- Chord suffix fragment join (PDF A+sus / Em+7) ---
+const frags = joinChordSuffixFragments([
+  { text: 'A', bbox: [100, 10, 110, 20], confidence: 1 },
+  { text: 'sus', bbox: [110, 9, 130, 18], confidence: 1 },
+  { text: 'Em', bbox: [200, 10, 220, 20], confidence: 1 },
+  { text: '7', bbox: [220, 10, 228, 20], confidence: 1 },
+])
+assert(frags.some((t) => t.text === 'Asus'), `Asus joined got ${JSON.stringify(frags)}`)
+assert(frags.some((t) => t.text === 'Em7'), `Em7 joined got ${JSON.stringify(frags)}`)
+assert(isValidChordToken('G#m7(b5)'), 'G#m7(b5) valid after pattern expand')
+console.log('OK chord suffix fragment join')
+
+// --- Jesus sagt/jeder/kommen chord set via packing fixture (acceptance) ---
+const sagtLyric = 'Du hast ge - sagt dass jeder kommen darf'
+const sagtPacked = packChordsAboveLyrics(sagtLyric, [
+  { chord: 'G/D', index: sagtLyric.indexOf('sagt') },
+  { chord: 'D', index: sagtLyric.indexOf('jeder') },
+  { chord: 'Em', index: sagtLyric.indexOf('kommen') },
+])
+const sagtStacks = chordLyricToWordStacks(sagtPacked.chordLine, sagtLyric)
+const sagtByWord = Object.fromEntries(sagtStacks.filter((s) => s.chord).map((s) => [s.word, s.chord]))
+assert(sagtByWord.sagt === 'G/D', `sagt→G/D got ${JSON.stringify(sagtByWord)}`)
+assert(sagtByWord.jeder === 'D', 'jeder→D')
+assert(sagtByWord.kommen === 'Em', 'kommen→Em')
+console.log('OK sagt/jeder/kommen chord set fixture')
+
+// --- PDF bbox reconstruct smoke (synthetic SongSelect-like page) ---
+const bboxXml = `<?xml version="1.0"?>
+<doc><page width="600" height="800">
+  <word xMin="40" yMin="40" xMax="80" yMax="55">Title</word>
+  <word xMin="40" yMin="70" xMax="70" yMax="82">Key</word>
+  <word xMin="75" yMin="70" xMax="80" yMax="82">-</word>
+  <word xMin="85" yMin="70" xMax="95" yMax="82">D</word>
+  <word xMin="100" yMin="70" xMax="140" yMax="82">Tempo</word>
+  <word xMin="145" yMin="70" xMax="150" yMax="82">-</word>
+  <word xMin="155" yMin="70" xMax="175" yMax="82">60</word>
+  <word xMin="40" yMin="110" xMax="90" yMax="125">VERSE</word>
+  <word xMin="95" yMin="110" xMax="105" yMax="125">1</word>
+  <word xMin="40" yMin="140" xMax="50" yMax="155">D</word>
+  <word xMin="120" yMin="140" xMax="130" yMax="155">G</word>
+  <word xMin="215" yMin="140" xMax="225" yMax="155">A</word>
+  <word xMin="225" yMin="138" xMax="250" yMax="150">sus</word>
+  <word xMin="40" yMin="160" xMax="90" yMax="175">Jesus</word>
+  <word xMin="95" yMin="160" xMax="115" yMax="175">zu</word>
+  <word xMin="120" yMin="160" xMax="145" yMax="175">dir</word>
+  <word xMin="150" yMin="160" xMax="185" yMax="175">kann</word>
+  <word xMin="190" yMin="160" xMax="210" yMax="175">ich</word>
+  <word xMin="215" yMin="160" xMax="270" yMax="175">kommen</word>
+</page></doc>`
+const bboxResult = reconstructFromPdfBBox(bboxXml, { titleHint: 'Title' })
+assert(bboxResult.text, 'bbox reconstruct produces text')
+assert(/kommen/i.test(bboxResult.text), `bbox has kommen: ${bboxResult.text}`)
+assert(/Asus|A/.test(bboxResult.text), `bbox has Asus/A: ${bboxResult.text}`)
+const bboxStacks = (() => {
+  const lines = bboxResult.text.split('\n')
+  const li = lines.findIndex((l) => /kommen/i.test(l) && !isValidChordToken(l.trim().split(/\s+/)[0] || ''))
+  // find chord line above lyric containing kommen
+  for (let i = 0; i < lines.length; i++) {
+    if (/kommen/i.test(lines[i]) && !/^(D|G|A)/.test(lines[i].trim())) {
+      const chordLine = i > 0 ? lines[i - 1] : ''
+      return chordLyricToWordStacks(chordLine, lines[i])
+    }
+  }
+  return []
+})()
+const kommenStack = bboxStacks.find((s) => /kommen/i.test(s.word))
+assert(kommenStack && /Asus|A/.test(kommenStack.chord), `bbox Asus@kommen stacks=${JSON.stringify(bboxStacks)} text=\n${bboxResult.text}`)
+console.log('OK pdf bbox reconstruct places chord on kommen')
+

@@ -308,6 +308,22 @@ main,
 }
 
 @media (max-width: 1024px) {
+  .sheet-toolbar {
+    gap: 5px 6px;
+    padding: 6px 8px;
+  }
+  .sheet-toolbar .tool-group button,
+  .sheet-toolbar select,
+  .cajon-tool input {
+    height: 30px;
+  }
+  .chart-sheet.columns-2 {
+    column-count: 2;
+    column-gap: 20px;
+  }
+}
+
+@media (max-width: 560px) {
   .chart-sheet.columns-2 {
     column-count: 1;
   }
