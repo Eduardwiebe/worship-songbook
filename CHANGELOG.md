@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.1.8 — 2026-09-10
+
+### YouTube rehearsal link
+- Song editor: third header button **YouTube Probe** beside **Tonart bearbeiten** opens YouTube via `openExternal` for listening/rehearsal.
+- On PDF/scan/text import, API resolves a YouTube link (baseline: search URL; improves query via DE→EN worship map + optional iTunes metadata; uses Data API video id when `YOUTUBE_API_KEY` is set).
+- Stores `youtubeUrl` / `youtubeVideoId` / `youtubeSource` on songs; lazy `POST /api/songs/:id/resolve-youtube` for existing songs without a link (same pattern as covers).
+- Prefer original-language worship recordings for German chart titles (e.g. *Wie schön dieser Name ist* → What A Beautiful Name / Hillsong search).
+
 ## 1.0.1.7 — 2026-09-10
 
 ### SongSelect key detection / transpose

@@ -135,3 +135,11 @@ export async function resolveSongCover(id) {
   if (!response.ok) throw new Error(data.error || 'Cover konnte nicht geladen werden.')
   return data
 }
+
+/** Lazy one-shot YouTube rehearsal link resolve. */
+export async function resolveSongYoutube(id) {
+  const response = await apiFetch(`/api/songs/${id}/resolve-youtube`, { method: 'POST' })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(data.error || 'YouTube-Link konnte nicht geladen werden.')
+  return data
+}

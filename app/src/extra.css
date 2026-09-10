@@ -212,6 +212,9 @@ html[data-theme="light"] body { color:#152131;background:#edf1f5; } html[data-th
 .editor-view-switch { display:flex;align-items:center;gap:7px;border-bottom:1px solid #d9e0e5;padding:11px 16px;background:#fff; }
 .editor-view-switch button { border:1px solid #d7dfe5;border-radius:8px;padding:8px 12px;color:#55636f;background:#f5f7f8;font-weight:800; }
 .editor-view-switch button.active { border-color:#d2a84a;color:#34250b;background:#f4d477; }
+.editor-view-switch button.youtube-rehearsal { border-color:#c9d0d6;color:#3a4652;background:#fff; }
+.editor-view-switch button.youtube-rehearsal:hover:not(:disabled) { border-color:#b3261e;color:#7a1a14;background:#fff5f4; }
+.editor-view-switch button.youtube-rehearsal:disabled { opacity:.55;cursor:wait; }
 .editor-view-switch>span { margin-left:8px;color:#6c7a86;font-size:11px; }
 .tool-disabled { opacity:.42; }
 .sheet-toolbar { position:sticky;z-index:10;top:0;display:flex;flex-wrap:wrap;align-items:end;gap:10px 14px;border-bottom:1px solid #d9e0e5;padding:10px 12px;color:#2f3b46;background:rgba(255,255,255,.98);box-shadow:0 4px 16px rgba(34,48,64,.05);backdrop-filter:blur(12px);max-width:100%;box-sizing:border-box;overflow-x:hidden; }

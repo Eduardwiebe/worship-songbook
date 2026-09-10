@@ -32,6 +32,10 @@ import {
   queueResolveSongCover,
 } from './lib/songCover.mjs'
 import {
+  persistSongYoutube,
+  queueResolveSongYoutube,
+} from './lib/songYoutube.mjs'
+import {
   SongTrustError,
   getSongSnapshotState,
   initializeSongTrustSchema,
@@ -71,6 +75,7 @@ try { db.exec("ALTER TABLE sets ADD COLUMN technician_id TEXT DEFAULT ''") } cat
 for(const column of ['band','theme','venue','arrival_time']){try{db.exec(`ALTER TABLE sets ADD COLUMN ${column} TEXT DEFAULT ''`)}catch{}}
 for(const column of ['source_key','preferred_key']){try{db.exec(`ALTER TABLE songs ADD COLUMN ${column} TEXT DEFAULT ''`)}catch{}}
 for(const column of ['cover_path','cover_mime','cover_source']){try{db.exec(`ALTER TABLE songs ADD COLUMN ${column} TEXT DEFAULT ''`)}catch{}}
+for(const column of ['youtube_url','youtube_video_id','youtube_source']){try{db.exec(`ALTER TABLE songs ADD COLUMN ${column} TEXT DEFAULT ''`)}catch{}}
 initializeAuth(db)
 db.exec(`CREATE TABLE IF NOT EXISTS bands (id TEXT PRIMARY KEY,name TEXT NOT NULL UNIQUE,description TEXT NOT NULL DEFAULT '',created_by TEXT NOT NULL,created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS band_members (band_id TEXT NOT NULL,user_id TEXT NOT NULL,role TEXT NOT NULL DEFAULT 'member',joined_at TEXT NOT NULL,PRIMARY KEY(band_id,user_id));
@@ -205,8 +210,8 @@ const makeInitials=(name)=>{const parts=name.trim().split(/\s+/).filter(Boolean)
 const json = (res, status, body) => { res.writeHead(status, {'content-type':'application/json'}); res.end(JSON.stringify(body)) }
 const bodyJson = async (req) => { const chunks=[]; for await (const c of req) chunks.push(c); return JSON.parse(Buffer.concat(chunks).toString() || '{}') }
 const songRows = (ownerId,bandId='') => (bandId
-  ? db.prepare('SELECT s.id,s.title,s.artist,s.song_key AS key,s.preferred_key AS preferredKey,s.file_name AS fileName,s.file_size AS fileSize,s.sort_order AS sortOrder,s.created_at AS createdAt,s.is_protected AS isProtected,1 AS hasPdf,s.cover_path AS coverPath,s.cover_source AS coverSource FROM songs s JOIN band_songs bs ON bs.song_id=s.id WHERE bs.band_id=? ORDER BY s.sort_order DESC').all(bandId)
-  : db.prepare('SELECT id,title,artist,song_key AS key,preferred_key AS preferredKey,file_name AS fileName,file_size AS fileSize,sort_order AS sortOrder,created_at AS createdAt,is_protected AS isProtected,1 AS hasPdf,cover_path AS coverPath,cover_source AS coverSource FROM songs WHERE owner_id=? ORDER BY sort_order DESC').all(ownerId)
+  ? db.prepare('SELECT s.id,s.title,s.artist,s.song_key AS key,s.preferred_key AS preferredKey,s.file_name AS fileName,s.file_size AS fileSize,s.sort_order AS sortOrder,s.created_at AS createdAt,s.is_protected AS isProtected,1 AS hasPdf,s.cover_path AS coverPath,s.cover_source AS coverSource,s.youtube_url AS youtubeUrl,s.youtube_video_id AS youtubeVideoId,s.youtube_source AS youtubeSource FROM songs s JOIN band_songs bs ON bs.song_id=s.id WHERE bs.band_id=? ORDER BY s.sort_order DESC').all(bandId)
+  : db.prepare('SELECT id,title,artist,song_key AS key,preferred_key AS preferredKey,file_name AS fileName,file_size AS fileSize,sort_order AS sortOrder,created_at AS createdAt,is_protected AS isProtected,1 AS hasPdf,cover_path AS coverPath,cover_source AS coverSource,youtube_url AS youtubeUrl,youtube_video_id AS youtubeVideoId,youtube_source AS youtubeSource FROM songs WHERE owner_id=? ORDER BY sort_order DESC').all(ownerId)
 ).map((song) => {
   const trust = snapshotSummaryForSong(db, song.id)
   const variantKeys = trust.snapshotId
@@ -221,6 +226,9 @@ const songRows = (ownerId,bandId='') => (bandId
     coverUrl: song.coverPath ? `/api/songs/${song.id}/cover` : '',
     coverSource: song.coverSource || '',
     coverPath: undefined,
+    youtubeUrl: song.youtubeUrl || '',
+    youtubeVideoId: song.youtubeVideoId || '',
+    youtubeSource: song.youtubeSource || '',
   }
 })
 
@@ -1300,6 +1308,7 @@ http.createServer(async (req,res) => { try {
     const createdSongs=songRows(user.id,bandId).slice(0,files.length)
     for (const song of createdSongs) {
       queueResolveSongCover(db,{songId:song.id,title:song.title,artist:song.artist,key:song.key||song.preferredKey||'',root})
+      queueResolveSongYoutube(db,{songId:song.id,title:song.title,artist:song.artist||''})
     }
     return json(res,201,createdSongs) /* cover-bulk */
   }
@@ -1418,6 +1427,7 @@ http.createServer(async (req,res) => { try {
     })
     const created=songRows(user.id,bandId).find(song=>song.id===id)
     queueResolveSongCover(db,{songId:id,title,artist,key:created?.key||created?.preferredKey||'',root})
+    queueResolveSongYoutube(db,{songId:id,title,artist})
     return json(res,201,created) /* cover-scan */
   }
   const protectedSong=url.pathname.match(/^\/api\/songs\/([^/]+)/)
@@ -1439,6 +1449,16 @@ http.createServer(async (req,res) => { try {
       return json(res,200,{ok:true,hasCover:true,coverUrl:`/api/songs/${row.id}/cover`,coverSource:db.prepare('SELECT cover_source FROM songs WHERE id=?').get(row.id)?.cover_source||''})
     }
     const resolved=await persistSongCover(db,{songId:row.id,title:row.title,artist:row.artist||'',key:row.preferred_key||row.song_key||'',root})
+    return json(res,200,{ok:true,...resolved})
+  }
+  const resolveYoutubeMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/resolve-youtube$/)
+  if(req.method==='POST'&&resolveYoutubeMatch){
+    const row=db.prepare('SELECT id,title,artist,youtube_url,youtube_video_id,youtube_source FROM songs WHERE id=?').get(resolveYoutubeMatch[1])
+    if(!row)return json(res,404,{error:'Song nicht gefunden'})
+    if(row.youtube_url){
+      return json(res,200,{ok:true,youtubeUrl:row.youtube_url,youtubeVideoId:row.youtube_video_id||'',youtubeSource:row.youtube_source||''})
+    }
+    const resolved=await persistSongYoutube(db,{songId:row.id,title:row.title,artist:row.artist||''})
     return json(res,200,{ok:true,...resolved})
   }
   const pdfMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/pdf$/)

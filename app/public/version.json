@@ -1,9 +1,9 @@
 {
   "name": "Lyruma Songbook",
-  "version": "1.0.1.7",
+  "version": "1.0.1.8",
   "releasedAt": "2026-09-10",
   "releaseUrl": "https://songbook.lyruma.app",
-  "notes": "SongSelect Key - E / Key - C headers trusted for editable lead sheets and transpose.",
+  "notes": "YouTube Probe button in song editor — opens rehearsal listening (original-language search when title is a German translation).",
   "channel": "web",
   "canReload": true
 }
