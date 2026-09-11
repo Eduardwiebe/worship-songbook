@@ -128,10 +128,61 @@ html[data-theme="light"] .briefing-grid select option:checked,html[data-theme="l
 .run-count { color: #d7b55f; font-weight: 800; }
 .pdf-launch { margin-top: 25px; padding: 15px 23px; font-size: 17px; }
 .no-pdf { margin-top: 24px; color: #8496aa; }
-.pdf-stage { position: relative; min-height: 0; padding: 0 !important; overflow: hidden; background: #20252b; touch-action: pan-y; }
-.pdf-stage iframe { width: 100%; height: 100%; border: 0; background: #fff; pointer-events: none; }
-.pdf-stage .no-pdf { display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 0; }
+.run-mode main.pdf-stage {
+  /* Override .run-mode main flex centering so the chart fills the 1fr row */
+  display: block;
+  align-items: normal;
+  justify-content: normal;
+  text-align: left;
+  min-height: 0;
+  padding: 0 !important;
+  overflow: hidden; /* arrows stay pinned; scrolling happens in .pdf-stage-scroll */
+  background: #20252b;
+  position: relative;
+}
+.pdf-stage { position: relative; min-height: 0; padding: 0 !important; overflow: hidden; background: #20252b; }
+.pdf-stage-scroll {
+  position: absolute;
+  inset: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  background: #20252b;
+}
+/* Edited HTML charts: sized to content (JS) so .pdf-stage-scroll scrolls; pointer-events none keeps song swipe on the scroll pane */
+.pdf-stage iframe.stage-fit-content {
+  display: block;
+  width: 100%;
+  min-height: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+  pointer-events: none;
+}
+/* Original PDF / fallback: fill the scroll pane and scroll inside the frame */
+.pdf-stage iframe.stage-fill,
+.pdf-stage embed.stage-fill,
+.pdf-stage .pdf-media-loading.stage-fill,
+.pdf-stage .pdf-media-error.stage-fill,
+.pdf-stage .original-pages.stage-fill {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+  pointer-events: auto;
+  overflow: auto;
+}
+.pdf-stage iframe { width: 100%; min-height: 100%; height: 100%; border: 0; background: #fff; pointer-events: none; display: block; }
+.pdf-stage .no-pdf { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; margin: 0; }
 .pdf-stage .no-pdf strong { color: #edf2f7; font-size: 28px; }
+/* Edge strips: horizontal song swipe when the media frame captures pointer events (PDF) */
+.stage-swipe-strip { position: absolute; z-index: 1; top: 0; bottom: 0; width: min(72px, 14vw); }
+.stage-swipe-strip.left { left: 0; }
+.stage-swipe-strip.right { right: 0; }
 .stage-arrow { position: absolute; z-index: 2; top: 50%; width: 44px; min-width: 44px; height: 96px; min-height: 44px; border: 0; border-radius: 0; display: grid; place-items: center; transform: translateY(-50%); color: rgba(255,255,255,.42); background: transparent; backdrop-filter: none; -webkit-tap-highlight-color: transparent; cursor: pointer; opacity: 1; transition: color .15s ease, background-color .15s ease, opacity .15s ease; }
 .stage-arrow.left { left: 0; }
 .stage-arrow.right { right: 0; }

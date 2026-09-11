@@ -1135,6 +1135,7 @@ function RunSet({set, songs, onClose}) {
   const touchStart = useRef(null)
   const song = songs[index]
   const selectedKey = set.songKeys?.[song.id] || ''
+  const showingEditedChart = Boolean(selectedKey)
   const previous = () => setIndex((current) => Math.max(0, current - 1))
   const next = () => setIndex((current) => Math.min(songs.length - 1, current + 1))
   useEffect(() => {
@@ -1146,16 +1147,32 @@ function RunSet({set, songs, onClose}) {
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [songs.length, onClose])
-  const finishSwipe = (clientX) => {
+  const finishSwipe = (clientX, clientY) => {
     if (touchStart.current === null) return
-    const distance = clientX - touchStart.current
-    if (distance < -55) next()
-    if (distance > 55) previous()
+    const start = touchStart.current
+    const dx = clientX - (typeof start === 'number' ? start : start.x)
+    const dy = typeof start === 'number' ? 0 : clientY - start.y
+    // Horizontal song change only — ignore mostly-vertical chart scrolls.
+    if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.15) {
+      if (dx < 0) next()
+      if (dx > 0) previous()
+    }
     touchStart.current = null
   }
+  const onStageTouchStart = (event) => {
+    const touch = event.touches[0]
+    touchStart.current = { x: touch.clientX, y: touch.clientY }
+  }
+  const onStageTouchEnd = (event) => {
+    const touch = event.changedTouches[0]
+    finishSwipe(touch.clientX, touch.clientY)
+  }
   return <div className="run-mode"><header><div><p className="eyebrow">{t('sets.runMode')}</p><strong>{set.title}</strong><span>{index + 1}/{songs.length} · {song.title}{selectedKey?` · ${t('home.key', { key: selectedKey })}`:''}</span></div><button className="icon-button" onClick={onClose}><X size={22}/></button></header>
-    <main className="pdf-stage" onTouchStart={(event) => { touchStart.current = event.touches[0].clientX }} onTouchEnd={(event) => finishSwipe(event.changedTouches[0].clientX)}>
-      {selectedKey ? <AuthorizedFrame key={`${song.id}-${selectedKey}`} title={`${song.title} – ${selectedKey}`} path={songChartUrl(song,selectedKey)}/> : hasSongPdf(song) ? <AuthorizedFrame key={song.id} title={song.title} path={songPdfUrl(song)} hash="#toolbar=0&navpanes=0&view=FitH"/> : <div className="no-pdf"><FileText size={42}/><strong>{song.title}</strong><span>{t('sets.noPdf')}</span></div>}
+    <main className="pdf-stage">
+      <div className="pdf-stage-scroll" onTouchStart={onStageTouchStart} onTouchEnd={onStageTouchEnd}>
+        {showingEditedChart ? <AuthorizedFrame key={`${song.id}-${selectedKey}`} title={`${song.title} – ${selectedKey}`} path={songChartUrl(song,selectedKey)} fitContent className="stage-fit-content"/> : hasSongPdf(song) ? <AuthorizedFrame key={song.id} title={song.title} path={songPdfUrl(song)} hash="#toolbar=0&navpanes=0&view=FitH" className="stage-fill"/> : <div className="no-pdf"><FileText size={42}/><strong>{song.title}</strong><span>{t('sets.noPdf')}</span></div>}
+      </div>
+      {!showingEditedChart && hasSongPdf(song) ? <><div className="stage-swipe-strip left" aria-hidden="true" onTouchStart={onStageTouchStart} onTouchEnd={onStageTouchEnd}/><div className="stage-swipe-strip right" aria-hidden="true" onTouchStart={onStageTouchStart} onTouchEnd={onStageTouchEnd}/></> : null}
       <button className="stage-arrow left" disabled={index === 0} onClick={previous} aria-label={t('sets.prevSong')}><ChevronLeft size={32}/></button><button className="stage-arrow right" disabled={index === songs.length - 1} onClick={next} aria-label={t('sets.nextSong')}><ChevronRight size={32}/></button>
     </main><footer><button disabled={index === 0} onClick={previous}><ChevronLeft size={21}/>{t('common.back')}</button><div>{songs.map((item, itemIndex) => <span className={itemIndex === index ? 'active' : ''} key={`${item.id}-${itemIndex}`}/>)}</div><button disabled={index === songs.length - 1} onClick={next}>{t('common.next')}<ChevronRight size={21}/></button></footer></div>
 }

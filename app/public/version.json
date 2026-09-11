@@ -1,9 +1,9 @@
 {
   "name": "Lyruma Songbook",
-  "version": "1.0.1.11",
+  "version": "1.0.1.12",
   "releasedAt": "2026-09-11",
   "releaseUrl": "https://songbook.lyruma.app",
-  "notes": "Technik-Briefing: readable technician names in select (fix white-on-white options).",
+  "notes": "Set playback: lead sheet fills stage and scrolls vertically (no clipped chart).",
   "channel": "web",
   "canReload": true
 }

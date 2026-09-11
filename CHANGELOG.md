@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1.12 — 2026-09-11
+
+### Set playback lead sheet layout
+- Fixed clipped edited charts in set run mode: stage fills the viewport between header/footer; long lead sheets scroll vertically inside `.pdf-stage-scroll`.
+- Cause: `.run-mode main` flex centering + `.pdf-stage { overflow: hidden }` + iframe `pointer-events: none` left a dark empty band and blocked chart scroll.
+- Edited HTML charts size to content (`fitContent`) so the stage scrolls while song swipe still works; original PDF iframes fill the stage and scroll internally (edge swipe strips + arrows preserved).
+
 ## 1.0.1.11 — 2026-09-11
 
 ### Technik-Briefing contrast

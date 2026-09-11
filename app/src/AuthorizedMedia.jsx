@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { authorizedObjectUrl, isNativeRuntime, toApiPath, apiFetch } from './apiConfig'
 import { isLikelyIosNative } from './nativePlatform'
 
@@ -116,8 +116,72 @@ export function OriginalPagesViewer({ songId, title, className }) {
   )
 }
 
-function PdfNativeViewer({ src, title, className }) {
+function useStageFrameHeight(fitContent, src = '') {
+  const frameRef = useRef(null)
+
+  const fitFrameToContent = useCallback(() => {
+    const frame = frameRef.current
+    if (!frame || !fitContent) return false
+    try {
+      const doc = frame.contentDocument
+      if (!doc?.documentElement) return false
+      const body = doc.body
+      const root = doc.documentElement
+      // Prefer real content height; never smaller than the stage viewport.
+      const contentHeight = Math.max(
+        body?.scrollHeight || 0,
+        body?.offsetHeight || 0,
+        root.scrollHeight || 0,
+        root.offsetHeight || 0,
+      )
+      const stageHeight = frame.parentElement?.clientHeight || 0
+      const next = Math.max(contentHeight, stageHeight, 1)
+      frame.style.height = `${next}px`
+      return true
+    } catch {
+      return false
+    }
+  }, [fitContent])
+
+  useEffect(() => {
+    if (!fitContent || !src) return undefined
+    const frame = frameRef.current
+    // Retry after layout/fonts settle (iframe may mount after this effect first runs).
+    const t0 = window.setTimeout(fitFrameToContent, 0)
+    const t1 = window.setTimeout(fitFrameToContent, 50)
+    const t2 = window.setTimeout(fitFrameToContent, 250)
+    const onResize = () => { fitFrameToContent() }
+    window.addEventListener('resize', onResize)
+
+    let observer
+    const watch = window.setTimeout(() => {
+      try {
+        const doc = frameRef.current?.contentDocument
+        if (doc?.body && typeof ResizeObserver !== 'undefined') {
+          observer = new ResizeObserver(() => fitFrameToContent())
+          observer.observe(doc.body)
+        }
+      } catch {
+        // cross-origin / PDF plugin — parent will fall back to stage-fill
+      }
+    }, 60)
+
+    return () => {
+      window.clearTimeout(t0)
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
+      window.clearTimeout(watch)
+      window.removeEventListener('resize', onResize)
+      observer?.disconnect()
+    }
+  }, [fitContent, fitFrameToContent, src])
+
+  return { frameRef, fitFrameToContent }
+}
+
+function PdfNativeViewer({ src, title, className, fitContent = false }) {
   const ios = isLikelyIosNative()
+  const { frameRef, fitFrameToContent } = useStageFrameHeight(fitContent, src)
   if (ios) {
     return (
       <embed
@@ -128,21 +192,27 @@ function PdfNativeViewer({ src, title, className }) {
       />
     )
   }
-  return <iframe title={title} className={className} src={src} />
+  return (
+    <iframe
+      ref={frameRef}
+      title={title}
+      className={className}
+      src={src}
+      onLoad={fitFrameToContent}
+    />
+  )
 }
 
 /**
  * Protected PDFs/charts — blob URL on native, direct URL on web.
  * iOS WKWebView often fails to render PDFs inside iframes; embed is used there.
  * For song originals on iOS, prefer OriginalPagesViewer (full page images).
+ * fitContent: size HTML chart iframes to document height so the stage can scroll
+ * while keeping pointer-events none (song swipe stays on the stage).
  */
-export function AuthorizedFrame({ path, title, className, hash = '', songId = '', preferPageImages = false }) {
+export function AuthorizedFrame({ path, title, className, hash = '', songId = '', preferPageImages = false, fitContent = false }) {
   const usePages = preferPageImages && songId && isLikelyIosNative()
-
-  if (usePages) {
-    return <OriginalPagesViewer songId={songId} title={title} className={className} />
-  }
-
+  const [frameClassName, setFrameClassName] = useState(className || '')
   const [src, setSrc] = useState(() => {
     if (!path) return ''
     if (isNativeRuntime()) return ''
@@ -150,12 +220,18 @@ export function AuthorizedFrame({ path, title, className, hash = '', songId = ''
   })
   const [loading, setLoading] = useState(() => Boolean(path && isNativeRuntime()))
   const [error, setError] = useState('')
+  const { frameRef, fitFrameToContent } = useStageFrameHeight(fitContent && !usePages, src)
+
+  useEffect(() => {
+    setFrameClassName(className || '')
+  }, [className])
 
   useEffect(() => {
     let active = true
     let objectUrl = ''
 
     async function load() {
+      if (usePages) return
       if (!path) {
         if (active) {
           setSrc('')
@@ -175,7 +251,8 @@ export function AuthorizedFrame({ path, title, className, hash = '', songId = ''
       setLoading(true)
       setError('')
       try {
-        const url = await authorizedObjectUrl(toApiPath(path) || path, { mimeHint: 'application/pdf' })
+        const mimeHint = fitContent ? 'text/html' : 'application/pdf'
+        const url = await authorizedObjectUrl(toApiPath(path) || path, { mimeHint })
         if (!active) {
           if (url.startsWith('blob:')) URL.revokeObjectURL(url)
           return
@@ -197,7 +274,25 @@ export function AuthorizedFrame({ path, title, className, hash = '', songId = ''
       active = false
       if (objectUrl.startsWith('blob:')) URL.revokeObjectURL(objectUrl)
     }
-  }, [path, hash])
+  }, [path, hash, fitContent, usePages])
+
+  const handleFrameLoad = () => {
+    if (!fitContent) return
+    const ok = fitFrameToContent()
+    if (!ok) {
+      // PDF plugin / opaque document: fill stage and scroll inside the frame.
+      const fallback = (className || '').replace(/\bstage-fit-content\b/g, 'stage-fill').trim() || 'stage-fill'
+      setFrameClassName(fallback)
+      if (frameRef.current) {
+        frameRef.current.style.height = ''
+        frameRef.current.style.pointerEvents = 'auto'
+      }
+    }
+  }
+
+  if (usePages) {
+    return <OriginalPagesViewer songId={songId} title={title} className={className} />
+  }
 
   if (loading) {
     return (
@@ -221,7 +316,15 @@ export function AuthorizedFrame({ path, title, className, hash = '', songId = ''
   if (!src) return null
 
   if (isNativeRuntime()) {
-    return <PdfNativeViewer src={src} title={title} className={className} />
+    return <PdfNativeViewer src={src} title={title} className={frameClassName} fitContent={fitContent} />
   }
-  return <iframe title={title} className={className} src={src} />
+  return (
+    <iframe
+      ref={frameRef}
+      title={title}
+      className={frameClassName}
+      src={src}
+      onLoad={handleFrameLoad}
+    />
+  )
 }
