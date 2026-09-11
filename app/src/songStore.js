@@ -153,6 +153,14 @@ export async function resolveSongCover(id) {
   return data
 }
 
+/** Lazy one-shot original-recording BPM resolve (PDF text wins over lookup). */
+export async function resolveSongBpm(id) {
+  const response = await apiFetch(`/api/songs/${id}/resolve-bpm`, { method: 'POST' })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(data.error || 'BPM konnte nicht geladen werden.')
+  return data
+}
+
 /** Lazy one-shot YouTube rehearsal link resolve. */
 export async function resolveSongYoutube(id) {
   const response = await apiFetch(`/api/songs/${id}/resolve-youtube`, { method: 'POST' })

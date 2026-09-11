@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import './App.css'
 import './extra.css'
-import { analyzeSongChords, deleteSong, getImportedSongs, getSongOriginalSnapshot, getSongVariants, hasSongPdf, openSongChart, openSongPdf, previewScanPdf, saveImportedSongs, saveScanImport, saveSongVariant, songChartUrl, songPdfUrl, updateSong, resolveSongCover, resolveSongYoutube, songCoverPath } from './songStore'
+import { analyzeSongChords, deleteSong, getImportedSongs, getSongOriginalSnapshot, getSongVariants, hasSongPdf, openSongChart, openSongPdf, previewScanPdf, saveImportedSongs, saveScanImport, saveSongVariant, songChartUrl, songPdfUrl, updateSong, resolveSongCover, resolveSongYoutube, resolveSongBpm, songCoverPath } from './songStore'
 import { createSet, deleteSet, getSets, saveSet } from './setStore'
 import { isProbablyOffline, prefetchSetCharts } from './offlineCache'
 import { deleteMember, getTeam, memberPhoto, saveMember } from './teamStore'
@@ -1258,8 +1258,8 @@ function RunSet({set, songs, onClose}) {
   const { t } = useI18n()
   const [index, setIndex] = useState(0)
   const [autoScroll, setAutoScroll] = useState(false)
-  const [bpm, setBpm] = useState(120)
-  const [bpmInput, setBpmInput] = useState('120')
+  const [bpm, setBpm] = useState(() => clampTempoBpm(song?.bpm, { fallback: 120 }) || 120)
+  const [bpmInput, setBpmInput] = useState(() => String(clampTempoBpm(song?.bpm, { fallback: 120 }) || 120))
   const [cajonOn, setCajonOn] = useState(false)
   const [lyricsOnly, setLyricsOnly] = useState(()=>{try{const s=localStorage.getItem('songbook-lyrics-only');return s==='1'||s==='true'}catch{return false}})
   const touchStart = useRef(null)
@@ -1515,7 +1515,7 @@ function readSimplifyChordsPref(locale = 'de') {
 
 function TransposeDialog({song,onClose,onSave,onKeysResolved,embedded=false,homeEmbedded=false}) {
   const { t, locale } = useI18n()
-  const [originalText,setOriginalText]=useState('');const [overlayText,setOverlayText]=useState('');const [sourceKey,setSourceKey]=useState('');const [targetKey,setTargetKey]=useState('');const [snapshotVerified,setSnapshotVerified]=useState(false);const [error,setError]=useState('');const [loading,setLoading]=useState(true);const [saving,setSaving]=useState(false);const [saved,setSaved]=useState('');const [needsReview,setNeedsReview]=useState(false);const [reanalyzing,setReanalyzing]=useState(false);const [reloadToken,setReloadToken]=useState(0);const [fontSize,setFontSize]=useState(()=>Math.min(28,Math.max(11,Number(song.sheetFontSize)||16)));const [columns,setColumns]=useState(()=>Number(song.sheetColumns)===2?2:1);const [autoScroll,setAutoScroll]=useState(false);const [bpm,setBpm]=useState(120);const [bpmInput,setBpmInput]=useState('120');const [cajonOn,setCajonOn]=useState(false);const [view,setView]=useState(hasSongPdf(song)?'original':'edited');const [simplifyChords,setSimplifyChords]=useState(()=>readSimplifyChordsPref(locale));const [lyricsOnly,setLyricsOnly]=useState(()=>{try{const s=localStorage.getItem('songbook-lyrics-only');return s==='1'||s==='true'}catch{return false}});const [youtubeUrl,setYoutubeUrl]=useState(song.youtubeUrl||'');const [youtubeResolving,setYoutubeResolving]=useState(false);const [tunerOpen,setTunerOpen]=useState(false)
+  const [originalText,setOriginalText]=useState('');const [overlayText,setOverlayText]=useState('');const [sourceKey,setSourceKey]=useState('');const [targetKey,setTargetKey]=useState('');const [snapshotVerified,setSnapshotVerified]=useState(false);const [error,setError]=useState('');const [loading,setLoading]=useState(true);const [saving,setSaving]=useState(false);const [saved,setSaved]=useState('');const [needsReview,setNeedsReview]=useState(false);const [reanalyzing,setReanalyzing]=useState(false);const [reloadToken,setReloadToken]=useState(0);const [fontSize,setFontSize]=useState(()=>Math.min(28,Math.max(11,Number(song.sheetFontSize)||16)));const [columns,setColumns]=useState(()=>Number(song.sheetColumns)===2?2:1);const [autoScroll,setAutoScroll]=useState(false);const [bpm,setBpm]=useState(()=>clampTempoBpm(song?.bpm,{fallback:120})||120);const [bpmInput,setBpmInput]=useState(()=>String(clampTempoBpm(song?.bpm,{fallback:120})||120));const [cajonOn,setCajonOn]=useState(false);const [view,setView]=useState(hasSongPdf(song)?'original':'edited');const [simplifyChords,setSimplifyChords]=useState(()=>readSimplifyChordsPref(locale));const [lyricsOnly,setLyricsOnly]=useState(()=>{try{const s=localStorage.getItem('songbook-lyrics-only');return s==='1'||s==='true'}catch{return false}});const [youtubeUrl,setYoutubeUrl]=useState(song.youtubeUrl||'');const [youtubeResolving,setYoutubeResolving]=useState(false);const [tunerOpen,setTunerOpen]=useState(false)
   const setSimplifyPref=(next)=>{setSimplifyChords(next);try{localStorage.setItem('songbook-simplify-chords', next?'1':'0')}catch{}}
   const setLyricsOnlyPref=(next)=>{setLyricsOnly(next);try{localStorage.setItem('songbook-lyrics-only', next?'1':'0')}catch{}}
   useEffect(()=>{
@@ -1545,12 +1545,28 @@ function TransposeDialog({song,onClose,onSave,onKeysResolved,embedded=false,home
     })()
     return()=>{cancelled=true}
   },[song.id,youtubeUrl])
+  useEffect(()=>{
+    if(!song?.id || clampTempoBpm(song.bpm,{fallback:null})) return
+    let cancelled=false
+    ;(async()=>{
+      try{
+        const resolved=await resolveSongBpm(song.id)
+        if(cancelled||!resolved?.bpm)return
+        setBpm(resolved.bpm)
+        setBpmInput(String(resolved.bpm))
+        onKeysResolved?.({bpm:resolved.bpm,bpmSource:resolved.bpmSource||''})
+      }catch(error){
+        console.warn('bpm resolve failed', song.id, error)
+      }
+    })()
+    return()=>{cancelled=true}
+  },[song.id,song.bpm])
   const openYoutubeRehearsal=()=>{
     const url=youtubeUrl || `https://www.youtube.com/results?search_query=${encodeURIComponent(song.title||'')}`
     openExternal(url)
   }
   const projection=projectEditorSnapshot({originalText,overlayText,sourceKey,selectedKey:targetKey});const text=projection.text
-  useEffect(()=>{let active=true;(async()=>{try{setLoading(true);setError('');let data=await getSongOriginalSnapshot(song.id);if(!active)return;let original=resolveEditorSnapshot(data);if(!original.ok && hasSongPdf(song)){try{setReanalyzing(true);await analyzeSongChords(song.id);if(!active)return;data=await getSongOriginalSnapshot(song.id);original=resolveEditorSnapshot(data)}catch(repairError){if(!active)return;console.warn('song reanalyze failed',repairError)}finally{if(active)setReanalyzing(false)}}if(!original.ok){setOriginalText('');setOverlayText('');setSourceKey('');setTargetKey('');setSnapshotVerified(false);setNeedsReview(true);setLoading(false);return}const variants=await getSongVariants(song.id);if(!active)return;const preferred=normalizeEditorKey(song.preferredKey)||normalizeEditorKey(song.key);const current=variants.find((variant)=>normalizeEditorKey(variant.targetKey)===preferred);const selected=normalizeEditorKey(current?.targetKey)||preferred||original.sourceKey;const overlay=typeof current?.overlayText==='string'&&current.overlayText?current.overlayText:original.originalText;setOriginalText(original.originalText);setOverlayText(overlay);setSourceKey(original.sourceKey);setTargetKey(selected);setSnapshotVerified(true);setNeedsReview(false);onKeysResolved?.({sourceKey:original.sourceKey,originalKey:original.sourceKey,sourceKeyStatus:'verified',sourceKeyVerified:true,snapshotStatus:'verified',snapshotId:original.snapshotId,key:selected,preferredKey:selected});const tempo=parseTempoBpm(overlay)||parseTempoBpm(original.originalText);if(tempo){setBpm(tempo);setBpmInput(String(tempo))}setLoading(false)}catch(caught){if(active){setError(caught.message);setLoading(false)}}})();return()=>{active=false}},[song.id,reloadToken])
+  useEffect(()=>{let active=true;(async()=>{try{setLoading(true);setError('');let importedBpm=clampTempoBpm(song?.bpm,{fallback:null});let data=await getSongOriginalSnapshot(song.id);if(!active)return;let original=resolveEditorSnapshot(data);if(!original.ok && hasSongPdf(song)){try{setReanalyzing(true);const analyzed=await analyzeSongChords(song.id);if(analyzed?.bpm){importedBpm=clampTempoBpm(analyzed.bpm,{fallback:importedBpm});onKeysResolved?.({bpm:analyzed.bpm,bpmSource:analyzed.bpmSource||''})}if(!active)return;data=await getSongOriginalSnapshot(song.id);original=resolveEditorSnapshot(data)}catch(repairError){if(!active)return;console.warn('song reanalyze failed',repairError)}finally{if(active)setReanalyzing(false)}}if(!original.ok){setOriginalText('');setOverlayText('');setSourceKey('');setTargetKey('');setSnapshotVerified(false);setNeedsReview(true);setLoading(false);return}const variants=await getSongVariants(song.id);if(!active)return;const preferred=normalizeEditorKey(song.preferredKey)||normalizeEditorKey(song.key);const current=variants.find((variant)=>normalizeEditorKey(variant.targetKey)===preferred);const selected=normalizeEditorKey(current?.targetKey)||preferred||original.sourceKey;const overlay=typeof current?.overlayText==='string'&&current.overlayText?current.overlayText:original.originalText;setOriginalText(original.originalText);setOverlayText(overlay);setSourceKey(original.sourceKey);setTargetKey(selected);setSnapshotVerified(true);setNeedsReview(false);onKeysResolved?.({sourceKey:original.sourceKey,originalKey:original.sourceKey,sourceKeyStatus:'verified',sourceKeyVerified:true,snapshotStatus:'verified',snapshotId:original.snapshotId,key:selected,preferredKey:selected});const fromText=parseTempoBpm(overlay)||parseTempoBpm(original.originalText);const tempo=fromText||importedBpm;if(tempo){setBpm(tempo);setBpmInput(String(tempo))}setLoading(false)}catch(caught){if(active){setError(caught.message);setLoading(false)}}})();return()=>{active=false}},[song.id,reloadToken])
   useEffect(()=>{
     setColumns(Number(song.sheetColumns)===2?2:1)
     setFontSize(Math.min(28,Math.max(11,Number(song.sheetFontSize)||16)))

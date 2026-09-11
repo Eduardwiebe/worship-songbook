@@ -1,7 +1,7 @@
 {
   "name": "worship-songbook",
   "private": true,
-  "version": "1.0.1.24",
+  "version": "1.0.1.25",
   "type": "module",
   "scripts": {
     "dev": "vite",
