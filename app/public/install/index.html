@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0c192a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Songbook Band" />
+  <link rel="manifest" href="/manifest.webmanifest" type="application/manifest+json" />
+  <link rel="icon" type="image/png" href="/brand-icon.png?v=3" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <title>Songbook Band installieren</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07111f;
+      --panel: rgba(16, 29, 46, 0.92);
+      --line: rgba(255,255,255,.1);
+      --text: #edf2f7;
+      --muted: #9aadc2;
+      --gold: #f1d38d;
+      --gold-deep: #c89a3e;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(900px 420px at 12% -10%, rgba(200,154,62,.22), transparent 55%),
+        radial-gradient(700px 380px at 95% 0%, rgba(80,140,220,.12), transparent 50%),
+        var(--bg);
+      padding: 28px 18px 48px;
+    }
+    .wrap { width: min(720px, 100%); margin: 0 auto; }
+    .top {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      margin-bottom: 28px;
+    }
+    .brand {
+      display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit;
+      font-weight: 850;
+    }
+    .brand img {
+      width: 44px; height: 44px; border-radius: 12px; object-fit: cover;
+      box-shadow: 0 8px 24px rgba(0,0,0,.35);
+    }
+    .back {
+      color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 750;
+      border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; background: rgba(255,255,255,.03);
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 28px 24px 26px;
+      box-shadow: 0 24px 60px rgba(0,0,0,.35);
+    }
+    .eyebrow {
+      margin: 0 0 10px; letter-spacing: .14em; text-transform: uppercase;
+      font-size: 11px; font-weight: 800; color: var(--gold);
+    }
+    h1 {
+      margin: 0 0 12px; font-size: clamp(28px, 5vw, 40px); line-height: 1.1; font-weight: 900;
+    }
+    .pitch { margin: 0 0 22px; color: var(--muted); font-size: 16px; line-height: 1.55; max-width: 38em; }
+    .device {
+      display: inline-flex; align-items: center; gap: 8px;
+      margin-bottom: 18px; padding: 7px 12px; border-radius: 999px;
+      background: rgba(241,211,141,.1); color: var(--gold); font-size: 13px; font-weight: 750;
+      border: 1px solid rgba(241,211,141,.25);
+    }
+    .install-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; max-width: 420px; min-height: 56px; padding: 14px 22px;
+      border: 0; border-radius: 16px; cursor: pointer;
+      font-size: 17px; font-weight: 850; color: #29200e;
+      background: linear-gradient(135deg, var(--gold), var(--gold-deep));
+      box-shadow: 0 14px 30px rgba(200,154,62,.28);
+    }
+    .install-btn:disabled {
+      opacity: .55; cursor: default; box-shadow: none;
+    }
+    .install-btn.secondary {
+      margin-top: 12px; color: var(--text);
+      background: rgba(255,255,255,.06); border: 1px solid var(--line);
+      box-shadow: none;
+    }
+    .hint { margin: 16px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .steps {
+      margin: 22px 0 0; padding: 0; list-style: none;
+      display: grid; gap: 12px;
+    }
+    .steps li {
+      display: grid; grid-template-columns: 36px 1fr; gap: 12px; align-items: start;
+      padding: 14px 14px; border-radius: 16px; background: rgba(255,255,255,.035);
+      border: 1px solid var(--line);
+    }
+    .steps .n {
+      width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center;
+      font-weight: 900; color: #29200e;
+      background: linear-gradient(135deg, var(--gold), var(--gold-deep));
+    }
+    .steps strong { display: block; margin-bottom: 4px; }
+    .steps span { color: var(--muted); font-size: 14px; line-height: 1.45; }
+    .status {
+      margin-top: 18px; padding: 12px 14px; border-radius: 14px;
+      background: rgba(80,180,120,.12); border: 1px solid rgba(80,180,120,.28);
+      color: #c8f0d8; font-size: 14px; font-weight: 700; display: none;
+    }
+    .status.show { display: block; }
+    .status.warn {
+      background: rgba(241,211,141,.1); border-color: rgba(241,211,141,.28); color: var(--gold);
+    }
+    .lang {
+      margin-top: 18px; color: var(--muted); font-size: 13px;
+    }
+    .lang button {
+      background: none; border: 0; color: var(--gold); font-weight: 750; cursor: pointer; padding: 0;
+    }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <a class="brand" href="/">
+        <img src="/brand-icon.png" alt="" width="44" height="44" />
+        <span>Songbook Band</span>
+      </a>
+      <a class="back" href="/">Zur App</a>
+    </div>
+
+    <section class="card">
+      <p class="eyebrow" data-i18n="eyebrow">Band-App</p>
+      <h1 data-i18n="title">Songbook Band</h1>
+      <p class="pitch" data-i18n="pitch">
+        Installiere Songbook Band auf dem Home-Bildschirm oder Desktop —
+        schnell starten, offline Sets spielen, ohne APK oder Store.
+      </p>
+
+      <div class="device" id="deviceBadge">…</div>
+
+      <button type="button" class="install-btn" id="installBtn" data-i18n="cta">
+        Songbook installieren
+      </button>
+      <a class="install-btn secondary" href="/" id="openApp" data-i18n="open">App öffnen</a>
+
+      <p class="hint" id="hint"></p>
+      <ol class="steps hidden" id="steps"></ol>
+      <div class="status" id="status"></div>
+
+      <p class="lang">
+        <button type="button" id="langToggle">English</button>
+      </p>
+    </section>
+  </div>
+
+  <script>
+    const copy = {
+      de: {
+        eyebrow: 'Band-App',
+        title: 'Songbook Band',
+        pitch: 'Installiere Songbook Band auf dem Home-Bildschirm oder Desktop — schnell starten, offline Sets spielen, ohne APK oder Store.',
+        cta: 'Songbook installieren',
+        open: 'App öffnen',
+        device: {
+          ios: 'Gerät: iPhone / iPad (Safari)',
+          android: 'Gerät: Android',
+          mac: 'Gerät: Mac',
+          windows: 'Gerät: Windows',
+          linux: 'Gerät: Desktop',
+          unknown: 'Gerät: Browser',
+        },
+        iosHint: 'Auf dem iPhone/iPad geht die Installation über Safari:',
+        iosSteps: [
+          ['Teilen', 'Tippe unten (oder oben) auf das Teilen-Symbol □↑.'],
+          ['Zum Home-Bildschirm', 'Scrolle und wähle „Zum Home-Bildschirm“.'],
+          ['Hinzufügen', 'Bestätige mit „Hinzufügen“. Songbook Band erscheint wie eine App.'],
+        ],
+        chromiumHint: 'Tippe auf den Button — dein Browser bietet die Installation an.',
+        chromiumFallback: 'Im Chrome-/Edge-Menü: „App installieren“ bzw. das Install-Symbol in der Adressleiste.',
+        desktopHint: 'In Chrome oder Edge: Menü → „Songbook Band installieren“ / „App installieren“. Safari (Mac): Datei → „Zum Dock hinzufügen“.',
+        androidHint: 'In Chrome: Menü ⋮ → „App installieren“ / „Zum Startbildschirm hinzufügen“.',
+        installed: 'Bereits installiert bzw. im Standalone-Modus geöffnet.',
+        prompted: 'Installationsdialog geöffnet.',
+        unavailable: 'Automatische Installation ist in diesem Browser nicht verfügbar — bitte Schritte unten nutzen.',
+        langBtn: 'English',
+      },
+      en: {
+        eyebrow: 'Band app',
+        title: 'Songbook Band',
+        pitch: 'Install Songbook Band on your home screen or desktop — quick launch, offline set play, no APK or store build needed.',
+        cta: 'Install Songbook',
+        open: 'Open app',
+        device: {
+          ios: 'Device: iPhone / iPad (Safari)',
+          android: 'Device: Android',
+          mac: 'Device: Mac',
+          windows: 'Device: Windows',
+          linux: 'Device: Desktop',
+          unknown: 'Device: Browser',
+        },
+        iosHint: 'On iPhone/iPad, install via Safari:',
+        iosSteps: [
+          ['Share', 'Tap the Share icon □↑ at the bottom (or top).'],
+          ['Add to Home Screen', 'Scroll and choose “Add to Home Screen”.'],
+          ['Add', 'Confirm with “Add”. Songbook Band appears like an app.'],
+        ],
+        chromiumHint: 'Tap the button — your browser will offer the install prompt.',
+        chromiumFallback: 'In Chrome/Edge menu: “Install app” or use the install icon in the address bar.',
+        desktopHint: 'In Chrome or Edge: menu → “Install Songbook Band” / “Install app”. Safari (Mac): File → “Add to Dock”.',
+        androidHint: 'In Chrome: menu ⋮ → “Install app” / “Add to Home screen”.',
+        installed: 'Already installed or running in standalone mode.',
+        prompted: 'Install dialog opened.',
+        unavailable: 'Automatic install is unavailable in this browser — follow the steps below.',
+        langBtn: 'Deutsch',
+      },
+    }
+
+    let locale = (navigator.language || 'de').toLowerCase().startsWith('de') ? 'de' : 'en'
+    let deferredPrompt = null
+
+    function detect() {
+      const ua = navigator.userAgent || ''
+      const platform = navigator.platform || ''
+      const touch = navigator.maxTouchPoints || 0
+      const isIos = /iPhone|iPad|iPod/i.test(ua) || (touch > 1 && /Mac/i.test(platform))
+      const isAndroid = /Android/i.test(ua)
+      const isMac = !isIos && /Mac/i.test(platform + ua)
+      const isWin = /Win/i.test(platform + ua)
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone === true
+      return {
+        isIos, isAndroid, isMac, isWin,
+        isLinux: !isIos && !isAndroid && !isMac && !isWin,
+        isStandalone,
+        isChromium: !!(window.chrome || /Edg|Chrome|Chromium/i.test(ua)) && !isIos,
+      }
+    }
+
+    function applyCopy() {
+      const t = copy[locale]
+      document.querySelectorAll('[data-i18n]').forEach((el) => {
+        const key = el.getAttribute('data-i18n')
+        if (t[key]) el.textContent = t[key]
+      })
+      document.getElementById('langToggle').textContent = t.langBtn
+      const d = detect()
+      const badge = document.getElementById('deviceBadge')
+      const hint = document.getElementById('hint')
+      const steps = document.getElementById('steps')
+      const btn = document.getElementById('installBtn')
+      const status = document.getElementById('status')
+
+      let deviceKey = 'unknown'
+      if (d.isIos) deviceKey = 'ios'
+      else if (d.isAndroid) deviceKey = 'android'
+      else if (d.isMac) deviceKey = 'mac'
+      else if (d.isWin) deviceKey = 'windows'
+      else if (d.isLinux) deviceKey = 'linux'
+      badge.textContent = t.device[deviceKey]
+
+      steps.classList.add('hidden')
+      steps.innerHTML = ''
+      status.className = 'status'
+      status.textContent = ''
+
+      if (d.isStandalone) {
+        btn.disabled = true
+        hint.textContent = t.installed
+        status.textContent = t.installed
+        status.classList.add('show')
+        return
+      }
+
+      if (d.isIos) {
+        btn.disabled = true
+        hint.textContent = t.iosHint
+        steps.classList.remove('hidden')
+        t.iosSteps.forEach((pair, i) => {
+          const li = document.createElement('li')
+          li.innerHTML = `<span class="n">${i + 1}</span><div><strong>${pair[0]}</strong><span>${pair[1]}</span></div>`
+          steps.appendChild(li)
+        })
+        return
+      }
+
+      if (deferredPrompt) {
+        btn.disabled = false
+        hint.textContent = t.chromiumHint
+        return
+      }
+
+      btn.disabled = false
+      if (d.isAndroid) hint.textContent = t.androidHint
+      else if (d.isChromium) hint.textContent = t.chromiumFallback
+      else hint.textContent = t.desktopHint
+    }
+
+    window.addEventListener('beforeinstallprompt', (event) => {
+      event.preventDefault()
+      deferredPrompt = event
+      applyCopy()
+    })
+
+    window.addEventListener('appinstalled', () => {
+      deferredPrompt = null
+      const t = copy[locale]
+      const status = document.getElementById('status')
+      status.textContent = t.installed
+      status.classList.add('show')
+      document.getElementById('installBtn').disabled = true
+    })
+
+    document.getElementById('installBtn').addEventListener('click', async () => {
+      const t = copy[locale]
+      const d = detect()
+      const status = document.getElementById('status')
+      if (deferredPrompt) {
+        deferredPrompt.prompt()
+        const choice = await deferredPrompt.userChoice.catch(() => null)
+        deferredPrompt = null
+        status.textContent = choice?.outcome === 'accepted' ? t.prompted : t.chromiumFallback
+        status.classList.add('show')
+        applyCopy()
+        return
+      }
+      if (d.isIos) {
+        status.textContent = t.iosHint
+        status.className = 'status show warn'
+        return
+      }
+      status.textContent = t.unavailable
+      status.className = 'status show warn'
+    })
+
+    document.getElementById('langToggle').addEventListener('click', () => {
+      locale = locale === 'de' ? 'en' : 'de'
+      document.documentElement.lang = locale
+      applyCopy()
+    })
+
+    applyCopy()
+  </script>
+</body>
+</html>

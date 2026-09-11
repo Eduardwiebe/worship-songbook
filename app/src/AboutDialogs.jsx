@@ -3,6 +3,7 @@ import { useI18n } from './i18n'
 import { openExternal } from './openExternal'
 import { ModalBackdrop } from './ModalBackdrop'
 import { dismissModal } from './modalLock'
+import { BrandMark } from './BrandMark'
 import {
   APP_VERSION,
   APP_COPYRIGHT,
@@ -10,6 +11,7 @@ import {
   URL_LYRUMA_STUDIO,
   URL_EDUARD_WIEBE,
   URL_GITHUB_RELEASES,
+  URL_APP,
 } from './appMeta'
 
 export function AboutDialog({ onClose }) {
@@ -20,7 +22,7 @@ export function AboutDialog({ onClose }) {
       <section className="modal about-modal">
         <div className="modal-header">
           <div className="about-brand">
-            <span className="header-songbook-mark" aria-hidden="true"><Music2 size={22}/></span>
+            <BrandMark className="header-songbook-mark" />
             <div>
               <p className="eyebrow">{t('header.eyebrow')}</p>
               <h2>{t('about.title')}</h2>
@@ -38,6 +40,9 @@ export function AboutDialog({ onClose }) {
             <button type="button" onClick={() => openExternal(URL_EDUARD_WIEBE)}>{URL_EDUARD_WIEBE}</button>
           </nav>
           <p className="about-author">{APP_AUTHOR}</p>
+          <nav className="about-links">
+            <button type="button" onClick={() => openExternal(`${URL_APP}/install/`)}>{t('about.installPwa')}</button>
+          </nav>
         </div>
         <div className="modal-actions">
           <button type="button" className="add-button compact" onClick={close}>{t('about.close')}</button>

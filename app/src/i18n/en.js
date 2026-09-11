@@ -113,10 +113,6 @@ export default {
     appointmentsEyebrow: "Rehearsals and appointments",
     memberConfirmedBody: "The band lead confirmed your join.",
   },
-  offline: {
-    banner: 'Offline mode: library and sets from device storage. Changes sync when you are back online.',
-    hint: 'For rehearsal: open sets once while online so lead sheets work without internet.',
-  },
   loading: "Loading Songbook …",
   nav: {
     add: "Add",
@@ -525,6 +521,7 @@ export default {
     title: "About Songbook Band",
     version: "Version {version}",
     websites: "Websites",
+    installPwa: "Install as app",
     developedBy: "Developed by Eduard Wiebe",
   },
   import: {
@@ -588,6 +585,7 @@ export default {
     paypal: "Support with PayPal",
     rights: "© {year} Eduard Wiebe. All rights reserved.",
     imprint: "Legal notice",
+    install: "Install app",
     privacy: "Privacy",
     ariaLegal: "Legal",
     ariaSocial: "Social media",
@@ -614,6 +612,7 @@ export default {
     setupHint: "You can restart the setup assistant anytime. Existing bands, members, sets, appointments, and songs are kept.",
     themeAuto: "Automatic",
     themeDark: "Dark",
+    installPwa: "Install Songbook (PWA)",
     logoutHint: "Ends the session on this device.",
     logoutSafe: "Sign out securely",
     photoSaved: "Profile photo saved.",

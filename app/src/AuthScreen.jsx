@@ -4,6 +4,7 @@ import { login, register, changePassword, logout } from './authStore'
 import { useI18n } from './i18n'
 import { useAvoidMobileAutoFocus } from './useMobileFormFocus'
 import { URL_LYRUMA_STUDIO } from './appMeta'
+import { BrandMark } from './BrandMark'
 
 export function AuthScreen({ onAuthenticated }) {
   const { t } = useI18n()
@@ -39,10 +40,11 @@ export function AuthScreen({ onAuthenticated }) {
   return (
     <main className="auth-page">
       <section className="auth-brand">
-        <a className="brand" href={URL_LYRUMA_STUDIO} target="_blank" rel="noreferrer">
-          <div className="brand-mark">L</div>
-          <div><strong>{t('brand.lyruma')}</strong><span>{t('brand.studio')}</span></div>
-        </a>
+        <div className="brand" aria-label={t('brand.songbook')}>
+          <BrandMark />
+          <div><strong>{t('brand.songbook')}</strong></div>
+        </div>
+        <p className="auth-studio-link"><a href={URL_LYRUMA_STUDIO} target="_blank" rel="noreferrer">Lyruma Studio</a></p>
         <div>
           <p className="eyebrow">{t('auth.title')}</p>
           <h1>{tagline[0]}<br/>{tagline[1]}</h1>

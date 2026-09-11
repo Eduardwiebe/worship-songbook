@@ -59,13 +59,26 @@ button {
 .brand-mark {
   width: 40px;
   height: 40px;
-  display: grid;
-  place-items: center;
+  flex: 0 0 40px;
+  display: block;
   border-radius: 13px;
-  font-weight: 800;
-  font-size: 20px;
-  color: #09111e;
-  background: linear-gradient(135deg, #f3d48a, #c99b3f);
+  object-fit: cover;
+  background: transparent;
+  box-shadow: 0 4px 12px rgba(0,0,0,.18);
+}
+
+.eyebrow:empty {
+  display: none;
+}
+
+.auth-studio-link {
+  margin: -18px 0 18px 10px;
+  font-size: 12px;
+  color: #9aa8b8;
+}
+
+.auth-studio-link a:hover {
+  color: #e4c574;
 }
 
 .brand strong,

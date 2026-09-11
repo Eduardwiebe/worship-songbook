@@ -7,7 +7,8 @@ import { useTheme } from './theme.jsx'
 import { checkForUpdates } from './updateCheck'
 import { isLikelyIosNative, isLikelyMobileNative } from './nativePlatform'
 import { AboutDialog, UpdateDialog } from './AboutDialogs'
-import { APP_VERSION } from './appMeta'
+import { openExternal } from './openExternal'
+import { APP_VERSION, URL_APP } from './appMeta'
 
 function initials(name) {
   const parts = String(name || '').trim().split(/\s+/).filter(Boolean)
@@ -247,6 +248,9 @@ export default function SettingsPage({ user, onUser, onLogout, onRestartOnboardi
             </button>
             <button type="button" className="settings-secondary" onClick={() => setAboutOpen(true)}>
               {t('about.title')} · {APP_VERSION}
+            </button>
+            <button type="button" className="settings-secondary" onClick={() => openExternal(`${URL_APP}/install/`)}>
+              {t('settings.installPwa')}
             </button>
           </div>
         </section>

@@ -1,4 +1,4 @@
-# React + Vite frontend for Lyruma Songbook
+# React + Vite frontend for Songbook Band
 
 See the root [README.md](../README.md) for project documentation.
 

@@ -45,7 +45,9 @@ mod ios_impl {
     app: &tauri::AppHandle<R>,
     api: tauri::plugin::PluginApi<R, ()>,
   ) -> tauri::Result<()> {
-    let handle = api.register_ios_plugin(init_plugin_document_scanner)?;
+    let handle = api
+      .register_ios_plugin(init_plugin_document_scanner)
+      .map_err(|e| tauri::Error::from(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
     app.manage(DocumentScanner(handle));
     Ok(())
   }

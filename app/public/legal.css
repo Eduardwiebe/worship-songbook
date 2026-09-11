@@ -49,6 +49,8 @@ a {
 .legal-brand-mark {
   width:39px;
   height:39px;
+  object-fit:cover;
+  display:block;
   border-radius:12px;
   display:grid;
   place-items:center;

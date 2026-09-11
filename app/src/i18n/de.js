@@ -113,10 +113,6 @@ export default {
     appointmentsEyebrow: "Proben und Termine",
     memberConfirmedBody: "Die Bandleitung hat deinen Beitritt bestätigt.",
   },
-  offline: {
-    banner: 'Offline-Modus: Bibliothek und Sets aus dem Gerätespeicher. Änderungen werden synchronisiert, sobald du wieder online bist.',
-    hint: 'Für die Probe: Sets einmal online öffnen, dann funktionieren Lead Sheets auch ohne Internet.',
-  },
   loading: "Songbook wird geladen …",
   nav: {
     add: "Hinzufügen",
@@ -525,6 +521,7 @@ export default {
     title: "Über Songbook Band",
     version: "Version {version}",
     websites: "Webseiten",
+    installPwa: "Als App installieren",
     developedBy: "Entwickelt von Eduard Wiebe",
   },
   import: {
@@ -588,6 +585,7 @@ export default {
     paypal: "Mit PayPal unterstützen",
     rights: "© {year} Eduard Wiebe. Alle Rechte vorbehalten.",
     imprint: "Impressum",
+    install: "App installieren",
     privacy: "Datenschutz",
     ariaLegal: "Rechtliches",
     ariaSocial: "Social Media",
@@ -614,6 +612,7 @@ export default {
     setupHint: "Du kannst den Einrichtungsassistenten jederzeit erneut starten. Vorhandene Bands, Mitglieder, Sets, Termine und Songs bleiben erhalten.",
     themeAuto: "Automatisch",
     themeDark: "Dunkel",
+    installPwa: "Songbook installieren (PWA)",
     logoutHint: "Beendet die Anmeldung auf diesem Gerät.",
     logoutSafe: "Sicher abmelden",
     photoSaved: "Profilbild gespeichert.",

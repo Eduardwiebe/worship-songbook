@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1.15 — 2026-09-11
+
+- **PWA for band distribution:** `manifest.webmanifest`, service worker (app shell via vite-plugin-pwa; `/api` network-only), and install page at `/install.html` (DE primary, EN toggle). Chromium `beforeinstallprompt`, iOS Safari Home-Screen steps, desktop browser guidance.
+- Links to install from About, Settings, and footer. Does not replace Tauri native builds.
+- Branding icons for PWA (192/512 + maskable) from Songbook Band mark.
+
 ## 1.0.1.14 — 2026-09-11
 
 - **Offline-first Set play / library:** IndexedDB cache for songs, sets, team, appointments, bands, and lead-sheet HTML/PDFs. After opening a set once online, Set start and library work without network. Offline banner; sync resumes when connectivity returns.

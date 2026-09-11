@@ -1,6 +1,6 @@
 {
   "identifier": "mobile-default",
-  "description": "Minimal iOS/Android capabilities for Worship Songbook (same API/auth surface as desktop)",
+  "description": "Minimal iOS/Android capabilities for Songbook Band (same API/auth surface as desktop)",
   "windows": ["main"],
   "platforms": ["iOS", "android"],
   "permissions": [
