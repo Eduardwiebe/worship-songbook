@@ -1636,7 +1636,7 @@ function ScanDialog({onClose,onSave}) {
     resetPdf()
     setPasteText('')
     setPages(current=>[...current,...next.slice(0,8-current.length).map(file=>({id:crypto.randomUUID(),file,url:URL.createObjectURL(file)}))])
-    setTitle(current=>current.trim()?current:titleFromScanFile(next[0]))
+    setTitle(current=>current.trim()?current:(titleFromScanFile(next[0])||'Scan'))
     setError('')
   }
   const remove=id=>setPages(current=>{const page=current.find(item=>item.id===id);if(page)URL.revokeObjectURL(page.url);return current.filter(item=>item.id!==id)})
