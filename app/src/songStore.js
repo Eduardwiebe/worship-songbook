@@ -128,8 +128,13 @@ export function songPdfUrl(song) {
   return song?.id ? apiUrl(`/api/songs/${song.id}/pdf`) : ''
 }
 
-export function songChartUrl(song,key) {
-  return song?.id ? apiUrl(`/api/songs/${song.id}/chart?key=${encodeURIComponent(key)}`) : ''
+export function songChartUrl(song, key, { lyricsOnly = false, bpm = '', tuning = '' } = {}) {
+  if (!song?.id) return ''
+  const params = new URLSearchParams({ key: String(key || '') })
+  if (lyricsOnly) params.set('lyricsOnly', '1')
+  if (bpm !== '' && bpm != null) params.set('bpm', String(bpm))
+  if (tuning) params.set('tuning', String(tuning))
+  return apiUrl(`/api/songs/${song.id}/chart?${params}`)
 }
 
 

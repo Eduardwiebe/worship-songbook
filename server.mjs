@@ -1535,12 +1535,18 @@ http.createServer(async (req,res) => { try {
     if(!row)return json(res,404,{error:'Fassung nicht gefunden'})
     const qCols=url.searchParams.get('columns')
     const qFont=url.searchParams.get('fontSize')
+    const qLyrics=url.searchParams.get('lyricsOnly')
+    const qBpm=url.searchParams.get('bpm')
+    const qTuning=url.searchParams.get('tuning')
     const html=renderChartHtmlDocument({
       title:row.title,
       targetKey:row.targetKey,
       content:row.content,
       columns:qCols!=null?normalizeSheetColumns(qCols):normalizeSheetColumns(row.sheetColumns),
       fontSize:qFont!=null?Number(qFont):row.sheetFontSize,
+      lyricsOnly:qLyrics==='1'||qLyrics==='true'||qLyrics==='yes',
+      bpm:qBpm!=null?qBpm:'',
+      tuning:qTuning!=null?qTuning:'',
     })
     res.writeHead(200,{'content-type':'text/html; charset=utf-8'})
     return res.end(html)

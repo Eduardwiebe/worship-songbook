@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1.24 — 2026-09-11
+
+- **Lead sheet redesign (editor + Set play):** Uniform section headers like `[Refrain]` / `[Strophe 1]` / `[Bridge]`; subtle chord pills with stable syllable alignment; single chart header (title + Tonart + optional BPM) without duplicate Tonart meta lines.
+- Keep **Einfach / Voll** chord simplify toggle; add **Nur Text / Lyrics** view toggle (same source data) in the song editor and Set play toolbar.
+- Generous section spacing and stage-readable fonts; `lib/chartHtml.mjs` mirrors ChartSheet so Set starten matches the editor.
+
+
 ## 1.0.1.23 — 2026-09-11
 
 - **Guitar tuner:** Song editor view-switch row adds **Stimmgerät / Tuner** next to YouTube Probe.

@@ -1,9 +1,9 @@
 {
   "name": "Songbook Band",
-  "version": "1.0.1.23",
+  "version": "1.0.1.24",
   "releasedAt": "2026-09-11",
   "releaseUrl": "https://songbook.lyruma.app",
-  "notes": "Guitar tuner (Stimmgerät) in the song editor — microphone pitch detection with note, cents, and string reference.",
+  "notes": "Clean lead sheet redesign: [Section] headers, chord pills, Nur Text / lyrics-only toggle in editor and Set play; stage-readable spacing.",
   "channel": "web",
   "canReload": true
 }
