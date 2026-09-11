@@ -1,9 +1,9 @@
 {
   "name": "Songbook Band",
-  "version": "1.0.1.15",
+  "version": "1.0.1.23",
   "releasedAt": "2026-09-11",
   "releaseUrl": "https://songbook.lyruma.app",
-  "notes": "PWA: installable Songbook Band (manifest, service worker, /install.html) for band distribution; keeps IndexedDB offline.",
+  "notes": "Guitar tuner (Stimmgerät) in the song editor — microphone pitch detection with note, cents, and string reference.",
   "channel": "web",
   "canReload": true
 }

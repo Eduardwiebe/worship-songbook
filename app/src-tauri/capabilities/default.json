@@ -12,7 +12,9 @@
       "identifier": "http:default",
       "allow": [
         { "url": "https://songbook.lyruma.app" },
-        { "url": "https://songbook.lyruma.app/**" }
+        { "url": "https://songbook.lyruma.app/**" },
+        { "url": "https://api.github.com" },
+        { "url": "https://api.github.com/**" }
       ]
     },
     {

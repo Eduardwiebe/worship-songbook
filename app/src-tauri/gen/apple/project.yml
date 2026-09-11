@@ -51,8 +51,8 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        CFBundleShortVersionString: 1.0.12
-        CFBundleVersion: "1.0.12"
+        CFBundleShortVersionString: 1.0.23
+        CFBundleVersion: "1.0.23"
     entitlements:
       path: worship-songbook_iOS/worship-songbook_iOS.entitlements
     scheme:

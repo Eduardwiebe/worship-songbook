@@ -59,12 +59,17 @@ assert.equal(githubFallback.status, 'updateAvailable')
 assert.equal(githubFallback.latestVersion, '0.1.2')
 assert.equal(githubFallback.source, 'github')
 
-const none = await checkForUpdates({
-  currentVersion: '0.1.1',
-  fetchImpl: async () => ({ ok: false, status: 404, json: async () => ({}) }),
-})
-assert.equal(none.status, 'upToDate')
-assert.equal(none.note, 'no_releases')
+let noneFailed = false
+try {
+  await checkForUpdates({
+    currentVersion: '0.1.1',
+    fetchImpl: async () => ({ ok: false, status: 404, json: async () => ({}) }),
+  })
+} catch (error) {
+  noneFailed = true
+  assert.equal(error.status, 404)
+}
+assert.equal(noneFailed, true)
 
 const ios = await checkForUpdates({
   currentVersion: '1.0.1.3',

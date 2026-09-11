@@ -1,5 +1,55 @@
 # Changelog
 
+## 1.0.1.23 — 2026-09-11
+
+- **Guitar tuner:** Song editor view-switch row adds **Stimmgerät / Tuner** next to YouTube Probe.
+- Opens a modal that uses `getUserMedia` + autocorrelation pitch detection (A4=440): nearest note, cents sharp/flat, needle meter, and standard guitar string references (E2–E4).
+- German/English i18n; graceful mic permission denial; stops mic tracks when the modal closes (iPad Safari/PWA + desktop).
+
+## 1.0.1.22 — 2026-09-11
+
+- **Set play iPad blank charts:** Root cause — on iOS native, `AuthorizedFrame` routed HTML lead sheets (`/api/songs/:id/chart`) through `PdfNativeViewer`, which always used `<embed type="application/pdf">`. HTML blob/src content rendered blank.
+- **Fix:** Edited charts (`fitContent`) always fetch chart HTML (with offline cache) and render via `<iframe srcDoc>` on native + Safari/web. PDF embed remains only for real PDFs; Set play originals on iOS prefer page images.
+- No server API change required for the shell fix; web deploy picks up the React bundle.
+
+
+## 1.0.1.21 — 2026-09-11
+
+- **Cajón sample:** Replaced the synthetic/generated `cajon-hit.mp3` with a real acoustic cajón bass (tono) hit — warm, wooden, low-body — trimmed to ~0.6s and normalized loud for phone speakers.
+- **Source:** [cajonbass.wav by bikesnbassboi on Freesound](https://freesound.org/people/bikesnbassboi/sounds/517523/) — **Creative Commons 0 (CC0 1.0)** (`https://creativecommons.org/publicdomain/zero/1.0/`). HQ preview downloaded, mono-converted, warm EQ (bass shelf), fade, peak near 0 dBFS; exported as `app/public/cajon-hit.mp3`.
+- Playback code unchanged (keeps 1.0.1.20 iOS tap-unlock / HTMLAudioElement fallback).
+
+## 1.0.1.20 — 2026-09-11
+
+- **iOS Cajón audio:** Play-button click now awaits unlock + sample preload, plays the first hit immediately in that gesture (does not wait for the BPM interval), and uses HTMLAudioElement.play() as a Safari/PWA fallback when the Web Audio buffer is not ready.
+- Regenerated a louder 0.42s cajón thump (cajon-hit.mp3, peak near 0 dBFS) so phone speakers can hear it.
+
+## 1.0.1.19 — 2026-09-11
+
+- **Cajón sample playback:** Replaced the quiet Web Audio noise/pulse synth with a soft self-generated acoustic-like cajón hit sample (`app/public/cajon-hit.mp3`), shared by Set play and the song editor.
+- Preloads an `AudioBuffer`, unlocks `AudioContext` on the play-button gesture, and strikes on BPM (stronger/warmer on downbeats). Volume tuned to be clearly audible on phone speakers without being harsh.
+
+
+## 1.0.1.18 — 2026-09-11
+
+- **Set play safe-area toolbar:** RunSet header/footer now pad with `env(safe-area-inset-*)` (+ breathing room) so Auto-Scroll and BPM/Cajón sit below the iPhone status bar / notch and stay tappable (portrait, landscape, iPad, desktop).
+- Set title meta truncates instead of crushing the toolbar; Zurück/Weiter and stage arrows respect left/right/bottom insets.
+- **Lead sheet:** drop redundant `TONART:` / `KEY:` meta lines in chart HTML when the Tonart header is already shown (fixes double Tonart under the title).
+
+
+## 1.0.1.17 — 2026-09-11
+
+- **Set play Autoscroll + Cajón:** Set starten / stage toolbar now has Auto-Scroll and BPM / Cajón (same soft pulse as the song editor). BPM loads from the current song lead sheet (or song metadata) and updates when switching songs.
+- Controls are session-local (stay on while navigating the set); mobile/iPad friendly layout in the run-mode header.
+
+
+## 1.0.1.16 — 2026-09-11
+
+- **Band invitation codes:** Creating an invite now shows the code under „Aktive Einladungscodes“ (root cause: POST response omitted `active`, so the UI filter hid new codes).
+- Shareable link `https://songbook.lyruma.app/join?code=XXXX` routes via `/install/?join=` when the PWA is not installed, then into `/#/bands?code=` after install / in standalone.
+- Copy code / copy link actions; German UI copy; install page explains invite-then-join.
+
+
 ## 1.0.1.15 — 2026-09-11
 
 - **PWA for band distribution:** `manifest.webmanifest`, service worker (app shell via vite-plugin-pwa; `/api` network-only), and install page at `/install.html` (DE primary, EN toggle). Chromium `beforeinstallprompt`, iOS Safari Home-Screen steps, desktop browser guidance.

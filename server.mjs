@@ -939,7 +939,9 @@ http.createServer(async (req,res) => { try {
       bandId,
       expiresAt,
       maxUses,
-      useCount:0
+      useCount:0,
+      active:true,
+      shareUrl:`https://songbook.lyruma.app/join?code=${code}`
     })
   }
 
@@ -971,7 +973,8 @@ http.createServer(async (req,res) => { try {
 
     return json(res,200,rows.map(item=>({
       ...item,
-      active:Boolean(item.active)
+      active:Boolean(item.active),
+      shareUrl:`https://songbook.lyruma.app/join?code=${item.code}`
     })))
   }
 

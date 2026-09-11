@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { authorizedObjectUrl, isNativeRuntime, toApiPath, apiFetch } from './apiConfig'
 import { isLikelyIosNative } from './nativePlatform'
-import { cacheGetMediaObjectUrl, cachePutMedia, chartCacheKey, pdfCacheKey, isProbablyOffline } from './offlineCache'
+import { cacheGetMedia, cacheGetMediaObjectUrl, cachePutMedia, chartCacheKey, pdfCacheKey, isProbablyOffline } from './offlineCache'
 
 /**
  * <img> that loads protected API media with Bearer on native (blob URL).
@@ -180,10 +180,22 @@ function useStageFrameHeight(fitContent, src = '') {
   return { frameRef, fitFrameToContent }
 }
 
+function bufferToUtf8(buffer) {
+  if (!buffer) return ''
+  try {
+    const bytes = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : new Uint8Array(buffer)
+    return new TextDecoder('utf-8').decode(bytes)
+  } catch {
+    return ''
+  }
+}
+
 function PdfNativeViewer({ src, title, className, fitContent = false }) {
   const ios = isLikelyIosNative()
   const { frameRef, fitFrameToContent } = useStageFrameHeight(fitContent, src)
-  if (ios) {
+  // iOS WKWebView: <embed type="application/pdf"> helps real PDFs, but blank-screens
+  // HTML lead sheets (blob/srcdoc). Charts always use iframe.
+  if (ios && !fitContent) {
     return (
       <embed
         title={title}
@@ -206,7 +218,8 @@ function PdfNativeViewer({ src, title, className, fitContent = false }) {
 
 /**
  * Protected PDFs/charts — blob URL on native, direct URL on web.
- * iOS WKWebView often fails to render PDFs inside iframes; embed is used there.
+ * iOS WKWebView often fails to render PDFs inside iframes; embed is used there for PDFs only.
+ * HTML lead sheets (fitContent) always use iframe srcDoc — never PDF embed (that was blank on iPad).
  * For song originals on iOS, prefer OriginalPagesViewer (full page images).
  * fitContent: size HTML chart iframes to document height so the stage can scroll
  * while keeping pointer-events none (song swipe stays on the stage).
@@ -214,14 +227,12 @@ function PdfNativeViewer({ src, title, className, fitContent = false }) {
 export function AuthorizedFrame({ path, title, className, hash = '', songId = '', preferPageImages = false, fitContent = false }) {
   const usePages = preferPageImages && songId && isLikelyIosNative()
   const [frameClassName, setFrameClassName] = useState(className || '')
-  const [src, setSrc] = useState(() => {
-    if (!path) return ''
-    if (isNativeRuntime()) return ''
-    return `${path}${hash || ''}`
-  })
-  const [loading, setLoading] = useState(() => Boolean(path && isNativeRuntime()))
+  const [src, setSrc] = useState('')
+  const [htmlDoc, setHtmlDoc] = useState('')
+  const [loading, setLoading] = useState(() => Boolean(path && !usePages))
   const [error, setError] = useState('')
-  const { frameRef, fitFrameToContent } = useStageFrameHeight(fitContent && !usePages, src)
+  const frameToken = fitContent ? (htmlDoc ? `html:${htmlDoc.length}` : '') : src
+  const { frameRef, fitFrameToContent } = useStageFrameHeight(fitContent && !usePages, frameToken)
 
   useEffect(() => {
     setFrameClassName(className || '')
@@ -236,6 +247,7 @@ export function AuthorizedFrame({ path, title, className, hash = '', songId = ''
       if (!path) {
         if (active) {
           setSrc('')
+          setHtmlDoc('')
           setLoading(false)
           setError('')
         }
@@ -250,15 +262,68 @@ export function AuthorizedFrame({ path, title, className, hash = '', songId = ''
           ? pdfCacheKey(pdfMatch[1])
           : ''
 
-      const tryCache = async () => {
+      const tryCacheHtml = async () => {
+        if (!mediaKey) return ''
+        const row = await cacheGetMedia(mediaKey)
+        return bufferToUtf8(row?.buffer)
+      }
+
+      const tryCacheObjectUrl = async () => {
         if (!mediaKey) return ''
         return cacheGetMediaObjectUrl(mediaKey)
       }
 
+      // Edited lead sheets: always fetch HTML and render via srcDoc.
+      // Avoids iOS PDF-embed blank screens, blob iframe quirks, and cookie/X-Frame issues.
+      if (fitContent) {
+        setLoading(true)
+        setError('')
+        setSrc('')
+        try {
+          if (isProbablyOffline()) {
+            const cachedHtml = await tryCacheHtml()
+            if (cachedHtml && active) {
+              setHtmlDoc(cachedHtml)
+              setLoading(false)
+              setError('')
+              return
+            }
+          }
+          const response = await apiFetch(apiPath)
+          if (!response.ok) throw new Error('Chart konnte nicht geladen werden.')
+          const text = await response.text()
+          if (!active) return
+          setHtmlDoc(text)
+          setLoading(false)
+          setError('')
+          if (mediaKey) {
+            await cachePutMedia(mediaKey, {
+              mime: 'text/html; charset=utf-8',
+              buffer: new TextEncoder().encode(text).buffer,
+            })
+          }
+        } catch (caught) {
+          const cachedHtml = await tryCacheHtml()
+          if (cachedHtml && active) {
+            setHtmlDoc(cachedHtml)
+            setLoading(false)
+            setError('')
+            return
+          }
+          if (active) {
+            setHtmlDoc('')
+            setError(caught?.message || 'Chart konnte nicht geladen werden.')
+            setLoading(false)
+          }
+        }
+        return
+      }
+
+      setHtmlDoc('')
       if (!isNativeRuntime()) {
-        // Web: prefer live URL when online; fall back to cached blob offline.
+        // Web PDF: prefer live URL when online; fall back to cached blob offline.
         if (isProbablyOffline() && mediaKey) {
-          const cached = await tryCache()
+          const cached = await tryCacheObjectUrl()
           if (cached && active) {
             objectUrl = cached
             setSrc(cached)
@@ -272,24 +337,13 @@ export function AuthorizedFrame({ path, title, className, hash = '', songId = ''
           setLoading(false)
           setError('')
         }
-        // Opportunistically cache chart HTML in background (web cookies)
-        if (mediaKey && chartMatch && !isProbablyOffline()) {
-          apiFetch(apiPath).then(async (response) => {
-            if (!response.ok) return
-            const text = await response.text()
-            await cachePutMedia(mediaKey, {
-              mime: 'text/html; charset=utf-8',
-              buffer: new TextEncoder().encode(text).buffer,
-            })
-          }).catch(() => {})
-        }
         return
       }
       setLoading(true)
       setError('')
       try {
         if (isProbablyOffline() && mediaKey) {
-          const cached = await tryCache()
+          const cached = await tryCacheObjectUrl()
           if (cached) {
             objectUrl = cached
             if (active) {
@@ -300,8 +354,7 @@ export function AuthorizedFrame({ path, title, className, hash = '', songId = ''
             return
           }
         }
-        const mimeHint = fitContent ? 'text/html' : 'application/pdf'
-        const url = await authorizedObjectUrl(apiPath, { mimeHint })
+        const url = await authorizedObjectUrl(apiPath, { mimeHint: 'application/pdf' })
         if (!active) {
           if (url.startsWith('blob:')) URL.revokeObjectURL(url)
           return
@@ -309,21 +362,20 @@ export function AuthorizedFrame({ path, title, className, hash = '', songId = ''
         objectUrl = url
         setSrc(url)
         setLoading(false)
-        // Cache bytes for offline Set play
         if (mediaKey) {
           try {
             const response = await apiFetch(apiPath)
             if (response.ok) {
               const buf = await response.arrayBuffer()
               await cachePutMedia(mediaKey, {
-                mime: fitContent ? 'text/html; charset=utf-8' : 'application/pdf',
+                mime: 'application/pdf',
                 buffer: buf,
               })
             }
           } catch {}
         }
       } catch (caught) {
-        const cached = mediaKey ? await tryCache() : ''
+        const cached = mediaKey ? await tryCacheObjectUrl() : ''
         if (cached && active) {
           objectUrl = cached
           setSrc(cached)
@@ -367,7 +419,7 @@ export function AuthorizedFrame({ path, title, className, hash = '', songId = ''
   if (loading) {
     return (
       <div className={`pdf-media-loading${className ? ` ${className}` : ''}`}>
-        <strong>{title || 'PDF'}</strong>
+        <strong>{title || (fitContent ? 'Chart' : 'PDF')}</strong>
         <span>Lädt …</span>
       </div>
     )
@@ -375,18 +427,32 @@ export function AuthorizedFrame({ path, title, className, hash = '', songId = ''
   if (error) {
     return (
       <div className={`pdf-media-error${className ? ` ${className}` : ''}`}>
-        <strong>{title || 'PDF'}</strong>
+        <strong>{title || (fitContent ? 'Chart' : 'PDF')}</strong>
         <span>{error}</span>
-        {path && !isNativeRuntime() ? (
+        {path && !isNativeRuntime() && !fitContent ? (
           <a href={`${path}${hash || ''}`} target="_blank" rel="noopener noreferrer">In neuem Tab öffnen</a>
         ) : null}
       </div>
     )
   }
+
+  if (fitContent) {
+    if (!htmlDoc) return null
+    return (
+      <iframe
+        ref={frameRef}
+        title={title}
+        className={frameClassName}
+        srcDoc={htmlDoc}
+        onLoad={handleFrameLoad}
+      />
+    )
+  }
+
   if (!src) return null
 
   if (isNativeRuntime()) {
-    return <PdfNativeViewer src={src} title={title} className={frameClassName} fitContent={fitContent} />
+    return <PdfNativeViewer src={src} title={title} className={frameClassName} fitContent={false} />
   }
   return (
     <iframe

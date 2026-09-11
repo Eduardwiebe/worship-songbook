@@ -36,7 +36,7 @@
     .wrap { width: min(720px, 100%); margin: 0 auto; }
     .top {
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
-      margin-bottom: 28px;
+      margin-bottom: 14px;
     }
     .brand {
       display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit;
@@ -46,10 +46,16 @@
       width: 44px; height: 44px; border-radius: 12px; object-fit: cover;
       box-shadow: 0 8px 24px rgba(0,0,0,.35);
     }
-    .back {
-      color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 750;
-      border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; background: rgba(255,255,255,.03);
+    .back-app {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; min-height: 54px; margin: 0 0 18px; padding: 14px 18px;
+      border-radius: 16px; text-decoration: none; box-sizing: border-box;
+      font-size: 17px; font-weight: 850; color: #29200e;
+      background: linear-gradient(135deg, var(--gold), var(--gold-deep));
+      border: 0;
+      box-shadow: 0 14px 30px rgba(200,154,62,.28);
     }
+    .back-app .arrow { font-size: 20px; line-height: 1; }
     .card {
       background: var(--panel);
       border: 1px solid var(--line);
@@ -81,6 +87,24 @@
     }
     .install-btn:disabled {
       opacity: .55; cursor: default; box-shadow: none;
+    }
+    .ios-callout {
+      margin: 0 0 16px; padding: 14px 16px; border-radius: 16px;
+      background: rgba(241,211,141,.12); border: 1px solid rgba(241,211,141,.35);
+      color: var(--gold); font-size: 15px; font-weight: 750; line-height: 1.45;
+    }
+    .join-banner {
+      margin: 0 0 18px; padding: 14px 16px; border-radius: 16px;
+      background: rgba(80,140,220,.12); border: 1px solid rgba(80,140,220,.35);
+      color: #d7e7ff; font-size: 15px; line-height: 1.45;
+    }
+    .join-banner.hidden { display: none !important; }
+    .join-banner strong { color: var(--gold); letter-spacing: .08em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .join-banner p { margin: 0 0 8px; }
+    .join-banner p:last-child { margin: 0; color: #9aadc2; font-size: 13px; }
+    .steps.highlight li {
+      border-color: rgba(241,211,141,.45);
+      box-shadow: 0 0 0 1px rgba(241,211,141,.15);
     }
     .install-btn.secondary {
       margin-top: 12px; color: var(--text);
@@ -129,8 +153,12 @@
         <img src="/brand-icon.png" alt="" width="44" height="44" />
         <span>Songbook Band</span>
       </a>
-      <a class="back" href="/">Zur App</a>
     </div>
+
+    <a class="back-app" href="/" id="backToApp">
+      <span class="arrow" aria-hidden="true">←</span>
+      <span data-i18n="backApp">Zurück zur App</span>
+    </a>
 
     <section class="card">
       <p class="eyebrow" data-i18n="eyebrow">Band-App</p>
@@ -141,9 +169,14 @@
       </p>
 
       <div class="device" id="deviceBadge">…</div>
+      <div class="join-banner hidden" id="joinBanner" role="status"></div>
+      <div class="ios-callout hidden" id="iosCallout"></div>
 
       <button type="button" class="install-btn" id="installBtn" data-i18n="cta">
         Songbook installieren
+      </button>
+      <button type="button" class="install-btn hidden" id="iosHelpBtn" data-i18n="iosCta">
+        So installierst du es
       </button>
       <a class="install-btn secondary" href="/" id="openApp" data-i18n="open">App öffnen</a>
 
@@ -165,6 +198,7 @@
         pitch: 'Installiere Songbook Band auf dem Home-Bildschirm oder Desktop — schnell starten, offline Sets spielen, ohne APK oder Store.',
         cta: 'Songbook installieren',
         open: 'App öffnen',
+        backApp: 'Zurück zur App',
         device: {
           ios: 'Gerät: iPhone / iPad (Safari)',
           android: 'Gerät: Android',
@@ -173,11 +207,14 @@
           linux: 'Gerät: Desktop',
           unknown: 'Gerät: Browser',
         },
-        iosHint: 'Auf dem iPhone/iPad geht die Installation über Safari:',
+        iosHint: 'Apple erlaubt keinen Install-Button. Nutze die drei Schritte unten in Safari:',
+        iosCta: 'Zu den Installationsschritten',
+        iosCallout: 'Auf dem iPhone/iPad: kein Direkt-Install — bitte Safari → Teilen → Zum Home-Bildschirm.',
+        iosSafariOnly: 'Öffne diese Seite bitte in Safari (nicht in Chrome oder Instagram). Dann: Teilen → Zum Home-Bildschirm.',
         iosSteps: [
-          ['Teilen', 'Tippe unten (oder oben) auf das Teilen-Symbol □↑.'],
-          ['Zum Home-Bildschirm', 'Scrolle und wähle „Zum Home-Bildschirm“.'],
-          ['Hinzufügen', 'Bestätige mit „Hinzufügen“. Songbook Band erscheint wie eine App.'],
+          ['Teilen', 'Tippe unten in Safari auf das Teilen-Symbol □↑.'],
+          ['Zum Home-Bildschirm', 'Scrolle in der Liste und wähle „Zum Home-Bildschirm“.'],
+          ['Hinzufügen', 'Bestätige mit „Hinzufügen“. Songbook Band liegt dann auf dem Home-Bildschirm.'],
         ],
         chromiumHint: 'Tippe auf den Button — dein Browser bietet die Installation an.',
         chromiumFallback: 'Im Chrome-/Edge-Menü: „App installieren“ bzw. das Install-Symbol in der Adressleiste.',
@@ -186,6 +223,10 @@
         installed: 'Bereits installiert bzw. im Standalone-Modus geöffnet.',
         prompted: 'Installationsdialog geöffnet.',
         unavailable: 'Automatische Installation ist in diesem Browser nicht verfügbar — bitte Schritte unten nutzen.',
+        joinTitle: 'Du wurdest zu einer Band eingeladen',
+        joinBody: 'Installiere zuerst Songbook Band. Danach öffne die App und tritt mit diesem Code bei:',
+        joinContinue: 'Weiter zum Beitritt',
+        joinAlready: 'App bereits installiert? Dann direkt beitreten.',
         langBtn: 'English',
       },
       en: {
@@ -194,6 +235,7 @@
         pitch: 'Install Songbook Band on your home screen or desktop — quick launch, offline set play, no APK or store build needed.',
         cta: 'Install Songbook',
         open: 'Open app',
+        backApp: 'Back to the app',
         device: {
           ios: 'Device: iPhone / iPad (Safari)',
           android: 'Device: Android',
@@ -202,11 +244,14 @@
           linux: 'Device: Desktop',
           unknown: 'Device: Browser',
         },
-        iosHint: 'On iPhone/iPad, install via Safari:',
+        iosHint: 'Apple does not allow a one-tap install button. Follow the three Safari steps below:',
+        iosCta: 'Jump to install steps',
+        iosCallout: 'On iPhone/iPad: no direct install button — use Safari → Share → Add to Home Screen.',
+        iosSafariOnly: 'Please open this page in Safari (not Chrome or in-app browsers). Then: Share → Add to Home Screen.',
         iosSteps: [
-          ['Share', 'Tap the Share icon □↑ at the bottom (or top).'],
-          ['Add to Home Screen', 'Scroll and choose “Add to Home Screen”.'],
-          ['Add', 'Confirm with “Add”. Songbook Band appears like an app.'],
+          ['Share', 'In Safari, tap the Share icon □↑ at the bottom.'],
+          ['Add to Home Screen', 'Scroll the list and choose “Add to Home Screen”.'],
+          ['Add', 'Confirm with “Add”. Songbook Band appears on your Home Screen.'],
         ],
         chromiumHint: 'Tap the button — your browser will offer the install prompt.',
         chromiumFallback: 'In Chrome/Edge menu: “Install app” or use the install icon in the address bar.',
@@ -215,12 +260,29 @@
         installed: 'Already installed or running in standalone mode.',
         prompted: 'Install dialog opened.',
         unavailable: 'Automatic install is unavailable in this browser — follow the steps below.',
+        joinTitle: 'You were invited to a band',
+        joinBody: 'Install Songbook Band first. Then open the app and join with this code:',
+        joinContinue: 'Continue to join',
+        joinAlready: 'Already installed? Continue to join.',
         langBtn: 'Deutsch',
       },
     }
 
     let locale = (navigator.language || 'de').toLowerCase().startsWith('de') ? 'de' : 'en'
     let deferredPrompt = null
+    const joinParams = new URLSearchParams(location.search)
+    const joinCode = String(joinParams.get('join') || joinParams.get('code') || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+      .slice(0, 8)
+    try {
+      if (joinCode) sessionStorage.setItem('songbook-pending-invite', joinCode)
+    } catch (e) {}
+
+    function appJoinHref(code) {
+      return code ? ('/#/bands?code=' + encodeURIComponent(code)) : '/'
+    }
 
     function detect() {
       const ua = navigator.userAgent || ''
@@ -247,6 +309,19 @@
         if (t[key]) el.textContent = t[key]
       })
       document.getElementById('langToggle').textContent = t.langBtn
+      const openApp = document.getElementById('openApp')
+      openApp.href = appJoinHref(joinCode)
+      if (joinCode) openApp.textContent = t.joinContinue
+      const joinBanner = document.getElementById('joinBanner')
+      if (joinCode) {
+        joinBanner.classList.remove('hidden')
+        joinBanner.innerHTML = '<p><strong>' + t.joinTitle + '</strong></p>'
+          + '<p>' + t.joinBody + ' <strong>' + joinCode + '</strong></p>'
+          + '<p>' + t.joinAlready + '</p>'
+      } else {
+        joinBanner.classList.add('hidden')
+        joinBanner.innerHTML = ''
+      }
       const d = detect()
       const badge = document.getElementById('deviceBadge')
       const hint = document.getElementById('hint')
@@ -268,6 +343,10 @@
       status.textContent = ''
 
       if (d.isStandalone) {
+        if (joinCode) {
+          location.replace(appJoinHref(joinCode))
+          return
+        }
         btn.disabled = true
         hint.textContent = t.installed
         status.textContent = t.installed
@@ -275,10 +354,24 @@
         return
       }
 
+      const iosHelp = document.getElementById('iosHelpBtn')
+      const iosCallout = document.getElementById('iosCallout')
+      iosHelp.classList.add('hidden')
+      iosCallout.classList.add('hidden')
+      btn.classList.remove('hidden')
+
       if (d.isIos) {
+        // Apple has no beforeinstallprompt — never show a dead primary button.
+        btn.classList.add('hidden')
         btn.disabled = true
+        iosHelp.classList.remove('hidden')
+        iosCallout.classList.remove('hidden')
+        const isSafari = /^((?!chrome|android|crios|fxios|edgios).)*safari/i.test(navigator.userAgent)
+          || (/iPhone|iPad|iPod/i.test(navigator.userAgent) && !/CriOS|FxiOS|EdgiOS/i.test(navigator.userAgent))
+        iosCallout.textContent = isSafari ? t.iosCallout : t.iosSafariOnly
         hint.textContent = t.iosHint
         steps.classList.remove('hidden')
+        steps.classList.add('highlight')
         t.iosSteps.forEach((pair, i) => {
           const li = document.createElement('li')
           li.innerHTML = `<span class="n">${i + 1}</span><div><strong>${pair[0]}</strong><span>${pair[1]}</span></div>`
@@ -286,6 +379,7 @@
         })
         return
       }
+      steps.classList.remove('highlight')
 
       if (deferredPrompt) {
         btn.disabled = false
@@ -333,6 +427,15 @@
         return
       }
       status.textContent = t.unavailable
+      status.className = 'status show warn'
+    })
+
+    document.getElementById('iosHelpBtn').addEventListener('click', () => {
+      const steps = document.getElementById('steps')
+      steps.classList.remove('hidden')
+      steps.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      const status = document.getElementById('status')
+      status.textContent = copy[locale].iosHint
       status.className = 'status show warn'
     })
 

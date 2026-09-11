@@ -34,7 +34,7 @@ function resolveManifestUrl(explicitUrl) {
     // Same-origin for web; native WebViews may load remote content from URL_APP
     try {
       const origin = window.location.origin
-      if (origin && !origin.startsWith('tauri://') && origin !== 'null') {
+      if (origin && !origin.startsWith('tauri://') && origin !== 'null' && !origin.startsWith('asset://')) {
         return `${origin}${VERSION_MANIFEST_PATH}`
       }
     } catch { /* ignore */ }
@@ -106,15 +106,13 @@ async function checkGitHubReleases({ currentVersion, fetchImpl }) {
     headers: { Accept: 'application/vnd.github+json' },
   })
 
+  // No published releases must NOT be treated as "up to date" — that hid
+  // newer web/version.json when the primary manifest fetch failed on native.
   if (response.status === 404) {
-    return {
-      status: 'upToDate',
-      currentVersion,
-      latestVersion: currentVersion,
-      releaseUrl: URL_GITHUB_RELEASES,
-      note: 'no_releases',
-      source: 'github',
-    }
+    const err = new Error('No GitHub releases published')
+    err.status = 404
+    err.note = 'no_releases'
+    throw err
   }
 
   if (!response.ok) {
@@ -126,13 +124,9 @@ async function checkGitHubReleases({ currentVersion, fetchImpl }) {
   const data = await response.json()
   const latestVersion = String(data.tag_name || data.name || '').replace(/^v/i, '')
   if (!latestVersion) {
-    return {
-      status: 'upToDate',
-      currentVersion,
-      latestVersion: currentVersion,
-      releaseUrl: URL_GITHUB_RELEASES,
-      source: 'github',
-    }
+    const err = new Error('GitHub latest release missing version tag')
+    err.status = 502
+    throw err
   }
 
   const cmp = compareVersions(latestVersion, currentVersion)
@@ -165,10 +159,23 @@ async function checkGitHubReleases({ currentVersion, fetchImpl }) {
  * Does not download or install binaries.
  *
  * On iOS / Android: returns status `storeManaged` — store / TestFlight owns updates.
+ *
+ * Uses transportFetch by default so Tauri/desktop can reach version.json via
+ * plugin-http (WebView fetch alone often fails CORS / scheme limits).
  */
+async function resolveFetchImpl(fetchImpl) {
+  if (fetchImpl) return fetchImpl
+  try {
+    const { transportFetch } = await import('./apiConfig.js')
+    return transportFetch
+  } catch {
+    return fetch
+  }
+}
+
 export async function checkForUpdates({
   currentVersion = APP_VERSION,
-  fetchImpl = fetch,
+  fetchImpl,
   platform = 'desktop',
   manifestUrl,
 } = {}) {
@@ -182,11 +189,13 @@ export async function checkForUpdates({
     }
   }
 
+  const doFetch = await resolveFetchImpl(fetchImpl)
+
   try {
-    return await checkServerManifest({ currentVersion, fetchImpl, manifestUrl })
+    return await checkServerManifest({ currentVersion, fetchImpl: doFetch, manifestUrl })
   } catch (manifestError) {
     try {
-      return await checkGitHubReleases({ currentVersion, fetchImpl })
+      return await checkGitHubReleases({ currentVersion, fetchImpl: doFetch })
     } catch (githubError) {
       const err = new Error(manifestError?.message || githubError?.message || 'Update check failed')
       err.status = manifestError?.status || githubError?.status

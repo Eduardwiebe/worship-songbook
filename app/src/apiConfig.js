@@ -56,7 +56,8 @@ async function resolveNativeFetch() {
   return nativeFetchImpl
 }
 
-async function transportFetch(url, options = {}) {
+/** Absolute-URL fetch: plugin-http on native, browser fetch on web. */
+export async function transportFetch(url, options = {}) {
   if (isNativeRuntime()) {
     const nativeFetch = await resolveNativeFetch()
     return nativeFetch(url, options)
