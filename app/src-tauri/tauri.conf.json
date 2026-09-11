@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Lyruma Songbook",
-  "version": "1.0.1.4",
+  "productName": "Songbook Band",
+  "version": "1.0.13",
   "identifier": "studio.lyruma.worshipsongbook",
   "build": {
     "frontendDist": "../dist",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Lyruma Songbook",
+        "title": "Songbook Band",
         "width": 1280,
         "height": 800,
         "minWidth": 1024,
@@ -32,7 +32,7 @@
     "copyright": "Copyright 2026 Eduard Wiebe",
     "category": "Music",
     "shortDescription": "Song planning for bands",
-    "longDescription": "Lyruma Songbook helps bands plan sets, manage songs, team, and appointments.",
+    "longDescription": "Songbook Band helps bands plan sets, manage songs, team, and appointments.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

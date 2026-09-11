@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1.13 — 2026-09-11
+
+- **Set play two-column lead sheets:** Editor column preference (`Spalten` 1/2) is now stored on the song (`sheet_columns`) and applied by `/api/songs/:id/chart`, so Set start shows the same Doppelspalten overview as the editor. Toggle persists immediately; Save also writes layout.
+- Chart HTML uses structured chord/lyric pairs with CSS columns (same break-inside rules as the editor) instead of a single-column `<pre>`.
+
+
 ## 1.0.1.12 — 2026-09-11
 
 ### Set playback lead sheet layout

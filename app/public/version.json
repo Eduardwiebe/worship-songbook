@@ -1,9 +1,9 @@
 {
-  "name": "Lyruma Songbook",
-  "version": "1.0.1.12",
+  "name": "Songbook Band",
+  "version": "1.0.1.13",
   "releasedAt": "2026-09-11",
   "releaseUrl": "https://songbook.lyruma.app",
-  "notes": "Set playback: lead sheet fills stage and scrolls vertically (no clipped chart).",
+  "notes": "Set play restores saved two-column lead sheet layout; columns persist on the song.",
   "channel": "web",
   "canReload": true
 }

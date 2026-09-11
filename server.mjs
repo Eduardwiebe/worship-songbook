@@ -25,6 +25,7 @@ import {
   suggestSongPageIndices,
 } from './lib/chordTextParse.mjs'
 import { deinterleaveTwoColumnLayout, softFormatChordChart } from './lib/chartLayout.mjs'
+import { normalizeSheetColumns, renderChartHtmlDocument } from './lib/chartHtml.mjs'
 import { visionAvailable, recognizeMusicPages } from './lib/visionProviders/index.mjs'
 import { visionResultToApi } from './lib/visionLeadsheet.mjs'
 import {
@@ -76,6 +77,8 @@ for(const column of ['band','theme','venue','arrival_time']){try{db.exec(`ALTER 
 for(const column of ['source_key','preferred_key']){try{db.exec(`ALTER TABLE songs ADD COLUMN ${column} TEXT DEFAULT ''`)}catch{}}
 for(const column of ['cover_path','cover_mime','cover_source']){try{db.exec(`ALTER TABLE songs ADD COLUMN ${column} TEXT DEFAULT ''`)}catch{}}
 for(const column of ['youtube_url','youtube_video_id','youtube_source']){try{db.exec(`ALTER TABLE songs ADD COLUMN ${column} TEXT DEFAULT ''`)}catch{}}
+try { db.exec('ALTER TABLE songs ADD COLUMN sheet_columns INTEGER NOT NULL DEFAULT 1') } catch {}
+try { db.exec('ALTER TABLE songs ADD COLUMN sheet_font_size INTEGER NOT NULL DEFAULT 16') } catch {}
 initializeAuth(db)
 db.exec(`CREATE TABLE IF NOT EXISTS bands (id TEXT PRIMARY KEY,name TEXT NOT NULL UNIQUE,description TEXT NOT NULL DEFAULT '',created_by TEXT NOT NULL,created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS band_members (band_id TEXT NOT NULL,user_id TEXT NOT NULL,role TEXT NOT NULL DEFAULT 'member',joined_at TEXT NOT NULL,PRIMARY KEY(band_id,user_id));
@@ -210,8 +213,8 @@ const makeInitials=(name)=>{const parts=name.trim().split(/\s+/).filter(Boolean)
 const json = (res, status, body) => { res.writeHead(status, {'content-type':'application/json'}); res.end(JSON.stringify(body)) }
 const bodyJson = async (req) => { const chunks=[]; for await (const c of req) chunks.push(c); return JSON.parse(Buffer.concat(chunks).toString() || '{}') }
 const songRows = (ownerId,bandId='') => (bandId
-  ? db.prepare('SELECT s.id,s.title,s.artist,s.song_key AS key,s.preferred_key AS preferredKey,s.file_name AS fileName,s.file_size AS fileSize,s.sort_order AS sortOrder,s.created_at AS createdAt,s.is_protected AS isProtected,1 AS hasPdf,s.cover_path AS coverPath,s.cover_source AS coverSource,s.youtube_url AS youtubeUrl,s.youtube_video_id AS youtubeVideoId,s.youtube_source AS youtubeSource FROM songs s JOIN band_songs bs ON bs.song_id=s.id WHERE bs.band_id=? ORDER BY s.sort_order DESC').all(bandId)
-  : db.prepare('SELECT id,title,artist,song_key AS key,preferred_key AS preferredKey,file_name AS fileName,file_size AS fileSize,sort_order AS sortOrder,created_at AS createdAt,is_protected AS isProtected,1 AS hasPdf,cover_path AS coverPath,cover_source AS coverSource,youtube_url AS youtubeUrl,youtube_video_id AS youtubeVideoId,youtube_source AS youtubeSource FROM songs WHERE owner_id=? ORDER BY sort_order DESC').all(ownerId)
+  ? db.prepare('SELECT s.id,s.title,s.artist,s.song_key AS key,s.preferred_key AS preferredKey,s.file_name AS fileName,s.file_size AS fileSize,s.sort_order AS sortOrder,s.created_at AS createdAt,s.is_protected AS isProtected,1 AS hasPdf,s.cover_path AS coverPath,s.cover_source AS coverSource,s.youtube_url AS youtubeUrl,s.youtube_video_id AS youtubeVideoId,s.youtube_source AS youtubeSource,s.sheet_columns AS sheetColumns,s.sheet_font_size AS sheetFontSize FROM songs s JOIN band_songs bs ON bs.song_id=s.id WHERE bs.band_id=? ORDER BY s.sort_order DESC').all(bandId)
+  : db.prepare('SELECT id,title,artist,song_key AS key,preferred_key AS preferredKey,file_name AS fileName,file_size AS fileSize,sort_order AS sortOrder,created_at AS createdAt,is_protected AS isProtected,1 AS hasPdf,cover_path AS coverPath,cover_source AS coverSource,youtube_url AS youtubeUrl,youtube_video_id AS youtubeVideoId,youtube_source AS youtubeSource,sheet_columns AS sheetColumns,sheet_font_size AS sheetFontSize FROM songs WHERE owner_id=? ORDER BY sort_order DESC').all(ownerId)
 ).map((song) => {
   const trust = snapshotSummaryForSong(db, song.id)
   const variantKeys = trust.snapshotId
@@ -229,6 +232,8 @@ const songRows = (ownerId,bandId='') => (bandId
     youtubeUrl: song.youtubeUrl || '',
     youtubeVideoId: song.youtubeVideoId || '',
     youtubeSource: song.youtubeSource || '',
+    sheetColumns: normalizeSheetColumns(song.sheetColumns),
+    sheetFontSize: Math.min(28, Math.max(11, Number(song.sheetFontSize) || 16)),
   }
 })
 
@@ -1516,23 +1521,41 @@ http.createServer(async (req,res) => { try {
   const variantMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/variants$/)
   if(req.method==='POST'&&variantMatch){
     const b=await bodyJson(req)
-    try{return json(res,201,saveVariantFromVerifiedSnapshot(db,variantMatch[1],{targetKey:b.targetKey,overlayText:b.overlayText}))}
+    try{return json(res,201,saveVariantFromVerifiedSnapshot(db,variantMatch[1],{targetKey:b.targetKey,overlayText:b.overlayText,sheetColumns:b.sheetColumns,sheetFontSize:b.sheetFontSize}))}
     catch(error){if(error instanceof SongTrustError)return json(res,error.status,{error:error.message,code:error.code,snapshotStatus:'review_required'});throw error}
   }
   if(req.method==='GET'&&variantMatch){const snapshot=getSongSnapshotState(db,variantMatch[1]).snapshot;if(!snapshot)return json(res,200,[]);const rows=db.prepare('SELECT target_key AS targetKey,source_key AS sourceKey,snapshot_id AS snapshotId,overlay_text AS overlayText,created_at AS createdAt FROM song_variants WHERE song_id=? AND snapshot_id=? ORDER BY created_at DESC').all(variantMatch[1],snapshot.id);return json(res,200,rows)}
   const chartMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/chart$/)
-  if(req.method==='GET'&&chartMatch){const key=url.searchParams.get('key');const row=db.prepare("SELECT s.title,v.content,v.target_key AS targetKey FROM song_variants v JOIN songs s ON s.id=v.song_id JOIN song_original_snapshots snap ON snap.id=v.snapshot_id AND snap.song_id=v.song_id AND snap.status='verified' WHERE v.song_id=? AND v.target_key=?").get(chartMatch[1],key);if(!row)return json(res,404,{error:'Fassung nicht gefunden'});const escape=value=>value.replace(/[&<>]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[char]));res.writeHead(200,{'content-type':'text/html; charset=utf-8'});return res.end(`<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(row.title)} – ${escape(row.targetKey)}</title><style>html,body{margin:0;min-height:100%;background:#fff;color:#171717;font:16px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}main{max-width:900px;margin:0 auto;background:#fff;min-height:100%;padding:28px 36px 48px;box-sizing:border-box}h1{font:700 26px system-ui,sans-serif;margin:0 0 6px}.key{color:#785d1f;font:700 14px system-ui,sans-serif;margin-bottom:28px}pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font:inherit}@media print{body{background:#fff}main{padding:0}}</style></head><body><main><h1>${escape(row.title)}</h1><div class="key">Tonart: ${escape(row.targetKey)}</div><pre>${escape(row.content)}</pre></main></body></html>`)}
+  if(req.method==='GET'&&chartMatch){
+    const key=url.searchParams.get('key')
+    const row=db.prepare("SELECT s.title,s.sheet_columns AS sheetColumns,s.sheet_font_size AS sheetFontSize,v.content,v.target_key AS targetKey FROM song_variants v JOIN songs s ON s.id=v.song_id JOIN song_original_snapshots snap ON snap.id=v.snapshot_id AND snap.song_id=v.song_id AND snap.status='verified' WHERE v.song_id=? AND v.target_key=?").get(chartMatch[1],key)
+    if(!row)return json(res,404,{error:'Fassung nicht gefunden'})
+    const qCols=url.searchParams.get('columns')
+    const qFont=url.searchParams.get('fontSize')
+    const html=renderChartHtmlDocument({
+      title:row.title,
+      targetKey:row.targetKey,
+      content:row.content,
+      columns:qCols!=null?normalizeSheetColumns(qCols):normalizeSheetColumns(row.sheetColumns),
+      fontSize:qFont!=null?Number(qFont):row.sheetFontSize,
+    })
+    res.writeHead(200,{'content-type':'text/html; charset=utf-8'})
+    return res.end(html)
+  }
   const songMatch=url.pathname.match(/^\/api\/songs\/([^/]+)$/)
   if(req.method==='PATCH'&&songMatch){
     const b=await bodyJson(req)
-    const current=db.prepare('SELECT title,artist,song_key FROM songs WHERE id=?').get(songMatch[1])
+    const current=db.prepare('SELECT title,artist,song_key,sheet_columns,sheet_font_size FROM songs WHERE id=?').get(songMatch[1])
+    if(!current)return json(res,404,{error:'Song nicht gefunden'})
     const title=String(b.title??current?.title??'').trim()
     const artist=String(b.artist??current?.artist??'Importierte PDF').trim()||'Importierte PDF'
     const selectedKey=String(b.key??current?.song_key??'–').trim()||'–'
+    const sheetColumns=b.sheetColumns!=null?normalizeSheetColumns(b.sheetColumns):normalizeSheetColumns(current.sheet_columns)
+    const sheetFontSize=b.sheetFontSize!=null?Math.min(28,Math.max(11,Number(b.sheetFontSize)||16)):Math.min(28,Math.max(11,Number(current.sheet_font_size)||16))
     if(!title)return json(res,400,{error:'Der Songtitel darf nicht leer sein.'})
     const changed=bandId
-      ? db.prepare('UPDATE songs SET title=?,artist=?,song_key=? WHERE id=?').run(title,artist,selectedKey,songMatch[1])
-      : db.prepare('UPDATE songs SET title=?,artist=?,song_key=? WHERE id=? AND owner_id=?').run(title,artist,selectedKey,songMatch[1],user.id)
+      ? db.prepare('UPDATE songs SET title=?,artist=?,song_key=?,sheet_columns=?,sheet_font_size=? WHERE id=?').run(title,artist,selectedKey,sheetColumns,sheetFontSize,songMatch[1])
+      : db.prepare('UPDATE songs SET title=?,artist=?,song_key=?,sheet_columns=?,sheet_font_size=? WHERE id=? AND owner_id=?').run(title,artist,selectedKey,sheetColumns,sheetFontSize,songMatch[1],user.id)
     if(!changed.changes)return json(res,404,{error:'Song nicht gefunden'})
     return json(res,200,songRows(user.id,bandId).find(song=>song.id===songMatch[1]))
   }
