@@ -1,6 +1,6 @@
 [package]
 name = "worship-songbook"
-version = "1.0.24"
+version = "1.0.25"
 description = "Songbook Band – native shell for the web app"
 authors = ["Eduard Wiebe"]
 license = "Apache-2.0"

@@ -50,6 +50,15 @@ import { GuitarTunerModal } from './GuitarTunerModal'
 import { blurActiveElement, dismissModal, lockBodyScroll, scheduleViewportRestore, unlockBodyScroll } from './modalLock'
 import { useAvoidMobileAutoFocus } from './useMobileFormFocus'
 import { URL_APP, URL_EDUARD_WIEBE, URL_LYRUMA_STUDIO, APP_VERSION } from './appMeta'
+import {
+  SCAN_IMAGE_ACCEPT,
+  SCAN_MIXED_ACCEPT,
+  canSubmitScan,
+  classifyScanFile,
+  isLikelyScanImageFile,
+  resolveScanTitle,
+  titleFromScanFile,
+} from '../../lib/scanFileTypes.mjs'
 
 const initialSongs = []
 
@@ -1619,13 +1628,16 @@ function ScanDialog({onClose,onSave}) {
   const clearImagePages=()=>setPages((current)=>{current.forEach((page)=>URL.revokeObjectURL(page.url));return []})
   const resetPdf=()=>{setPdfFile(null);setPdfPages([]);setSelectedPdfPages([])}
 
-  const add=files=>{
-    const next=Array.from(files||[]).filter(file=>file.type.startsWith('image/'))
+  // iOS Photos/Files often omit File.type — do not filter on image/* MIME alone.
+  const add=(files,{fromGallery=false}={})=>{
+    const next=Array.from(files||[]).filter(file=>isLikelyScanImageFile(file,{assumeImage:fromGallery}))
     if(!next.length)return
     setMode('images')
     resetPdf()
     setPasteText('')
     setPages(current=>[...current,...next.slice(0,8-current.length).map(file=>({id:crypto.randomUUID(),file,url:URL.createObjectURL(file)}))])
+    setTitle(current=>current.trim()?current:titleFromScanFile(next[0]))
+    setError('')
   }
   const remove=id=>setPages(current=>{const page=current.find(item=>item.id===id);if(page)URL.revokeObjectURL(page.url);return current.filter(item=>item.id!==id)})
   const move=(index,offset)=>setPages(current=>{const target=index+offset;if(target<0||target>=current.length)return current;const next=[...current];[next[index],next[target]]=[next[target],next[index]];return next})
@@ -1637,7 +1649,7 @@ function ScanDialog({onClose,onSave}) {
       const result=await scanDocumentsNative({maxPages:8-pages.length})
       if(result.cancelled)return
       if(result.source==='fallback'){cameraRef.current?.click();return}
-      add(result.pages)
+      add(result.pages,{fromGallery:true})
     }catch(e){setError(e.message||t('scan.failed'));cameraRef.current?.click()}
     finally{setScanningNative(false)}
   }
@@ -1663,22 +1675,22 @@ function ScanDialog({onClose,onSave}) {
     const files=Array.from(fileList||[])
     if(!files.length)return
     const file=files[0]
-    const name=String(file.name||'').toLowerCase()
-    if(file.type==='application/pdf' || name.endsWith('.pdf')){
+    const kind=classifyScanFile(file,{assumeImage:false})
+    if(kind==='pdf'){
       await loadPdfPreview(file)
       return
     }
-    if(file.type==='text/plain' || name.endsWith('.txt')){
+    if(kind==='text'){
       const text=await file.text()
       setMode('text')
       clearImagePages()
       resetPdf()
       setPasteText(text)
-      if(!title.trim() && file.name) setTitle(file.name.replace(/\.txt$/i,''))
+      setTitle(current=>current.trim()?current:titleFromScanFile(file))
       return
     }
-    if(file.type.startsWith('image/')){
-      add(files)
+    if(kind==='image' || files.some(item=>isLikelyScanImageFile(item,{assumeImage:true}))){
+      add(files,{fromGallery:true})
       return
     }
     setError(t('scan.unsupportedFile'))
@@ -1692,27 +1704,31 @@ function ScanDialog({onClose,onSave}) {
     })
   }
 
-  const canSubmit=Boolean(title.trim()) && (
-    (mode==='images' && pages.length>0) ||
-    (mode==='pdf' && pdfFile && selectedPdfPages.length>0) ||
-    (mode==='text' && pasteText.trim())
-  )
+  const canSubmit=canSubmitScan({
+    title,
+    mode,
+    pageCount:pages.length,
+    hasPdf:Boolean(pdfFile),
+    selectedPdfCount:selectedPdfPages.length,
+    pasteText,
+  })
 
   const submit=async()=>{
     setSaving(true);setError('')
     try{
-      if(mode==='text') await onSave(title.trim(),{text:pasteText})
-      else if(mode==='pdf') await onSave(title.trim(),{pdfFile,selectedPages:selectedPdfPages})
-      else await onSave(title.trim(),{pages})
+      const songTitle=resolveScanTitle(title, mode==='pdf'?pdfFile:pages[0]?.file)
+      if(mode==='text') await onSave(songTitle,{text:pasteText})
+      else if(mode==='pdf') await onSave(songTitle,{pdfFile,selectedPages:selectedPdfPages})
+      else await onSave(songTitle,{pages})
     }catch(e){setError(e.message);setSaving(false)}
   }
 
   return <ModalBackdrop onClose={onClose}><section className="modal modal-wide scan-modal">
     <div className="modal-header"><div><p className="eyebrow">{t('scan.title')}</p><h2>{t('scan.subtitle')}</h2></div><button className="icon-button" onClick={close}><X size={20}/></button></div>
     <div className="scan-guide"><span>1</span><p><strong>{t('scan.guideSources')}</strong><small>{t('scan.guideSourcesHint')}</small></p></div>
-    <input ref={cameraRef} className="file-input" type="file" accept="image/*" capture="environment" onChange={event=>{add(event.target.files);event.target.value=''}}/>
-    <input ref={galleryRef} className="file-input" type="file" accept="image/*" multiple onChange={event=>{add(event.target.files);event.target.value=''}}/>
-    <input ref={fileRef} className="file-input" type="file" accept="image/*,application/pdf,text/plain,.pdf,.txt" onChange={event=>{onPickFiles(event.target.files);event.target.value=''}}/>
+    <input ref={cameraRef} className="file-input" type="file" accept={SCAN_IMAGE_ACCEPT} capture="environment" onChange={event=>{add(event.target.files,{fromGallery:true});event.target.value=''}}/>
+    <input ref={galleryRef} className="file-input" type="file" accept={SCAN_IMAGE_ACCEPT} multiple onChange={event=>{add(event.target.files,{fromGallery:true});event.target.value=''}}/>
+    <input ref={fileRef} className="file-input" type="file" accept={SCAN_MIXED_ACCEPT} onChange={event=>{onPickFiles(event.target.files);event.target.value=''}}/>
     <div className="scan-actions scan-actions-extended">
       <button type="button" className="scan-camera-button" disabled={scanningNative||pages.length>=8} onClick={openPrimaryCapture}><FileText size={24}/><span><strong>{scanningNative?t('scan.scanning'):(pages.length?t('scan.nextPage'):(nativeScanner?t('scan.openDocumentScanner'):t('scan.openCamera')))}</strong><small>{nativeScanner?t('scan.visionKitHint'):t('scan.upTo8')}</small></span></button>
       <button type="button" className="scan-gallery-button" onClick={()=>galleryRef.current?.click()}><Upload size={21}/>{t('scan.pickImages')}</button>

@@ -1,7 +1,11 @@
 /**
  * Normalize camera/gallery images before upload — preserve resolution, fix orientation.
  * VisionKit pages are already perspective-corrected; avoid unnecessary recompression.
+ *
+ * iOS Photos/Files often omit File.type; still treat those blobs as images so
+ * gallery screenshots reach the same JPEG/OCR path as camera scans.
  */
+import { isLikelyScanImageFile, withInferredImageType } from '../../lib/scanFileTypes.mjs'
 
 const MIN_WIDTH = 2000
 const JPEG_QUALITY = 0.95
@@ -33,15 +37,21 @@ function canvasToJpegBlob(canvas, quality) {
 
 /** Upscale small phone photos and re-encode as JPEG for consistent server OCR input. */
 export async function prepareScanPageFile(file, index = 0) {
-  if (!file?.type?.startsWith('image/')) return file
+  if (!file) return file
+  const typed = String(file.type || '').startsWith('image/')
+    ? file
+    : isLikelyScanImageFile(file, { assumeImage: true })
+      ? withInferredImageType(file, index)
+      : null
+  if (!typed) return file
 
   try {
-    const img = await loadImageFromFile(file)
+    const img = await loadImageFromFile(typed)
     let { width, height } = img
 
     // Already high-res JPEG from VisionKit — keep original bytes.
-    if (file.type === 'image/jpeg' && width >= MIN_WIDTH && file.name?.startsWith('visionkit-')) {
-      return file
+    if (typed.type === 'image/jpeg' && width >= MIN_WIDTH && typed.name?.startsWith('visionkit-')) {
+      return typed
     }
 
     if (width < MIN_WIDTH) {
@@ -59,10 +69,11 @@ export async function prepareScanPageFile(file, index = 0) {
     ctx.drawImage(img, 0, 0, width, height)
 
     const blob = await canvasToJpegBlob(canvas, JPEG_QUALITY)
-    const base = String(file.name || `scan-${index + 1}`).replace(/\.[^.]+$/, '')
+    const base = String(typed.name || `scan-${index + 1}`).replace(/\.[^.]+$/, '')
     return new File([blob], `${base}.jpg`, { type: 'image/jpeg', lastModified: Date.now() })
   } catch {
-    return file
+    // Still upload with an image/* MIME so /api/scans does not reject iOS empty-type Files.
+    return typed
   }
 }
 

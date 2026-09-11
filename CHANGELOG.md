@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1.25 — 2026-09-11
+
+- **iPad gallery scan:** „Scannen und Lead-Sheet erstellen“ stayed disabled after picking a screenshot/photo. Root cause: `ScanDialog.add` kept only `file.type.startsWith('image/')`, and iOS Photos/Files often hand over PNG/HEIC with an **empty MIME** (and generic names like `image`). Camera captures usually have `image/jpeg`, so that path worked.
+- **Fix:** Classify gallery/Files picks by MIME, extension, or iOS empty-type quirks (`lib/scanFileTypes.mjs`). Enable submit once image page(s) are selected (title optional; fallback `Scan`). Prep/upload still normalizes to `image/*` so `/api/scans` accepts the same pipeline as camera/PDF.
+- Test: `node scripts/test-scan-file-types.mjs`.
+
+
 ## 1.0.1.24 — 2026-09-11
 
 - **Lead sheet redesign (editor + Set play):** Uniform section headers like `[Refrain]` / `[Strophe 1]` / `[Bridge]`; subtle chord pills with stable syllable alignment; single chart header (title + Tonart + optional BPM) without duplicate Tonart meta lines.
