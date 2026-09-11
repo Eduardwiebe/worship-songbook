@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1.10 — 2026-09-11
+
+### Editor toolbar font controls
+- Centered the Lucide `Type` icon between font-size − and + in `.font-tools` (equal gaps via `justify-self: center`).
+
 ## 1.0.1.9 — 2026-09-10
 
 ### Home song-tile carousel layout

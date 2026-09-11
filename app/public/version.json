@@ -1,9 +1,9 @@
 {
   "name": "Lyruma Songbook",
-  "version": "1.0.1.9",
-  "releasedAt": "2026-09-10",
+  "version": "1.0.1.10",
+  "releasedAt": "2026-09-11",
   "releaseUrl": "https://songbook.lyruma.app",
-  "notes": "Home song-tile carousel: contained cover cards, single title scrim, key badge \u2014 no overflow/duplicate titles.",
+  "notes": "Editor toolbar: center Lucide Type icon between font-size − and + buttons.",
   "channel": "web",
   "canReload": true
 }
