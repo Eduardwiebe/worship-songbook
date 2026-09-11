@@ -1,6 +1,7 @@
 import { apiFetch, apiUrl, isNativeRuntime } from './apiConfig'
 import { persistSelectedBand } from './nativeSession'
 import { tStatic } from './i18n'
+import { cacheGetList, cachePutList, listCacheKey } from './offlineCache'
 
 async function request(path,options={}){
   const response=await apiFetch(path,options)
@@ -15,7 +16,18 @@ const jsonOptions=(method,values)=>({
   body:JSON.stringify(values)
 })
 
-export const getBands=()=>request('/api/bands')
+export const getBands=async()=>{
+  const cacheKey = listCacheKey('bands', 'all')
+  try {
+    const data = await request('/api/bands')
+    await cachePutList(cacheKey, data)
+    return data
+  } catch (error) {
+    const cached = await cacheGetList(cacheKey)
+    if (cached) return cached
+    throw error
+  }
+}
 
 export const createBand=values=>
   request('/api/bands',jsonOptions('POST',values))

@@ -1,8 +1,21 @@
+import { cacheGetList, cachePutList, listCacheKey } from './offlineCache'
+import { getSelectedBandId } from './nativeSession'
 import { apiFetch } from './apiConfig'
 import { tStatic } from './i18n'
 
 export async function getSets() {
-  const response = await apiFetch('/api/sets'); if(!response.ok) throw new Error(tStatic('err.setsLoad')); return response.json()
+  const bandId = getSelectedBandId?.() || ''
+  const cacheKey = listCacheKey('sets', bandId)
+  try {
+    const response = await apiFetch('/api/sets'); if(!response.ok) throw new Error(tStatic('err.setsLoad'));
+    const data = await response.json()
+    await cachePutList(cacheKey, data)
+    return data
+  } catch (error) {
+    const cached = await cacheGetList(cacheKey)
+    if (cached) return cached
+    throw error
+  }
 }
 
 export async function createSet(values) {

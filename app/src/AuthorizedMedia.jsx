@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { authorizedObjectUrl, isNativeRuntime, toApiPath, apiFetch } from './apiConfig'
 import { isLikelyIosNative } from './nativePlatform'
+import { cacheGetMediaObjectUrl, cachePutMedia, chartCacheKey, pdfCacheKey, isProbablyOffline } from './offlineCache'
 
 /**
  * <img> that loads protected API media with Bearer on native (blob URL).
@@ -240,19 +241,67 @@ export function AuthorizedFrame({ path, title, className, hash = '', songId = ''
         }
         return
       }
+      const apiPath = toApiPath(path) || path
+      const chartMatch = String(apiPath).match(/\/api\/songs\/([^/?]+)\/chart\?key=([^&]+)/)
+      const pdfMatch = String(apiPath).match(/\/api\/songs\/([^/?]+)\/pdf/)
+      const mediaKey = chartMatch
+        ? chartCacheKey(chartMatch[1], decodeURIComponent(chartMatch[2]))
+        : pdfMatch
+          ? pdfCacheKey(pdfMatch[1])
+          : ''
+
+      const tryCache = async () => {
+        if (!mediaKey) return ''
+        return cacheGetMediaObjectUrl(mediaKey)
+      }
+
       if (!isNativeRuntime()) {
+        // Web: prefer live URL when online; fall back to cached blob offline.
+        if (isProbablyOffline() && mediaKey) {
+          const cached = await tryCache()
+          if (cached && active) {
+            objectUrl = cached
+            setSrc(cached)
+            setLoading(false)
+            setError('')
+            return
+          }
+        }
         if (active) {
           setSrc(`${path}${hash || ''}`)
           setLoading(false)
           setError('')
+        }
+        // Opportunistically cache chart HTML in background (web cookies)
+        if (mediaKey && chartMatch && !isProbablyOffline()) {
+          apiFetch(apiPath).then(async (response) => {
+            if (!response.ok) return
+            const text = await response.text()
+            await cachePutMedia(mediaKey, {
+              mime: 'text/html; charset=utf-8',
+              buffer: new TextEncoder().encode(text).buffer,
+            })
+          }).catch(() => {})
         }
         return
       }
       setLoading(true)
       setError('')
       try {
+        if (isProbablyOffline() && mediaKey) {
+          const cached = await tryCache()
+          if (cached) {
+            objectUrl = cached
+            if (active) {
+              setSrc(cached)
+              setLoading(false)
+              setError('')
+            }
+            return
+          }
+        }
         const mimeHint = fitContent ? 'text/html' : 'application/pdf'
-        const url = await authorizedObjectUrl(toApiPath(path) || path, { mimeHint })
+        const url = await authorizedObjectUrl(apiPath, { mimeHint })
         if (!active) {
           if (url.startsWith('blob:')) URL.revokeObjectURL(url)
           return
@@ -260,7 +309,28 @@ export function AuthorizedFrame({ path, title, className, hash = '', songId = ''
         objectUrl = url
         setSrc(url)
         setLoading(false)
+        // Cache bytes for offline Set play
+        if (mediaKey) {
+          try {
+            const response = await apiFetch(apiPath)
+            if (response.ok) {
+              const buf = await response.arrayBuffer()
+              await cachePutMedia(mediaKey, {
+                mime: fitContent ? 'text/html; charset=utf-8' : 'application/pdf',
+                buffer: buf,
+              })
+            }
+          } catch {}
+        }
       } catch (caught) {
+        const cached = mediaKey ? await tryCache() : ''
+        if (cached && active) {
+          objectUrl = cached
+          setSrc(cached)
+          setLoading(false)
+          setError('')
+          return
+        }
         if (active) {
           setSrc('')
           setError(caught?.message || 'PDF konnte nicht geladen werden.')

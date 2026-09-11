@@ -1,8 +1,10 @@
+.offline-banner{position:sticky;top:0;z-index:50;padding:10px 16px;text-align:center;color:#5c4312;background:linear-gradient(90deg,#f7e3a1,#f0d27a);border-bottom:1px solid #e0c36a;font-size:13px;font-weight:800}
+html[data-theme="dark"] .offline-banner{color:#f8e7b0;background:linear-gradient(90deg,#4a3a14,#3a2e10);border-bottom-color:#6a5520}
 
 a { color: inherit; text-decoration: none; }
 .app-header { align-items:center;padding:4px 0 20px;border-bottom:1px solid #dfe5eb; }
 .header-brand { min-width:0;display:flex;align-items:center;gap:14px; }
-.header-songbook-mark { width:48px;height:48px;flex:0 0 48px;border-radius:14px;display:grid;place-items:center;color:#2b210f;background:linear-gradient(145deg,#f4d372,#d6a63e);box-shadow:0 7px 18px rgba(166,119,27,.18); }
+.header-songbook-mark { width:48px;height:48px;flex:0 0 48px;border-radius:14px;display:block;object-fit:cover;color:#2b210f;background:transparent;box-shadow:0 7px 18px rgba(166,119,27,.18); }
 .header-brand .eyebrow { margin:0 0 2px;color:#a47720;font-size:10px;letter-spacing:.15em; }
 .header-brand h1 { margin:0;font-size:clamp(24px,2.5vw,34px);line-height:1.08; }
 .header-brand .subtitle { margin:5px 0 0;color:#748292;font-size:13px; }

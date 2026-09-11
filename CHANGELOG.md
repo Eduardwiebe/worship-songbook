@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1.14 — 2026-09-11
+
+- **Offline-first Set play / library:** IndexedDB cache for songs, sets, team, appointments, bands, and lead-sheet HTML/PDFs. After opening a set once online, Set start and library work without network. Offline banner; sync resumes when connectivity returns.
+- Native auth falls back to the last cached user session when the API is unreachable.
+
+
 ## 1.0.1.13 — 2026-09-11
 
 - **Set play two-column lead sheets:** Editor column preference (`Spalten` 1/2) is now stored on the song (`sheet_columns`) and applied by `/api/songs/:id/chart`, so Set start shows the same Doppelspalten overview as the editor. Toggle persists immediately; Save also writes layout.

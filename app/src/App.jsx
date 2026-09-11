@@ -8,12 +8,13 @@ import './App.css'
 import './extra.css'
 import { analyzeSongChords, deleteSong, getImportedSongs, getSongOriginalSnapshot, getSongVariants, hasSongPdf, openSongChart, openSongPdf, previewScanPdf, saveImportedSongs, saveScanImport, saveSongVariant, songChartUrl, songPdfUrl, updateSong, resolveSongCover, resolveSongYoutube, songCoverPath } from './songStore'
 import { createSet, deleteSet, getSets, saveSet } from './setStore'
+import { isProbablyOffline, prefetchSetCharts } from './offlineCache'
 import { deleteMember, getTeam, memberPhoto, saveMember } from './teamStore'
 import { createAppointment, deleteAppointment, getAppointments } from './scheduleStore'
 import { changePassword, deleteProfilePhoto, getCurrentUser, login, logout, onNativeAuthFailure, profilePhotoUrl, register, updateProfile, uploadProfilePhoto } from './authStore'
 import { AuthorizedFrame, AuthorizedImg } from './AuthorizedMedia'
 import { installNativeExternalLinkHandler, openExternal } from './openExternal'
-import { authorizedObjectUrl } from './apiConfig'
+import { authorizedObjectUrl, apiFetch, apiUrl } from './apiConfig'
 import { approveBandJoinRequest, bandLogoUrl, createBand, createBandInvite, deleteBand, deleteBandLogo, getBands, getBandInvites, getBandJoinRequests, getBandMembers, getMyJoinRequests, joinBandByCode, rejectBandJoinRequest, requestBandJoin, searchBands, selectBand, selectPersonal, updateBand, uploadBandLogo } from './bandStore'
 import Onboarding from './onboarding/Onboarding'
 import { getOnboarding, resetOnboarding, dismissOnboarding } from './onboardingStore'
@@ -59,6 +60,7 @@ function App() {
     ['/termine', t('nav.appointments'), CalendarDays],
   ]
   const [authLoading,setAuthLoading]=useState(true)
+  const [offlineMode,setOfflineMode]=useState(()=>isProbablyOffline())
   const [user,setUser]=useState(null)
   const [songs, setSongs] = useState(initialSongs)
   const [sets, setSets] = useState([])
@@ -78,6 +80,16 @@ function App() {
   const navigate = useNavigate()
 
   useEffect(()=>{getCurrentUser().then(({user})=>setUser(user)).catch(()=>setUser(null)).finally(()=>setAuthLoading(false))},[])
+  useEffect(()=>{
+    const sync=()=>setOfflineMode(isProbablyOffline())
+    window.addEventListener('online', sync)
+    window.addEventListener('offline', sync)
+    sync()
+    return ()=>{
+      window.removeEventListener('online', sync)
+      window.removeEventListener('offline', sync)
+    }
+  },[])
   useEffect(()=>{onNativeAuthFailure(()=>setUser(null))},[])
   useEffect(()=>installNativeExternalLinkHandler(),[])
   useEffect(() => {
@@ -223,7 +235,7 @@ function App() {
   const openImport = () => setDialogOpen(true)
   void theme
   void APP_VERSION
-  return <div className="app-shell">
+  return <div className="app-shell">{offlineMode?<div className="offline-banner" role="status">{t('offline.banner')}</div>:null}
     <aside className="sidebar">
       <NavLink className="brand" to="/" end aria-label={t('brand.songbook')}><BrandMark /><div><strong>{t('brand.songbook')}</strong></div></NavLink>
       <nav className="nav">{navItems.map(([to, label, Icon]) =>
@@ -1109,6 +1121,14 @@ function SetDetailPage({sets, songs, team, updateSets, navigate}) {
   const {setId} = useParams()
   const set = sets.find((item) => item.id === setId)
   const [running, setRunning] = useState(false)
+  useEffect(()=>{
+    if(!set||isProbablyOffline())return
+    let cancelled=false
+    prefetchSetCharts(set, songs, { apiFetch, apiUrl }).then((result)=>{
+      if(!cancelled) console.info('[offline] set charts cached', result?.cached)
+    }).catch(()=>{})
+    return ()=>{cancelled=true}
+  },[set?.id, set?.songIds?.join('|'), JSON.stringify(set?.songKeys||{}), songs.map((s)=>s.id).join('|')])
   if (!set) return <SimplePage eyebrow={t('sets.planning')} title={t('sets.notFound')} text={t('sets.notFoundText')}/>
   const setSongs = set.songIds.map((id) => songs.find((song) => song.id === id)).filter(Boolean)
   const available = songs.filter((song) => !set.songIds.includes(song.id))
@@ -1120,7 +1140,10 @@ function SetDetailPage({sets, songs, team, updateSets, navigate}) {
   const assignSongKey = (songId, key) => update({songKeys: {...(set.songKeys || {}), [songId]: key}})
   const soundRole = t('team.role.sound')
   return <><button className="back-button" onClick={() => navigate('/sets')}><ChevronLeft size={18}/>{t('sets.allSets')}</button><Header title={set.title} subtitle={`${formatDate(set.date)} · ${t('common.nSongs', { count: setSongs.length })}`}/>
-    <div className="set-toolbar"><button className="run-button" disabled={!setSongs.length} onClick={() => setRunning(true)}><Play size={19}/>{t('sets.start')}</button><span>{t('sets.autoSave')}</span>{!set.isProtected&&<button className="delete-set-button" onClick={async () => { if (!window.confirm(t('sets.confirmDelete', { title: set.title }))) return; await deleteSet(set.id); updateSets((current) => current.filter((item) => item.id !== set.id)); navigate('/sets') }}><Trash2 size={17}/>{t('sets.delete')}</button>}</div>
+    <div className="set-toolbar"><button className="run-button" disabled={!setSongs.length} onClick={() => {
+      setRunning(true)
+      if(!isProbablyOffline()) prefetchSetCharts(set, setSongs, { apiFetch, apiUrl }).catch(()=>{})
+    }}><Play size={19}/>{t('sets.start')}</button><span>{t('sets.autoSave')}</span>{!set.isProtected&&<button className="delete-set-button" onClick={async () => { if (!window.confirm(t('sets.confirmDelete', { title: set.title }))) return; await deleteSet(set.id); updateSets((current) => current.filter((item) => item.id !== set.id)); navigate('/sets') }}><Trash2 size={17}/>{t('sets.delete')}</button>}</div>
     <section className="panel event-details"><div className="panel-header"><div><p className="eyebrow">{t('sets.event')}</p><h2>{t('sets.eventMeta')}</h2></div></div><div className="briefing-grid"><label className="field"><span>{t('sets.bandProject')}</span><div><Users size={18}/><input value={set.band||''} onChange={(event)=>update({band:event.target.value})} placeholder={t('sets.bandPlaceholder')}/></div></label><label className="field"><span>{t('sets.theme')}</span><div><FileText size={18}/><input value={set.theme||''} onChange={(event)=>update({theme:event.target.value})} placeholder={t('sets.themePlaceholder')}/></div></label><label className="field"><span>{t('appointments.location')}</span><div><Home size={18}/><input value={set.venue||''} onChange={(event)=>update({venue:event.target.value})} placeholder={t('sets.venuePlaceholder')}/></div></label><label className="field"><span>{t('sets.date')}</span><div><CalendarDays size={18}/><input type="date" value={set.date||''} onChange={(event)=>update({date:event.target.value})}/></div></label><label className="field"><span>{t('sets.meetFrom')}</span><div><Clock3 size={18}/><input type="time" value={set.arrivalTime||''} onChange={(event)=>update({arrivalTime:event.target.value})}/></div></label><label className="field"><span>{t('sets.concertStart')}</span><div><Clock3 size={18}/><input type="time" value={set.eventTime||''} onChange={(event)=>update({eventTime:event.target.value})}/></div></label></div></section>
     <div className="planner-grid"><section className="panel planner-panel"><div className="panel-header"><div><p className="eyebrow">{t('sets.flow')}</p><h2>{t('sets.order')}</h2></div></div>
       {setSongs.length ? <div className="planned-songs">{setSongs.map((song, index) => { const leaderId=set.leaders?.[song.id]||'';const leader=team.find((member)=>member.id===leaderId);const selectedKey=set.songKeys?.[song.id]||'';return <div className="planned-song" key={`${song.id}-${index}`}><span className="order-number">{index + 1}</span><div className="song-main"><strong>{song.title}</strong><span>{song.artist}{selectedKey?` · ${t('home.key', { key: selectedKey })}`:hasSongPdf(song)?` · ${t('songs.originalPdf')}`:''}</span></div><div className="set-song-options"><label className="leader-select">{leader&&<b>{leader.initials||initials(leader.name)}</b>}{leaderId==='group'&&<b>ALL</b>}<select value={leaderId} onChange={(event)=>assignLeader(song.id,event.target.value)}><option value="">{t('sets.chooseLead')}</option><option value="group">{t('sets.allTogether')}</option>{team.map((member)=><option value={member.id} key={member.id}>{member.name} ({member.initials||initials(member.name)})</option>)}</select></label><label className="set-key-select"><select value={selectedKey} onChange={(event)=>assignSongKey(song.id,event.target.value)}><option value="">{t('songs.originalPdf')}</option>{(song.variantKeys||[]).map((key)=><option value={key} key={key}>{t('home.key', { key })}</option>)}</select></label></div><div className="order-actions"><button className="icon-button" disabled={index === 0} onClick={() => moveSong(index, -1)}><ArrowUp size={17}/></button><button className="icon-button" disabled={index === setSongs.length - 1} onClick={() => moveSong(index, 1)}><ArrowDown size={17}/></button>{selectedKey?<button className="icon-button" onClick={()=>openSongChart(song,selectedKey)} title={t('sets.openVersion', { key: selectedKey })}><Eye size={17}/></button>:hasSongPdf(song) && <button className="icon-button" onClick={() => openSongPdf(song)} title={t('songs.openPdf')}><Eye size={17}/></button>}<button className="icon-button danger" onClick={() => removeSong(index)}><Trash2 size={17}/></button></div></div>})}</div> : <div className="empty-state small"><Music2 size={30}/><h3>{t('sets.noSongs')}</h3><p>{t('sets.noSongsHint')}</p></div>}

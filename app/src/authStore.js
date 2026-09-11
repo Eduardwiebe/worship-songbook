@@ -7,6 +7,7 @@ import {
   loadSelectedBand,
   onNativeAuthFailure,
 } from './nativeSession'
+import { cacheGetMeta, cachePutMeta, clearOfflineCache, isProbablyOffline } from './offlineCache'
 
 export { onNativeAuthFailure, isNativeRuntime }
 
@@ -30,11 +31,24 @@ export async function bootstrapNativeSession() {
 }
 
 export const getCurrentUser = async () => {
-  if (isNativeRuntime()) {
-    await loadSelectedBand()
-    return request('/api/auth/native/me')
+  try {
+    if (isNativeRuntime()) {
+      await loadSelectedBand()
+      const data = await request('/api/auth/native/me')
+      if (data?.user) await cachePutMeta('user', data)
+      return data
+    }
+    const data = await request('/api/auth/me')
+    if (data?.user) await cachePutMeta('user', data)
+    return data
+  } catch (error) {
+    const cached = await cacheGetMeta('user')
+    if (cached?.user && (isProbablyOffline() || isNativeRuntime())) {
+      console.warn('[offline] using cached user session')
+      return cached
+    }
+    throw error
   }
-  return request('/api/auth/me')
 }
 
 export const login = async values => {
@@ -75,6 +89,7 @@ export const logout = async () => {
       // still clear local tokens
     }
     await clearNativeSession()
+    try { await clearOfflineCache() } catch {}
     return { ok: true }
   }
   return request('/api/auth/logout', { method: 'POST' })

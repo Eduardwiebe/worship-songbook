@@ -1,9 +1,9 @@
 {
   "name": "Songbook Band",
-  "version": "1.0.1.13",
+  "version": "1.0.1.14",
   "releasedAt": "2026-09-11",
   "releaseUrl": "https://songbook.lyruma.app",
-  "notes": "Set play restores saved two-column lead sheet layout; columns persist on the song.",
+  "notes": "Offline-first: cached library/sets/charts for Set play without internet; two-column layout persist.",
   "channel": "web",
   "canReload": true
 }
