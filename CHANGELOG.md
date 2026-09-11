@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.1.25 — 2026-09-11
+
+- **Import BPM lookup:** PDF/scan/text analyze now stores original-recording BPM on the song when the chart has no `TEMPO` / `BPM` line.
+- **PDF wins:** A tempo printed on the lead sheet (or OCR text) is never overwritten by an online guess.
+- **Sources (free first):** SongBPM.com song pages (`/@artist/title`); TheAudioDB `searchtrack` (demo key or `THEAUDIODB_API_KEY`); optional GetSongBPM when `GETSONGBPM_API_KEY` is set. iTunes Search only helps resolve title/artist (same as YouTube). Ambiguous or failed lookup leaves BPM empty (`–` in the library); Cajón still defaults the session control to 120.
+- Set start and the song editor read `song.bpm` (plus chart text). Bulk PDF import queues lookup like YouTube; scan/analyze persists before the response.
+
+
 ## 1.0.1.24 — 2026-09-11
 
 - **Lead sheet redesign (editor + Set play):** Uniform section headers like `[Refrain]` / `[Strophe 1]` / `[Bridge]`; subtle chord pills with stable syllable alignment; single chart header (title + Tonart + optional BPM) without duplicate Tonart meta lines.

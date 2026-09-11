@@ -37,6 +37,10 @@ import {
   queueResolveSongYoutube,
 } from './lib/songYoutube.mjs'
 import {
+  persistSongBpm,
+  queueResolveSongBpm,
+} from './lib/songBpm.mjs'
+import {
   SongTrustError,
   getSongSnapshotState,
   initializeSongTrustSchema,
@@ -77,6 +81,8 @@ for(const column of ['band','theme','venue','arrival_time']){try{db.exec(`ALTER 
 for(const column of ['source_key','preferred_key']){try{db.exec(`ALTER TABLE songs ADD COLUMN ${column} TEXT DEFAULT ''`)}catch{}}
 for(const column of ['cover_path','cover_mime','cover_source']){try{db.exec(`ALTER TABLE songs ADD COLUMN ${column} TEXT DEFAULT ''`)}catch{}}
 for(const column of ['youtube_url','youtube_video_id','youtube_source']){try{db.exec(`ALTER TABLE songs ADD COLUMN ${column} TEXT DEFAULT ''`)}catch{}}
+try { db.exec('ALTER TABLE songs ADD COLUMN bpm INTEGER') } catch {}
+try { db.exec("ALTER TABLE songs ADD COLUMN bpm_source TEXT DEFAULT ''") } catch {}
 try { db.exec('ALTER TABLE songs ADD COLUMN sheet_columns INTEGER NOT NULL DEFAULT 1') } catch {}
 try { db.exec('ALTER TABLE songs ADD COLUMN sheet_font_size INTEGER NOT NULL DEFAULT 16') } catch {}
 initializeAuth(db)
@@ -213,8 +219,8 @@ const makeInitials=(name)=>{const parts=name.trim().split(/\s+/).filter(Boolean)
 const json = (res, status, body) => { res.writeHead(status, {'content-type':'application/json'}); res.end(JSON.stringify(body)) }
 const bodyJson = async (req) => { const chunks=[]; for await (const c of req) chunks.push(c); return JSON.parse(Buffer.concat(chunks).toString() || '{}') }
 const songRows = (ownerId,bandId='') => (bandId
-  ? db.prepare('SELECT s.id,s.title,s.artist,s.song_key AS key,s.preferred_key AS preferredKey,s.file_name AS fileName,s.file_size AS fileSize,s.sort_order AS sortOrder,s.created_at AS createdAt,s.is_protected AS isProtected,1 AS hasPdf,s.cover_path AS coverPath,s.cover_source AS coverSource,s.youtube_url AS youtubeUrl,s.youtube_video_id AS youtubeVideoId,s.youtube_source AS youtubeSource,s.sheet_columns AS sheetColumns,s.sheet_font_size AS sheetFontSize FROM songs s JOIN band_songs bs ON bs.song_id=s.id WHERE bs.band_id=? ORDER BY s.sort_order DESC').all(bandId)
-  : db.prepare('SELECT id,title,artist,song_key AS key,preferred_key AS preferredKey,file_name AS fileName,file_size AS fileSize,sort_order AS sortOrder,created_at AS createdAt,is_protected AS isProtected,1 AS hasPdf,cover_path AS coverPath,cover_source AS coverSource,youtube_url AS youtubeUrl,youtube_video_id AS youtubeVideoId,youtube_source AS youtubeSource,sheet_columns AS sheetColumns,sheet_font_size AS sheetFontSize FROM songs WHERE owner_id=? ORDER BY sort_order DESC').all(ownerId)
+  ? db.prepare('SELECT s.id,s.title,s.artist,s.song_key AS key,s.preferred_key AS preferredKey,s.file_name AS fileName,s.file_size AS fileSize,s.sort_order AS sortOrder,s.created_at AS createdAt,s.is_protected AS isProtected,1 AS hasPdf,s.cover_path AS coverPath,s.cover_source AS coverSource,s.youtube_url AS youtubeUrl,s.youtube_video_id AS youtubeVideoId,s.youtube_source AS youtubeSource,s.bpm AS bpm,s.bpm_source AS bpmSource,s.sheet_columns AS sheetColumns,s.sheet_font_size AS sheetFontSize FROM songs s JOIN band_songs bs ON bs.song_id=s.id WHERE bs.band_id=? ORDER BY s.sort_order DESC').all(bandId)
+  : db.prepare('SELECT id,title,artist,song_key AS key,preferred_key AS preferredKey,file_name AS fileName,file_size AS fileSize,sort_order AS sortOrder,created_at AS createdAt,is_protected AS isProtected,1 AS hasPdf,cover_path AS coverPath,cover_source AS coverSource,youtube_url AS youtubeUrl,youtube_video_id AS youtubeVideoId,youtube_source AS youtubeSource,bpm AS bpm,bpm_source AS bpmSource,sheet_columns AS sheetColumns,sheet_font_size AS sheetFontSize FROM songs WHERE owner_id=? ORDER BY sort_order DESC').all(ownerId)
 ).map((song) => {
   const trust = snapshotSummaryForSong(db, song.id)
   const variantKeys = trust.snapshotId
@@ -232,6 +238,8 @@ const songRows = (ownerId,bandId='') => (bandId
     youtubeUrl: song.youtubeUrl || '',
     youtubeVideoId: song.youtubeVideoId || '',
     youtubeSource: song.youtubeSource || '',
+    bpm: Number.isFinite(Number(song.bpm)) && Number(song.bpm) > 0 ? Math.round(Number(song.bpm)) : null,
+    bpmSource: song.bpmSource || '',
     sheetColumns: normalizeSheetColumns(song.sheetColumns),
     sheetFontSize: Math.min(28, Math.max(11, Number(song.sheetFontSize) || 16)),
   }
@@ -1317,6 +1325,7 @@ http.createServer(async (req,res) => { try {
     for (const song of createdSongs) {
       queueResolveSongCover(db,{songId:song.id,title:song.title,artist:song.artist,key:song.key||song.preferredKey||'',root})
       queueResolveSongYoutube(db,{songId:song.id,title:song.title,artist:song.artist||''})
+      queueResolveSongBpm(db,{songId:song.id,title:song.title,artist:song.artist||''})
     }
     return json(res,201,createdSongs) /* cover-bulk */
   }
@@ -1433,6 +1442,7 @@ http.createServer(async (req,res) => { try {
       documentHash:sha256(await readFile(path)),
       result:scanResult||{method:forceScan?'scan_failed':'import_failed',needsReview:true},
     })
+    await persistSongBpm(db,{songId:id,title,artist,chartText:scanResult?.text||''})
     const created=songRows(user.id,bandId).find(song=>song.id===id)
     queueResolveSongCover(db,{songId:id,title,artist,key:created?.key||created?.preferredKey||'',root})
     queueResolveSongYoutube(db,{songId:id,title,artist})
@@ -1469,6 +1479,13 @@ http.createServer(async (req,res) => { try {
     const resolved=await persistSongYoutube(db,{songId:row.id,title:row.title,artist:row.artist||''})
     return json(res,200,{ok:true,...resolved})
   }
+  const resolveBpmMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/resolve-bpm$/)
+  if(req.method==='POST'&&resolveBpmMatch){
+    const row=db.prepare('SELECT id,title,artist,bpm,bpm_source FROM songs WHERE id=?').get(resolveBpmMatch[1])
+    if(!row)return json(res,404,{error:'Song nicht gefunden'})
+    const resolved=await persistSongBpm(db,{songId:row.id,title:row.title,artist:row.artist||''})
+    return json(res,200,{ok:true,...resolved})
+  }
   const pdfMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/pdf$/)
   if(req.method==='GET'&&pdfMatch){const row=db.prepare('SELECT pdf_path,file_name FROM songs WHERE id=?').get(pdfMatch[1]);if(!row)return json(res,404,{error:'Nicht gefunden'});const data=await readFile(row.pdf_path);res.writeHead(200,{'content-type':'application/pdf','content-disposition':`inline; filename*=UTF-8''${encodeURIComponent(row.file_name)}`});return res.end(data)}
   const snapshotMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/snapshot$/)
@@ -1476,17 +1493,23 @@ http.createServer(async (req,res) => { try {
   const analyzeMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/analyze-chords$/)
   if(req.method==='POST'&&analyzeMatch){
     const songId=analyzeMatch[1]
+    const songMeta=db.prepare('SELECT title,artist,pdf_path FROM songs WHERE id=?').get(songId)
+    const attachBpm=async(chartText)=>{
+      const bpm=await persistSongBpm(db,{songId,title:songMeta?.title||'',artist:songMeta?.artist||'',chartText:chartText||''})
+      return bpm
+    }
     const soft=repairSongSnapshotFromStoredText(db,songId)
     if(soft.repaired){
-      return json(res,200,{...snapshotStateResponse(soft.state),reanalyzed:true,mode:'soft_repair'})
+      const bpm=await attachBpm(soft.state?.snapshot?.originalText||'')
+      return json(res,200,{...snapshotStateResponse(soft.state),reanalyzed:true,mode:'soft_repair',...bpm})
     }
-    const row=db.prepare('SELECT pdf_path,title FROM songs WHERE id=?').get(songId)
-    if(!row?.pdf_path){
-      return json(res,200,{...snapshotStateResponse(getSongSnapshotState(db,songId)),reanalyzed:false,mode:'no_pdf',reason:soft.reason||'no_pdf'})
+    if(!songMeta?.pdf_path){
+      const bpm=await attachBpm('')
+      return json(res,200,{...snapshotStateResponse(getSongSnapshotState(db,songId)),reanalyzed:false,mode:'no_pdf',reason:soft.reason||'no_pdf',...bpm})
     }
     let scanResult=null
     try{
-      scanResult=finalizeScanResult(await analyzeSongPdf(row.pdf_path,{forceScan:true,titleHint:row.title||''}))
+      scanResult=finalizeScanResult(await analyzeSongPdf(songMeta.pdf_path,{forceScan:true,titleHint:songMeta.title||''}))
     }catch(error){
       console.error('reanalyze failed:',error?.message||error)
       return json(res,422,{error:error?.message||'Erneute Analyse fehlgeschlagen.',reanalyzed:false})
@@ -1494,14 +1517,15 @@ http.createServer(async (req,res) => { try {
     if(!scanResult?.text){
       return json(res,422,{error:'Aus dem Original-PDF konnte kein Lead-Sheet erkannt werden.',reanalyzed:false})
     }
-    const documentHash=sha256(await readFile(row.pdf_path))
+    const documentHash=sha256(await readFile(songMeta.pdf_path))
     replaceScanSnapshot(db,{
       songId,
-      pdfPath:row.pdf_path,
+      pdfPath:songMeta.pdf_path,
       documentHash,
       result:scanResult,
     })
-    return json(res,200,{...snapshotStateResponse(getSongSnapshotState(db,songId)),reanalyzed:true,mode:'pdf_reanalyze',method:scanResult.method||''})
+    const bpm=await attachBpm(scanResult.text)
+    return json(res,200,{...snapshotStateResponse(getSongSnapshotState(db,songId)),reanalyzed:true,mode:'pdf_reanalyze',method:scanResult.method||'',...bpm})
   }
   const pagesMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/pages$/)
   if(req.method==='GET'&&pagesMatch){
