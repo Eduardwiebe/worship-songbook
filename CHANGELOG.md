@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1.11 — 2026-09-11
+
+### Technik-Briefing contrast
+- **Technik auswählen** dropdown: option/selected names use dark text on light option backgrounds so technician names (e.g. Fabian Hinn) stay readable without hover in light and dark themes.
+- Closed control keeps light text on the dark field shell; `color-scheme: dark` aligns native popup styling.
+
 ## 1.0.1.10 — 2026-09-11
 
 ### Editor toolbar font controls

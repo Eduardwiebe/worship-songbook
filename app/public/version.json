@@ -1,9 +1,9 @@
 {
   "name": "Lyruma Songbook",
-  "version": "1.0.1.10",
+  "version": "1.0.1.11",
   "releasedAt": "2026-09-11",
   "releaseUrl": "https://songbook.lyruma.app",
-  "notes": "Editor toolbar: center Lucide Type icon between font-size − and + buttons.",
+  "notes": "Technik-Briefing: readable technician names in select (fix white-on-white options).",
   "channel": "web",
   "canReload": true
 }
