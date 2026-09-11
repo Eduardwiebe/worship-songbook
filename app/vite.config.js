@@ -24,6 +24,7 @@ export default defineConfig({
         'install.html',
         'install/index.html',
         'manifest.webmanifest',
+        'manifest.json',
         'version.json',
       ],
       workbox: {
