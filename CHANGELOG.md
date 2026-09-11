@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.1.25 — 2026-09-11
+
+- **Leadsheet import standard:** New imports keep chords on the sung syllable (ChordPro-style `[G]lobe` / word-start index), not “first chord always at column 0”.
+- Missing or invalid vision `index` is no longer coerced to `0`. Prefer a lyric-token / bbox mapping; otherwise omit the chord and flag review.
+- **Singing-line merge:** OCR orphans such as `meine` / `C#m` / `Seele sing` become one lyric line with the chord over `Seele`. Section headers (`[Refrain]`, …) stay.
+- Snapshot `original_text` + chord model + anchors stay consistent with `extractEditorChordModel` / `extractEditorChordAnchors` / `projectEditorSnapshot`.
+
+
 ## 1.0.1.24 — 2026-09-11
 
 - **Lead sheet redesign (editor + Set play):** Uniform section headers like `[Refrain]` / `[Strophe 1]` / `[Bridge]`; subtle chord pills with stable syllable alignment; single chart header (title + Tonart + optional BPM) without duplicate Tonart meta lines.

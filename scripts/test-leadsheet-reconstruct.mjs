@@ -20,8 +20,18 @@ import {
   wrapChordLyricPair,
   deinterleaveTwoColumnLayout,
   parseChartBlocks,
-  attachOrphanChordLines,
+  mergeSplitSingingLines,
+  parseReliableChordIndex,
+  resolveChordAnchorIndex,
+  encodeChordProLine,
+  placeChordsByIndex,
 } from '../lib/chartLayout.mjs'
+import { normalizeVisionDocument, leadsheetFromVision } from '../lib/visionLeadsheet.mjs'
+import {
+  extractEditorChordAnchors,
+  extractEditorChordModel,
+  projectEditorSnapshot,
+} from '../lib/editorKey.mjs'
 import { parseTempoBpm, clampTempoBpm } from '../lib/leadsheetAnalysis.mjs'
 import { cleanOcrText } from '../lib/leadsheetAnalysis.mjs'
 import { transposeEditorText } from '../lib/editorKey.mjs'
@@ -446,4 +456,115 @@ const bboxStacks = (() => {
 const kommenStack = bboxStacks.find((s) => /kommen/i.test(s.word))
 assert(kommenStack && /Asus|A/.test(kommenStack.chord), `bbox Asus@kommen stacks=${JSON.stringify(bboxStacks)} text=\n${bboxResult.text}`)
 console.log('OK pdf bbox reconstruct places chord on kommen')
+
+// --- Missing vision index must not become column 0 ---
+assert(parseReliableChordIndex({ chord: 'G' }) == null, 'missing index stays unknown')
+assert(parseReliableChordIndex({ chord: 'G', index: 'x' }) == null, 'invalid index stays unknown')
+assert(parseReliableChordIndex({ chord: 'C', index: 0 }) === 0, 'explicit 0 is a valid syllable')
+assert(resolveChordAnchorIndex({ chord: 'G' }, 'Komm und lobe den Herrn') == null, 'omit until syllable known')
+assert(resolveChordAnchorIndex({ chord: 'G', word: 'Herrn' }, 'Komm und lobe den Herrn') === 'Komm und lobe den Herrn'.indexOf('Herrn'), 'word hint → Herrn')
+assert(encodeChordProLine('lobe den Herrn', [{ chord: 'G', index: 0 }, { chord: 'C', word: 'Herrn' }]) === '[G]lobe den [C]Herrn', 'ChordPro syllable anchors')
+
+const missingVision = normalizeVisionDocument({
+  title: 'Probe',
+  key: 'C',
+  confidence: 0.9,
+  sections: [{
+    type: 'verse',
+    number: 1,
+    lines: [{
+      lyrics: 'Komm und lobe den Herrn',
+      chords: [
+        { chord: 'G' },
+        { chord: 'C', index: 'not-a-number' },
+        { chord: 'Am', word: 'Herrn' },
+        { chord: 'F', index: 0 },
+      ],
+    }],
+  }],
+})
+const missingChords = missingVision.sections[0].lines[0].chords
+assert(!missingChords.some((item) => item.chord === 'G'), `missing index omitted, got ${JSON.stringify(missingChords)}`)
+assert(!missingChords.some((item) => item.chord === 'C'), 'invalid index omitted')
+assert(missingChords.some((item) => item.chord === 'Am' && item.index === 'Komm und lobe den Herrn'.indexOf('Herrn')), 'word-mapped Am over Herrn')
+assert(missingChords.some((item) => item.chord === 'F' && item.index === 0), 'explicit index 0 kept')
+assert(missingVision.needsReview, 'omitted chords flag review')
+const missingPacked = placeChordsByIndex('Komm und lobe den Herrn', [{ chord: 'G' }, { chord: 'Am', word: 'Herrn' }])
+assert(!/\bG\b/.test(missingPacked), `unindexed G must be omitted, got ${JSON.stringify(missingPacked)}`)
+assert(missingPacked.indexOf('Am') === 'Komm und lobe den Herrn'.indexOf('Herrn'), `Am column: ${JSON.stringify(missingPacked)}`)
+const missingRender = leadsheetFromVision(missingVision)
+assert(/Am/.test(missingRender), 'word-mapped Am rendered')
+assert(!/^G\s/m.test(missingRender), `render must not invent G at line start:\n${missingRender}`)
+console.log('OK missing vision index ≠ column 0')
+
+// --- meine / Seele-sing merge + chord over Seele ---
+const lobeLyric = 'Komm und lobe den Herrn meine'
+const seeleChart = [
+  packChordsAboveLyrics(lobeLyric, [
+    { chord: 'C', index: lobeLyric.indexOf('lobe') },
+    { chord: 'G', index: lobeLyric.indexOf('Herrn') },
+    { chord: 'Am', index: lobeLyric.indexOf('meine') },
+  ]).chordLine,
+  lobeLyric,
+  'C#m',
+  'Seele sing',
+].join('\n')
+const mergedSing = softFormatChordChart(seeleChart)
+assert(/Komm und lobe den Herrn meine Seele sing/.test(mergedSing), `merged lyric missing:\n${mergedSing}`)
+assert(!/^C#m$/m.test(mergedSing), `orphan C#m line remains:\n${mergedSing}`)
+assert(/\[Refrain\]/.test(softFormatChordChart(`${seeleChart}\n\n[Refrain]\nG\nWeiter`)) || /\[Refrain\]/.test(softFormatChordChart('[Refrain]\nG\nWeiter')), 'section headers kept')
+const mergedLines = mergedSing.split('\n')
+const mergedLyricLine = mergedLines.find((line) => /Seele sing/.test(line))
+assert(mergedLyricLine, 'merged singing line present')
+const mergedChordLine = mergedLines[mergedLines.indexOf(mergedLyricLine) - 1] || ''
+const seeleStacks = chordLyricToWordStacks(mergedChordLine, mergedLyricLine)
+const seeleByWord = Object.fromEntries(seeleStacks.filter((item) => item.chord).map((item) => [item.word, item.chord]))
+assert(seeleByWord.lobe === 'C', `lobe→C got ${JSON.stringify(seeleByWord)} in:\n${mergedSing}`)
+assert(seeleByWord.Herrn === 'G', 'Herrn→G')
+assert(seeleByWord.meine === 'Am', 'meine→Am')
+assert(seeleByWord.Seele === 'C#m', `Seele→C#m got ${JSON.stringify(seeleByWord)} chord=${JSON.stringify(mergedChordLine)}`)
+const directMerge = mergeSplitSingingLines(seeleChart)
+assert(/Seele sing/.test(directMerge) && /C#m/.test(directMerge), 'merge helper emits combined line')
+console.log('OK meine/Seele-sing merge + C#m over Seele')
+
+// --- softFormat / parse preserves mid-line columns ---
+const midLyric = 'Jesus meine Hoffnung'
+const midAnchors = [
+  { chord: 'G', index: midLyric.indexOf('Jesus') },
+  { chord: 'D', index: midLyric.indexOf('meine') },
+  { chord: 'Em', index: midLyric.indexOf('Hoffnung') },
+]
+const midPacked = packChordsAboveLyrics(midLyric, midAnchors)
+const midSoft = softFormatChordChart(`${midPacked.chordLine}\n${midLyric}`)
+const midSoftChord = midSoft.split('\n')[0]
+const midSoftLyric = midSoft.split('\n')[1]
+assert(midSoftLyric === midLyric, `soft-format lyric drift: ${midSoftLyric}`)
+assert(midSoftChord.indexOf('G') === midLyric.indexOf('Jesus'), `soft-format G column: ${JSON.stringify(midSoftChord)}`)
+assert(midSoftChord.indexOf('D') === midLyric.indexOf('meine'), `soft-format D column: ${JSON.stringify(midSoftChord)}`)
+assert(midSoftChord.indexOf('Em') === midLyric.indexOf('Hoffnung'), `soft-format Em column: ${JSON.stringify(midSoftChord)}`)
+const midBlocks = parseChartBlocks(midSoft)
+const midPair = midBlocks.find((block) => block.kind === 'pair')
+assert(midPair?.stacks.find((stack) => stack.word === 'meine')?.chord === 'D', `parse keeps D on meine: ${JSON.stringify(midPair)}`)
+assert(midPair?.stacks.find((stack) => stack.word === 'Hoffnung')?.chord === 'Em', 'parse keeps Em on Hoffnung')
+
+const originalText = midSoft
+const originalChordModel = extractEditorChordModel(originalText)
+const originalAnchorData = extractEditorChordAnchors(originalText)
+const projected = projectEditorSnapshot({
+  originalText,
+  originalChordModel,
+  originalAnchorData,
+  sourceKey: 'G',
+  selectedKey: 'A',
+  requireSnapshotModel: true,
+})
+assert(projected.ok, `projection failed: ${projected.reason}`)
+assert(JSON.stringify(extractEditorChordModel(originalText)) === JSON.stringify(originalChordModel), 'chord model stays consistent')
+assert(JSON.stringify(extractEditorChordAnchors(originalText)) === JSON.stringify(originalAnchorData), 'anchors stay consistent')
+const projLyric = projected.text.split('\n')[1]
+const projChord = projected.text.split('\n')[0]
+assert(projLyric === midLyric, 'transpose leaves lyrics')
+assert(projChord.indexOf('A') === midLyric.indexOf('Jesus'), `G→A keeps Jesus column, got ${JSON.stringify(projChord)}`)
+assert(projChord.indexOf('E') === midLyric.indexOf('meine'), `G→A keeps meine column, got ${JSON.stringify(projChord)}`)
+console.log('OK softFormat/parse preserves mid-line columns + transpose snapshot')
 
