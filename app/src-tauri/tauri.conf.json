@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Songbook Band",
-  "version": "1.0.24",
+  "version": "1.0.25",
   "identifier": "studio.lyruma.worshipsongbook",
   "build": {
     "frontendDist": "../dist",

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.1.25 — 2026-09-11
+
+- **iPad gallery scan:** „Scannen und Lead-Sheet erstellen“ stayed disabled after picking a screenshot/photo.
+- **Cause 1:** `canSubmit` needs `title.trim()` and pages; gallery `add()` never copied the filename into the title (PDF import does).
+- **Cause 2:** `add()` kept only `file.type.startsWith('image/')`. iOS Photos/screenshots often have an **empty MIME** and were dropped silently.
+- **Fix:** Accept images by MIME or extension (`png` / `jpe?g` / `heic` / `webp` / `gif`), including empty type + image ext. Auto-set title from the first image name when empty. `canSubmit` stays title + source.
+- Test: `node scripts/test-scan-file-types.mjs`.
+
+
 ## 1.0.1.24 — 2026-09-11
 
 - **Lead sheet redesign (editor + Set play):** Uniform section headers like `[Refrain]` / `[Strophe 1]` / `[Bridge]`; subtle chord pills with stable syllable alignment; single chart header (title + Tonart + optional BPM) without duplicate Tonart meta lines.

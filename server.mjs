@@ -36,6 +36,7 @@ import {
   persistSongYoutube,
   queueResolveSongYoutube,
 } from './lib/songYoutube.mjs'
+import { isLikelyScanImageFile } from './lib/scanFileTypes.mjs'
 import {
   SongTrustError,
   getSongSnapshotState,
@@ -1407,7 +1408,7 @@ http.createServer(async (req,res) => { try {
       }
     }else{
       if(!pages.length||pages.length>8)return json(res,400,{error:'Bitte Titel und 1 bis 8 Scan-Seiten angeben.'})
-      if(pages.some(page=>!String(page.type).startsWith('image/')||page.size>20*1024*1024))return json(res,400,{error:'Bitte nur Bilder bis 20 MB pro Seite verwenden.'})
+      if(pages.some(page=>!isLikelyScanImageFile(page,{assumeImage:true})))return json(res,400,{error:'Bitte nur Bilder bis 20 MB pro Seite verwenden.'})
       const dir=await mkdtemp(join(tmpdir(),'songbook-scan-'))
       try{
         const inputs=[]
