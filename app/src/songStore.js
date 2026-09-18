@@ -111,6 +111,14 @@ export async function updateSong(id, changes) {
 
 export async function analyzeSongChords(id) { const r=await apiFetch(`/api/songs/${id}/analyze-chords`,{method:'POST'});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||tStatic('err.songsChords'));return data }
 export async function getSongOriginalSnapshot(id) { const r=await apiFetch(`/api/songs/${id}/snapshot`);const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||tStatic('err.songsChords'));return data }
+export async function getSongMusicXml(id, key) {
+  const params = new URLSearchParams()
+  if (key) params.set('key', String(key))
+  const r = await apiFetch(`/api/songs/${id}/musicxml${params.toString() ? `?${params}` : ''}`)
+  if (r.status === 404) return ''
+  if (!r.ok) throw new Error(tStatic('err.songsChords'))
+  return r.text()
+}
 export async function getSongVariants(id) { const r=await apiFetch(`/api/songs/${id}/variants`);const data=await r.json().catch(()=>[]);if(!r.ok)throw new Error(data.error||tStatic('err.songsVariant'));return data }
 export async function saveSongVariant(id,values) { const payload={targetKey:values.targetKey,overlayText:values.overlayText};if(values.sheetColumns!=null)payload.sheetColumns=values.sheetColumns;if(values.sheetFontSize!=null)payload.sheetFontSize=values.sheetFontSize;const r=await apiFetch(`/api/songs/${id}/variants`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||tStatic('err.songsVariant'));return data }
 

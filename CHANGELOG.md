@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.1.26 — 2026-09-18
+
+- **Chord view vs LeadSheet:** two reconstructions. Akkorde shows readable German words (syllables rehydrated from native PDF words/boxes/baselines); LeadSheet is MusicXML + OpenSheetMusicDisplay (chords above staff, melody, syllabic lyrics under notes) — never faked from chord-view text.
+- Filter SongSelect/CCLI/©/author/website/page-number lines out of lyrics into metadata fields.
+- Titles prefer native PDF text and drop `-lead-G` / `-lead-Bb` filename suffixes.
+- BPM: hide unless a document tempo exists (no default 120).
+- Editor tabs labeled ORIGINAL / AKKORDE / LEADSHEET.
+
+
 ## 1.0.1.24 — 2026-09-11
 
 - **Lead sheet redesign (editor + Set play):** Uniform section headers like `[Refrain]` / `[Strophe 1]` / `[Bridge]`; subtle chord pills with stable syllable alignment; single chart header (title + Tonart + optional BPM) without duplicate Tonart meta lines.

@@ -141,14 +141,122 @@ def parse_omr_book(omr_path: Path, width: int, height: int) -> dict:
 
     tokens = [token for token in tokens if token.get("text") and token.get("role") != "Rights"]
     tokens = _assign_line_indices(tokens)
+    notes = parse_omr_notes(root, systems)
     return {
         "width": width,
         "height": height,
         "tokens": tokens,
         "systems": systems,
+        "notes": notes,
         "omr_word_count": sum(1 for token in tokens if token.get("source") == "audiveris-word"),
         "omr_chord_count": sum(1 for token in tokens if token.get("source") == "audiveris-chord"),
+        "omr_note_count": len(notes),
     }
+
+
+NOTEHEAD_SHAPES = {
+    "NOTEHEAD_BLACK": 0.25,
+    "NOTEHEAD_VOID": 0.5,
+    "NOTEHEAD_WHOLE": 1.0,
+    "NOTEHEAD_BLACK_SMALL": 0.25,
+    "NOTEHEAD_VOID_SMALL": 0.5,
+}
+
+
+def parse_omr_notes(root, systems):
+    """Read already-recognized noteheads from the Audiveris sheet. Does not re-run OMR."""
+    notes = []
+    measure_width = 160
+    for index, glyph in enumerate(root.iter("glyph")):
+        shape = (glyph.get("shape") or glyph.findtext("shape") or "").strip().upper()
+        if shape not in NOTEHEAD_SHAPES and "NOTEHEAD" not in shape:
+            continue
+        bbox = _bounds(glyph)
+        if bbox is None:
+            continue
+        cy = (bbox[1] + bbox[3]) / 2
+        cx = (bbox[0] + bbox[2]) / 2
+        staff = None
+        for system in systems:
+            if system["y0"] - 18 <= cy <= system["y1"] + 18:
+                staff = system["index"] + 1
+                spacing = max(system.get("spacing") or 20, 8)
+                # G-clef approximation: bottom staff line ≈ E4
+                steps_from_bottom = (system["y1"] - cy) / (spacing / 2)
+                midi_like = 64 + steps_from_bottom  # E4 = 64
+                step_idx = int(round(midi_like)) % 12
+                step = ["C", "C", "D", "D", "E", "F", "F", "G", "G", "A", "A", "B"][step_idx]
+                octave = int(round(midi_like)) // 12 - 1
+                break
+        else:
+            step, octave, staff = "G", 4, 1
+        measure = max(1, int(cx // measure_width) + 1)
+        onset = round((cx % measure_width) / max(measure_width / 4, 1), 3)
+        duration = NOTEHEAD_SHAPES.get(shape, 0.25)
+        notes.append(
+            {
+                "id": glyph.get("id") or f"glyph-{index}",
+                "noteId": glyph.get("id") or f"glyph-{index}",
+                "bbox": bbox,
+                "x": cx,
+                "y": cy,
+                "step": step,
+                "octave": octave,
+                "duration": duration,
+                "quarters": duration * 4,
+                "measure": measure,
+                "onset": onset,
+                "staff": staff or 1,
+                "source": "audiveris-notehead",
+            }
+        )
+    # Prefer interpreted <note> elements when Audiveris wrote them.
+    interpreted = []
+    for index, note_el in enumerate(root.iter("note")):
+        bbox = _bounds(note_el)
+        step_el = note_el.find(".//step")
+        octave_el = note_el.find(".//octave")
+        if step_el is None:
+            continue
+        cx = ((bbox[0] + bbox[2]) / 2) if bbox else index * 20
+        cy = ((bbox[1] + bbox[3]) / 2) if bbox else 0
+        measure = int(note_el.get("measure") or note_el.get("id") or (cx // 160) + 1)
+        interpreted.append(
+            {
+                "id": note_el.get("id") or f"note-{index}",
+                "noteId": note_el.get("id") or f"note-{index}",
+                "bbox": bbox or [cx, cy, cx, cy],
+                "x": cx,
+                "y": cy,
+                "step": (step_el.text or "G").strip(),
+                "octave": int((octave_el.text if octave_el is not None else "4") or 4),
+                "duration": float(note_el.get("duration") or 0.25),
+                "quarters": float(note_el.get("duration") or 0.25),
+                "measure": max(1, measure),
+                "onset": float(note_el.get("time") or note_el.get("onset") or 0),
+                "staff": int(note_el.get("staff") or 1),
+                "source": "audiveris-note",
+            }
+        )
+    return interpreted or notes
+
+
+def read_exported_musicxml(out_dir: Path) -> str:
+    """Capture Audiveris -export output. Does not re-transcribe."""
+    candidates = []
+    for pattern in ("*.mxl", "*.musicxml", "*.xml"):
+        candidates.extend(path for path in out_dir.rglob(pattern) if ".omr" not in path.parts)
+    candidates = [path for path in candidates if path.is_file() and "sheet#" not in path.name]
+    if not candidates:
+        return ""
+    path = sorted(candidates, key=lambda item: (0 if item.suffix in {".mxl", ".musicxml"} else 1, len(item.name)))[0]
+    if path.suffix.lower() == ".mxl":
+        with zipfile.ZipFile(path) as archive:
+            names = [name for name in archive.namelist() if name.endswith(".xml") and "META-INF" not in name]
+            if not names:
+                return ""
+            return archive.read(names[0]).decode("utf-8", errors="replace")
+    return path.read_text(encoding="utf-8", errors="replace")
 
 
 def _overlap_ratio(a, b):
@@ -266,7 +374,7 @@ def run_audiveris(image_path: Path, out_dir: Path) -> Path:
     omr = out_dir / f"{image_path.stem}.omr"
     if not omr.is_file():
         raise RuntimeError(proc.stderr[-2000:] or proc.stdout[-2000:] or "Audiveris produced no .omr")
-    return omr
+    return omr, read_exported_musicxml(out_dir)
 
 
 def process_page(image_path: Path) -> dict:
@@ -275,8 +383,10 @@ def process_page(image_path: Path) -> dict:
     image = Image.open(image_path).convert("RGB")
     width, height = image.size
     with tempfile.TemporaryDirectory(prefix="songbook-omr-") as tmp:
-        omr_path = run_audiveris(image_path, Path(tmp))
+        omr_path, musicxml = run_audiveris(image_path, Path(tmp))
         page = parse_omr_book(omr_path, width, height)
+        if musicxml:
+            page["musicxml"] = musicxml
     page["page_index"] = 0
     return merge_rapidocr(page, image_path)
 
@@ -303,6 +413,7 @@ def run_engine(image_paths):
     return {
         "engine": engine,
         "pages": pages,
+        "musicxml": next((page.get("musicxml") for page in pages if page.get("musicxml")), ""),
         "elapsed_ms": int((time.time() - started) * 1000),
         "omr_error": error,
     }

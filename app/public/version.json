@@ -1,9 +1,9 @@
 {
   "name": "Songbook Band",
-  "version": "1.0.1.24",
-  "releasedAt": "2026-09-11",
+  "version": "1.0.1.26",
+  "releasedAt": "2026-09-18",
   "releaseUrl": "https://songbook.lyruma.app",
-  "notes": "Clean lead sheet redesign: [Section] headers, chord pills, Nur Text / lyrics-only toggle in editor and Set play; stage-readable spacing.",
+  "notes": "Chord view vs LeadSheet: readable German lyrics in Akkorde; real MusicXML notation in LeadSheet. ORIGINAL / AKKORDE / LEADSHEET tabs. No default 120 BPM.",
   "channel": "web",
   "canReload": true
 }
