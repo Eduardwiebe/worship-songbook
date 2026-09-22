@@ -8,6 +8,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { randomUUID } from 'node:crypto'
 import { createAuth, initializeAuth } from './auth.mjs'
 import { execFile } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { promisify } from 'node:util'
 import {
   chordTokens,
@@ -59,6 +60,7 @@ import {
 } from './lib/originalOnly.mjs'
 import { normalizeSheetColumns, renderChartHtmlDocument } from './lib/chartHtml.mjs'
 const execFileAsync=promisify(execFile)
+const SERVER_DIR = dirname(fileURLToPath(import.meta.url))
 
 const OCR_PYTHON = process.env.SONGBOOK_OCR_PYTHON || '/var/www/songbook/.venv-ocr/bin/python'
 const OCR_SCRIPT = '/var/www/songbook/ocr_structured.py'
@@ -401,6 +403,54 @@ async function extractPdfPages(pdfPath, selectedPages, outputPath) {
   }
 }
 
+function scanPdfScript() {
+  return process.env.SONGBOOK_SCAN_SCRIPT || join(SERVER_DIR, 'scan_to_pdf.py')
+}
+
+function scanPythonCandidates() {
+  if (process.env.SONGBOOK_PYTHON) return [process.env.SONGBOOK_PYTHON]
+  const candidates = []
+  if (existsSync(OCR_PYTHON)) candidates.push(OCR_PYTHON)
+  candidates.push('/usr/bin/python3')
+  return candidates
+}
+
+function scanConvertErrorMessage(error) {
+  const detail = `${error?.stderr || ''}\n${error?.stdout || ''}\n${error?.message || ''}`
+  console.error('scan_to_pdf failed:', detail.slice(0, 2000))
+  if (/No module named ['"]PIL['"]/i.test(detail)) {
+    return 'Die Scan-Seiten konnten nicht als PDF gespeichert werden (Bildbibliothek Pillow fehlt auf dem Server).'
+  }
+  if (/Bildformat|cannot identify image|UnidentifiedImage/i.test(detail)) {
+    return 'Bildformat wird nicht unterstützt. Bitte JPEG oder PNG verwenden.'
+  }
+  return 'Die Scan-Seiten konnten nicht als Original-PDF gespeichert werden.'
+}
+
+/** Page-detect, deskew, and write an Original PDF. Pillow only — OpenCV is not used. */
+async function runScanToPdf(outputPath, inputs) {
+  const script = scanPdfScript()
+  const candidates = scanPythonCandidates()
+  let lastError = null
+  for (let index = 0; index < candidates.length; index += 1) {
+    const python = candidates[index]
+    try {
+      const result = await execFileAsync(python, [script, outputPath, ...inputs], { maxBuffer: 20 * 1024 * 1024, timeout: 90000 })
+      if (result?.stderr) console.log(String(result.stderr).slice(0, 800))
+      return
+    } catch (error) {
+      lastError = error
+      const detail = `${error?.stderr || ''}\n${error?.message || ''}`
+      const retryable = error?.code === 'ENOENT' || /No module named ['"]PIL['"]/i.test(detail)
+      if (retryable && index < candidates.length - 1) continue
+      break
+    }
+  }
+  const wrapped = new Error(scanConvertErrorMessage(lastError))
+  wrapped.statusCode = 422
+  throw wrapped
+}
+
 async function textToReferencePdf(text, outputPath, title = 'Lead Sheet') {
   const dir = await mkdtemp(join(tmpdir(), 'songbook-text-pdf-'))
   try {
@@ -433,7 +483,7 @@ async function textToReferencePdf(text, outputPath, title = 'Lead Sheet') {
       await execFileAsync('/usr/bin/python3', [pyPath], { maxBuffer: 10 * 1024 * 1024, timeout: 30000 })
       pagePaths.push(pngPath)
     }
-    await execFileAsync('/usr/bin/python3', ['/var/www/songbook/scan_to_pdf.py', outputPath, ...pagePaths], { maxBuffer: 30 * 1024 * 1024, timeout: 90000 })
+    await runScanToPdf(outputPath, pagePaths)
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
@@ -1585,12 +1635,12 @@ http.createServer(async (req,res) => { try {
   if(req.method==='POST'&&url.pathname==='/api/scans'){
     const request=new Request(url,{method:'POST',headers:req.headers,body:Readable.toWeb(req),duplex:'half'})
     const form=await request.formData()
+    const pages=form.getAll('pages')
+    const pdf=form.get('pdf')
     const title=preferSongTitle({
       hint:String(form.get('title')||'').trim(),
       filename: (pdf && typeof pdf !== 'string') ? String(pdf.name || '') : String(form.get('title')||'').trim(),
     })
-    const pages=form.getAll('pages')
-    const pdf=form.get('pdf')
     const textRaw=form.get('text')
     const selectedPagesRaw=String(form.get('selectedPages')||'').trim()
     let selectedPages=[]
@@ -1610,7 +1660,13 @@ http.createServer(async (req,res) => { try {
 
     if(typeof textRaw==='string' && textRaw.trim()){
       const rawText=String(textRaw)
-      await textToReferencePdf(rawText,path,title)
+      try{
+        await textToReferencePdf(rawText,path,title)
+      }catch(error){
+        await unlink(path).catch(()=>{})
+        if(error?.statusCode===422) return json(res,422,{error:error.message})
+        throw error
+      }
       fileSize=Buffer.byteLength(rawText,'utf8')
       artist='Text-Import'
       const printed=extractPrintedMetadataFromText(rawText)
@@ -1663,7 +1719,11 @@ http.createServer(async (req,res) => { try {
           inputs.push(input)
         }
         // Detect the sheet, deskew, and crop (VisionKit photos already fill the frame and stay full-bleed).
-        await execFileAsync('/usr/bin/python3',['/var/www/songbook/scan_to_pdf.py',path,...inputs],{maxBuffer:20*1024*1024,timeout:90000})
+        await runScanToPdf(path, inputs)
+      }catch(error){
+        await unlink(path).catch(()=>{})
+        if(error?.statusCode===422) return json(res,422,{error:error.message})
+        throw error
       }finally{
         await rm(dir,{recursive:true,force:true})
       }

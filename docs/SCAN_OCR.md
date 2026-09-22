@@ -5,7 +5,8 @@
 | Platform | Capture |
 |----------|---------|
 | **iOS native** | Apple **VisionKit** `VNDocumentCameraViewController` via Tauri plugin `document-scanner` — edge detect, crop, perspective correction, multi-page |
-| Desktop / web / fallback | HTML `<input type="file" accept="image/*">` (camera or gallery) |
+| **Web / PWA / desktop** | Live document camera (`LiveDocumentCamera`): `getUserMedia` preview, blue page quadrilateral, auto-capture when the sheet is steady, then a deskewed preview. Shutter always available. |
+| Gallery / simple-camera fallback | HTML `<input type="file" accept="image/*">`. Gallery photos are deskewed after the fact. If the live camera is missing or denied, the simple camera input is the fallback. |
 
 Frontend: `app/src/documentScanner.js` → `plugin:document-scanner|scan`  
 Plugin: `app/src-tauri/plugins/document-scanner/` (Swift + Rust)

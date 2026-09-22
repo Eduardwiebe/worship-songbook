@@ -1429,3 +1429,114 @@ a.auth-install-button {
 }
 .scan-pages article.is-detecting .scan-detect-badge { background: rgba(24, 31, 38, .78); }
 .scan-pages article.is-plain .scan-detect-badge { background: rgba(70, 84, 96, .9); }
+
+.live-scan {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  background: #05080d;
+  color: #f3f7fb;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+.live-scan-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 10px 12px 8px;
+}
+.live-scan-close {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgba(255,255,255,.12);
+  flex: 0 0 auto;
+}
+.live-scan-status {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+}
+.live-scan-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: #000;
+  overflow: hidden;
+}
+.live-scan-stage video,
+.live-scan-preview,
+.live-scan-overlay,
+.live-scan-flash {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.live-scan-stage video,
+.live-scan-preview {
+  object-fit: contain;
+  background: #000;
+}
+.live-scan-overlay { pointer-events: none; }
+.live-scan-stage .is-hidden { visibility: hidden; }
+.live-scan-flash {
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .16s ease;
+}
+.live-scan-flash.is-on { opacity: .88; }
+.live-scan-bottom {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 12px 16px 18px;
+}
+.live-scan-bottom p,
+.live-scan-bottom small {
+  margin: 0;
+  max-width: 36rem;
+  text-align: center;
+  line-height: 1.35;
+}
+.live-scan-bottom p { color: #d5e0ea; font-size: 14px; }
+.live-scan-bottom small { color: #8ea0b3; font-size: 12px; }
+.live-scan-shutter {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  border: 4px solid #fff;
+  background: radial-gradient(circle at 50% 42%, #9ecbff, #2d6fe4 62%, #1a4fae);
+  box-shadow: 0 0 0 6px rgba(255,255,255,.16), 0 10px 24px rgba(20, 70, 160, .35);
+}
+.live-scan-shutter:disabled { opacity: .55; }
+.live-scan-shutter:active:not(:disabled) { transform: scale(.97); }
+.live-scan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  width: min(100%, 560px);
+}
+.live-scan-actions button {
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 12px;
+  padding: 13px 14px;
+  color: #f4f7fb;
+  background: rgba(255,255,255,.08);
+  font: inherit;
+  font-weight: 800;
+}
+.live-scan-actions button.primary {
+  color: #1c160a;
+  border: 0;
+  background: linear-gradient(135deg, #f1d38d, #c89a3e);
+}
+.live-scan .form-error { margin: 0; color: #ffb4b4; text-align: center; }

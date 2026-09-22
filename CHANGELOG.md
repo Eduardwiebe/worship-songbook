@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.2 — 2026-09-22
+
+- **Scan save 500:** `POST /api/scans` read `pdf` before the `const` declaration, so every save (including a page that already showed “Begradigt”) threw and came back as “Interner Serverfehler.” The form fields are read first. If `scan_to_pdf.py` still fails, the API returns 422 with a German message instead of a generic 500.
+- **Scan PDF deps:** Deskew stays on Pillow (no OpenCV). The server uses the OCR virtualenv when that interpreter exists, because that environment already installs Pillow, then falls back to `/usr/bin/python3`. A bad image or a missing library no longer aborts the process with an uncaught traceback. Oversized phone photos are capped so the PDF step cannot blow up memory.
+- **Live document camera:** “Seite scannen” / “Nächste Seite scannen” opens the camera with a live page outline (blue fill, shadow, and corners). When the sheet holds still it captures automatically; the shutter is always there. The next screen is the cropped, straightened page. Gallery, PDF, and text import are unchanged, and gallery photos are still deskewed after import. iOS VisionKit stays the native scanner. Original-only: no Akkorde, LeadSheet, or Tonart ändern.
+
+
 ## 1.1.1 — 2026-09-22
 
 - **Document scan:** Camera and gallery photos of Original lead sheets are page-detected, perspective-deskewed, and cropped before they are stored (Adobe Scan style). The scan dialog shows “Seite wird erkannt” and then “Begradigt”, or “Ganzes Foto” when no reliable page edge is found.

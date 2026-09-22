@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { NavLink, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Home, Music2, ListMusic, Users, CalendarDays, Plus, Settings, Search,
-  Upload, FileMusic, Play, Pause, Clock3, MoreHorizontal, X, FileText, CheckCircle2, Eye, ArrowUp, ArrowDown, Trash2, ChevronLeft, ChevronRight, Pencil, Printer, Download, Share2, Maximize2, UserRound, LogOut, LockKeyhole, Heart, Menu, Copy, Link2,
+  Upload, FileMusic, Play, Pause, Clock3, MoreHorizontal, X, FileText, CheckCircle2, Eye, ArrowUp, ArrowDown, Trash2, ChevronLeft, ChevronRight, Pencil, Printer, Download, Share2, Maximize2, UserRound, LogOut, LockKeyhole, Heart, Menu, Copy, Link2, Camera,
 } from 'lucide-react'
 import './App.css'
 import './extra.css'
@@ -29,6 +29,8 @@ import { playCajonHit, playCajonHtmlHit, preloadCajonSample, unlockCajonAudio, u
 import { installNativeDesktopChrome } from './nativeDesktop'
 import { ModalBackdrop } from './ModalBackdrop'
 import { straightenScanFile } from './documentDetect'
+import { LiveDocumentCamera } from './liveDocumentCamera'
+import { openEnvironmentCamera } from './openEnvironmentCamera'
 import { GuitarTunerModal } from './GuitarTunerModal'
 import { blurActiveElement, dismissModal, lockBodyScroll, scheduleViewportRestore, unlockBodyScroll } from './modalLock'
 import { useAvoidMobileAutoFocus } from './useMobileFormFocus'
@@ -1447,9 +1449,12 @@ function ScanDialog({onClose,onSave}) {
   const [error,setError]=useState('')
   const [nativeScanner,setNativeScanner]=useState(false)
   const [scanningNative,setScanningNative]=useState(false)
+  const [liveStream,setLiveStream]=useState(null)
+  const liveStreamRef=useRef(null)
 
   useEffect(()=>{let alive=true;import('./documentScanner').then(m=>m.isNativeDocumentScannerAvailable()).then(ok=>{if(alive)setNativeScanner(ok)}).catch(()=>{});return()=>{alive=false}},[])
   useEffect(()=>()=>{pages.forEach((page)=>URL.revokeObjectURL(page.url))},[])
+  useEffect(()=>()=>{liveStreamRef.current?.getTracks()?.forEach((track)=>track.stop())},[])
 
   const clearImagePages=()=>setPages((current)=>{current.forEach((page)=>URL.revokeObjectURL(page.url));return []})
   const resetPdf=()=>{setPdfFile(null);setPdfPages([]);setSelectedPdfPages([])}
@@ -1496,6 +1501,16 @@ function ScanDialog({onClose,onSave}) {
     })
     slice.forEach(straightenPage)
   }
+  const addReady=(file,detected)=>{
+    setMode('images')
+    resetPdf()
+    setPasteText('')
+    setPages((current)=>{
+      if(current.length>=8)return current
+      const page={id:crypto.randomUUID(),file,url:URL.createObjectURL(file),detect:detected?'straightened':'original'}
+      return [...current,page]
+    })
+  }
   const remove=id=>setPages(current=>{const page=current.find(item=>item.id===id);if(page)URL.revokeObjectURL(page.url);return current.filter(item=>item.id!==id)})
   const move=(index,offset)=>setPages(current=>{const target=index+offset;if(target<0||target>=current.length)return current;const next=[...current];[next[index],next[target]]=[next[target],next[index]];return next})
 
@@ -1510,7 +1525,30 @@ function ScanDialog({onClose,onSave}) {
     }catch(e){setError(e.message||t('scan.failed'));cameraRef.current?.click()}
     finally{setScanningNative(false)}
   }
-  const openPrimaryCapture=()=>{if(nativeScanner)openNativeScanner();else cameraRef.current?.click()}
+  const closeLive=()=>{
+    liveStreamRef.current?.getTracks()?.forEach((track)=>track.stop())
+    liveStreamRef.current=null
+    setLiveStream(null)
+  }
+  const openLiveCamera=async()=>{
+    setError('')
+    if(!navigator.mediaDevices?.getUserMedia){
+      setError(t('scan.liveUnsupported'))
+      cameraRef.current?.click()
+      return
+    }
+    try{
+      const stream=await openEnvironmentCamera()
+      closeLive()
+      liveStreamRef.current=stream
+      setLiveStream(stream)
+    }catch(error){
+      const denied=error?.name==='NotAllowedError'||error?.name==='PermissionDeniedError'
+      setError(denied?t('scan.liveDenied'):t('scan.liveUnsupported'))
+      if(!denied)cameraRef.current?.click()
+    }
+  }
+  const openPrimaryCapture=()=>{if(nativeScanner)openNativeScanner();else openLiveCamera()}
 
   const loadPdfPreview=async(file)=>{
     setPreviewing(true);setError('')
@@ -1584,7 +1622,7 @@ function ScanDialog({onClose,onSave}) {
     <input ref={galleryRef} className="file-input" type="file" accept="image/*" multiple onChange={event=>{add(event.target.files);event.target.value=''}}/>
     <input ref={fileRef} className="file-input" type="file" accept="image/*,application/pdf,text/plain,.pdf,.txt" onChange={event=>{onPickFiles(event.target.files);event.target.value=''}}/>
     <div className="scan-actions scan-actions-extended">
-      <button type="button" className="scan-camera-button" disabled={scanningNative||pages.length>=8} onClick={openPrimaryCapture}><FileText size={24}/><span><strong>{scanningNative?t('scan.scanning'):(pages.length?t('scan.nextPage'):(nativeScanner?t('scan.openDocumentScanner'):t('scan.openCamera')))}</strong><small>{nativeScanner?t('scan.visionKitHint'):t('scan.upTo8')}</small></span></button>
+      <button type="button" className="scan-camera-button" disabled={scanningNative||pages.length>=8} onClick={openPrimaryCapture}>{nativeScanner?<FileText size={24}/>:<Camera size={24}/>}<span><strong>{scanningNative?t('scan.scanning'):(pages.length?t('scan.nextPage'):(nativeScanner?t('scan.openDocumentScanner'):t('scan.openCamera')))}</strong><small>{nativeScanner?t('scan.visionKitHint'):t('scan.upTo8')}</small></span></button>
       <button type="button" className="scan-gallery-button" onClick={()=>galleryRef.current?.click()}><Upload size={21}/>{t('scan.pickImages')}</button>
       <button type="button" className="scan-gallery-button" onClick={()=>fileRef.current?.click()} disabled={previewing}>{previewing?t('scan.previewing'):t('scan.pickFile')}</button>
       <button type="button" className={`scan-gallery-button${mode==='text'?' selected':''}`} onClick={()=>{setMode('text');clearImagePages();resetPdf()}}>{t('scan.pasteText')}</button>
@@ -1614,7 +1652,9 @@ function ScanDialog({onClose,onSave}) {
     {error&&<p className="form-error">{error}</p>}
     <div className="scan-processing-note"><CheckCircle2 size={18}/><span><strong>{detecting?t('scan.detecting'):t('scan.autoProcess')}</strong><small>{detecting?t('scan.detectingHint'):t('scan.processHintExtended')}</small></span></div>
     <div className="modal-actions"><button className="cancel-button" onClick={close} disabled={saving}>{t('common.back')}</button><button className="add-button compact" disabled={!canSubmit||saving||previewing} onClick={submit}><Upload size={18}/>{saving?t('scan.processing'):detecting?t('scan.detecting'):t('scan.create')}</button></div>
-  </section></ModalBackdrop>
+  </section>
+  {liveStream&&<LiveDocumentCamera stream={liveStream} canTakeAnother={pages.length<7} onAccept={(file,detected,keepOpen)=>{addReady(file,detected);if(!keepOpen)closeLive()}} onClose={closeLive}/>}
+  </ModalBackdrop>
 }
 
 
