@@ -10,6 +10,9 @@ import {
 } from '../lib/leadsheetReconstruct.mjs'
 import { rehydrateLyricTokens, lyricTokensLookSyllabic } from '../lib/syllableRehydrate.mjs'
 import { preferSongTitle, isMetadataText, extractSongMetadata, filterMetadataLines, keyFromLeadSheetFilename } from '../lib/songMetadata.mjs'
+import { softFormatChordChart, parseChartBlocks, chordLyricToWordStacks } from '../lib/chartLayout.mjs'
+import { renderChartHtmlDocument } from '../lib/chartHtml.mjs'
+import { parseTempoBpm } from '../lib/leadsheetAnalysis.mjs'
 import { lyricsToHomrNoteVerified, lyrics_to_homr_note_verified, assertRealNoteLinkage } from '../lib/lyricsToHomrNotes.mjs'
 import { buildLeadSheetMusicXml, transposeMusicXml, classifyChordPlacement, musicXmlHasMelody } from '../lib/musicxmlLeadSheet.mjs'
 import { transposeEditorText } from '../lib/editorKey.mjs'
@@ -25,6 +28,7 @@ assert(preferSongTitle({ filename: 'Herr ich komme zu dir-lead-A.pdf' }) === 'He
 assert(preferSongTitle({ filename: 'majestaet-lead-G.pdf' }) === 'majestaet', 'strip majestaet-lead-G')
 assert(preferSongTitle({ filename: 'Wo ich auch stehe-lead-C.pdf' }) === 'Wo ich auch stehe', 'strip -lead-C')
 assert(preferSongTitle({ nativeTitle: 'Bahnt einen Weg unserm Gott', filename: 'Bahnt einen Weg unserm Gott-lead-G.pdf' }) === 'Bahnt einen Weg unserm Gott', 'prefer native title')
+assert(preferSongTitle({ nativeTitle: 'Bahnt einen Weg unserm Gott-lead-G' }) === 'Bahnt einen Weg unserm Gott', 'strip suffix without filename')
 assert(keyFromLeadSheetFilename('Bahnt einen Weg unserm Gott-lead-G.pdf') === 'G', 'key from -lead-G')
 assert(keyFromLeadSheetFilename('Heilig für immer-lead-Bb.pdf') === 'Bb', 'key from -lead-Bb')
 console.log('OK titles')
@@ -84,6 +88,96 @@ const ehre = rehydrateLyricTokens([
 assert(ehre === 'Ehre', `Ehre got ${ehre}`)
 assert(lyricTokensLookSyllabic(syllables), 'syllabic detector')
 console.log('OK syllable rehydrate')
+
+// SongSelect lead sheet: syllables are space-separated on the chord-view path.
+// LeadSheet/MusicXML must keep syllabic underlay (asserted later on the hybrid page).
+const songSelectFlat = `
+Bahnt einen Weg unserm Gott-lead-G
+=160
+**=160**
+
+1. Bahnt ei nen Weg un serm Gott,
+2. Bahnt ei nen Weg un serm Gott,
+     C          D  Em    G          C
+löst aus der Not. Er ist der Kö nig:
+wählt als sein Volk, mit ihm zu halten
+     Em        Am         G          C
+Er hat am Kreuz ge siegt durch seinen
+Öff net die Her zen und macht euch
+     Hm      C           Dsus       G
+Reich kom me, o Herr, er he be dich
+     D        G          Hm         C
+Dir sei Eh re und Ruhm und Ma jes tät!
+     Am
+ne Herr lich keit
+     C G
+hier.
+
+For use solely with the SongSelect
+CCLI License # 2243716
+Lothar Text und Kosse Musik:
+
+[Refrain]
+G
+Dein
+Dsus
+Macht.
+D/F
+keit ist
+uns er
+ni ge.
+wig keit.
+`.trim()
+
+assert(parseTempoBpm(songSelectFlat) === 160, `=160 parsed, got ${parseTempoBpm(songSelectFlat)}`)
+assert(parseTempoBpm('**=160**') === 160, 'bold =160')
+const playable = softFormatChordChart(songSelectFlat)
+assert(!/(^|\n)\s*=\s*160\b/.test(playable), `tempo leaked:\n${playable}`)
+assert(!/lead-G/i.test(playable), `filename junk:\n${playable}`)
+assert(!/CCLI|SongSelect|Kosse Musik/i.test(playable), `footer leaked:\n${playable}`)
+assert(/\[Refrain\]/.test(playable), 'section kept')
+assert(/\[Strophe\]|1\. Bahnt einen Weg unserm Gott/.test(playable), `verse line:\n${playable}`)
+for (const word of ['einen', 'unserm', 'König', 'gesiegt', 'Öffnet', 'Herzen', 'komme', 'erhebe', 'Ehre', 'Majestät', 'Herrlichkeit', 'unser']) {
+  assert(playable.includes(word), `missing ${word} in:\n${playable}`)
+}
+assert(!/ei nen|un serm|Kö nig|Her zen|Eh re|kom me|ge siegt|Öff net|Ma jes|Herr lich/.test(playable), `syllables still split:\n${playable}`)
+assert(!/^Dein$/m.test(playable) && !/^Macht\.$/m.test(playable), `vertical token lines:\n${playable}`)
+const refrainAt = playable.indexOf('[Refrain]')
+const refrain = playable.slice(refrainAt)
+assert(/Dein/.test(refrain) && /Macht/.test(refrain), `refrain words:\n${refrain}`)
+const refrainLines = refrain.split('\n').filter((line) => /Dein/.test(line) && /Macht/.test(line))
+assert(refrainLines.length === 1, `Dein and Macht must share a lyric line:\n${refrain}`)
+const refrainChord = refrain.split('\n')[refrain.split('\n').indexOf(refrainLines[0]) - 1] || ''
+assert(/\bG\b/.test(refrainChord) && /Dsus/.test(refrainChord) && /D\/F/.test(refrainChord), `refrain chords ${refrainChord}`)
+const stacks = chordLyricToWordStacks(refrainChord, refrainLines[0])
+const byWord = Object.fromEntries(stacks.filter((stack) => stack.chord).map((stack) => [stack.word.replace(/[.,:;!?]+$/g, ''), stack.chord]))
+assert(byWord.Dein === 'G', `G above Dein, got ${JSON.stringify(stacks)}`)
+assert(byWord.Macht === 'Dsus', `Dsus above Macht, got ${JSON.stringify(stacks)}`)
+assert(/wählt als sein Volk/.test(playable), 'verse 2 lyric kept')
+const verse2Idx = playable.split('\n').findIndex((line) => /wählt als sein Volk/.test(line))
+const verse2Chord = playable.split('\n')[verse2Idx - 1] || ''
+assert(isChordLineSafe(verse2Chord), `verse 2 needs chords above, got ${JSON.stringify(verse2Chord)}\n${playable}`)
+const blocks = parseChartBlocks(playable, { maxCols: 28 })
+const longPairs = blocks.filter((block) => block.kind === 'pair')
+assert(longPairs.length >= 2, 'pairs for chord+lyric')
+assert(longPairs.every((block) => (block.lyricLine || '').length <= 36), `wrap overflow:\n${longPairs.map((b) => b.lyricLine).join(' | ')}`)
+const html = renderChartHtmlDocument({
+  title: 'Bahnt einen Weg unserm Gott-lead-G',
+  targetKey: 'G',
+  content: songSelectFlat,
+  fontSize: 16,
+  bpm: 160,
+})
+assert(html.includes('Bahnt einen Weg unserm Gott') && !html.includes('-lead-G'), 'html title cleaned')
+assert(html.includes('einen') && html.includes('unserm') && html.includes('König'), 'html merged words')
+assert(!html.includes('ei nen') && !html.includes('=160') && !/CCLI/.test(html), 'html noise gone')
+assert(/min-width:0/.test(html) && /flex-wrap:wrap/.test(html) && /white-space:pre-wrap/.test(html), 'html wraps instead of clipping')
+assert(/width:100%/.test(html), 'chart width constrained')
+console.log('OK SongSelect flat syllable chart')
+
+function isChordLineSafe(line) {
+  return /[A-G]/.test(line) && !/[a-zäöü]{3,}/u.test(line)
+}
 
 const bahntPage = {
   engine: 'hybrid-test',
