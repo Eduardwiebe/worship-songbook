@@ -1,9 +1,9 @@
 {
   "name": "Songbook Band",
-  "version": "1.0.1.26",
-  "releasedAt": "2026-09-18",
+  "version": "1.0.1.27",
+  "releasedAt": "2026-09-22",
   "releaseUrl": "https://songbook.lyruma.app",
-  "notes": "Chord view vs LeadSheet: readable German lyrics in Akkorde; real MusicXML notation in LeadSheet. ORIGINAL / AKKORDE / LEADSHEET tabs. No default 120 BPM.",
+  "notes": "Akkordansicht merges SongSelect syllables into words, wraps on narrow screens, and drops tempo/CCLI noise. LeadSheet stays syllabic MusicXML. Re-analyze a PDF to store the cleaned chart.",
   "channel": "web",
   "canReload": true
 }

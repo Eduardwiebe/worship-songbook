@@ -415,6 +415,7 @@ export default {
     preparing: "Lied wird vorbereitet …",
     protected: "geschützt",
     reanalyze: "Erneut analysieren",
+    reanalyzeHint: "Liest das Original-PDF neu ein und speichert eine spielbare Akkordansicht. Das LeadSheet bleibt Notensatz.",
     resetFont: "Schrift zurücksetzen",
     songTitle: "Songtitel",
     tempoAria: "Tempo in BPM",

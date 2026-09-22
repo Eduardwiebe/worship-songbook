@@ -320,6 +320,7 @@ export const STRINGS = {
     en: 'Automatic recognition is uncertain. Please review title, lyrics, and chords manually — see the Original PDF tab for reference.',
   },
   'songs.reanalyze': { de: 'Erneut analysieren', en: 'Re-analyze' },
+  'songs.reanalyzeHint': { de: 'Liest das Original-PDF neu ein und speichert eine spielbare Akkordansicht. Das LeadSheet bleibt Notensatz.', en: 'Re-reads the original PDF and stores a playable chord chart. The lead sheet stays notation.' },
   'songs.reanalyzing': { de: 'Analysiert erneut …', en: 'Re-analyzing …' },
   'songs.reuploadHint': {
     de: 'Kein Original-PDF vorhanden. Bitte den Song erneut über „Aus einem Buch scannen“ / Text / PDF-Scan importieren.',

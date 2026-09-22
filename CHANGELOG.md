@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.1.27 — 2026-09-22
+
+- **Akkordansicht from flat SongSelect text:** space-separated OCR syllables (`Bahnt ei nen Weg un serm Gott`, `Öff net die Her zen`) merge into readable words, and chord columns move with those words. One-token-per-line stacks (`G` / `Dein` / `Dsus` / `Macht.`) collapse into one chord row.
+- **Stacked verses:** SongSelect prints Strophe 1 and Strophe 2 under the same staff. Akkordansicht expands that into singing order **[Strophe 1] → [Refrain] → [Strophe 2] → [Refrain]**. The first line of each verse keeps the opening `G` (and the rest of that chord run). Words are not zipper-merged across the two verses (`erlöst` stays in Strophe 1, `erwählt` in Strophe 2).
+- **Wrap:** chart sheets use `min-width: 0`, `flex-wrap`, and `pre-wrap` so long lines wrap inside a ~390px phone width instead of clipping mid-word.
+- **Noise:** `=160` / `**=160**` is read as BPM and removed from the lyric body. CCLI, SongSelect terms, and “Text und … Musik” credit lines stay out of the chart. Section markers (`[Strophe]`, `[Refrain]`) stay. Titles drop a `-lead-G` suffix even when no filename is stored.
+- **LeadSheet is unchanged:** MusicXML underlay keeps syllabic tokens (`ei`, `nen`). Chord-view merging never feeds the notation path.
+- **Refresh stored songs:** opening AKKORDE already repairs the text you see. To write the cleaned snapshot, title, and BPM back into the database, open the song on **AKKORDE** and tap **Erneut analysieren** (needs the original PDF). Without a PDF, import the file again. Re-analyze does not rebuild the LeadSheet from the merged words.
+
+
 ## 1.0.1.26 — 2026-09-18
 
 - **Chord view vs LeadSheet:** two reconstructions. Akkorde shows readable German words (syllables rehydrated from native PDF words/boxes/baselines); LeadSheet is MusicXML + OpenSheetMusicDisplay (chords above staff, melody, syllabic lyrics under notes) — never faked from chord-view text.

@@ -235,8 +235,10 @@ const songRows = (ownerId,bandId='') => (bandId
     ? db.prepare('SELECT target_key FROM song_variants WHERE song_id=? AND snapshot_id=? ORDER BY created_at DESC').all(song.id, trust.snapshotId).map((row) => row.target_key)
     : []
   const bpm = Number.isFinite(Number(song.bpm)) && Number(song.bpm) > 0 ? Number(song.bpm) : null
+  const title = preferSongTitle({ nativeTitle: song.title, filename: song.fileName, hint: song.title })
   return {
     ...song,
+    title: title || song.title,
     ...trust,
     bpm,
     isProtected: Boolean(song.isProtected),

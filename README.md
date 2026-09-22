@@ -30,6 +30,21 @@ The production deployment serves the built React app and proxies `/api` to the N
 
 User-generated content (imported SongSelect/CCLI PDFs, scans, profile photos, band logos, SQLite data) is **not** included in this repository and must never be committed.
 
+Production UI is https://songbook.lyruma.de. Native API hosts still use `songbook.lyruma.app` (see `app/src/appMeta.js`).
+
+### Refresh a broken chord chart
+
+Akkordansicht and LeadSheet are separate reconstructions. Chord view merges SongSelect syllables into words; LeadSheet stays MusicXML with syllabic underlay.
+
+Opening **AKKORDE** repairs syllable spacing, wrap, and tempo/CCLI noise in the chart you see. A SongSelect page that stacks verse 1 and verse 2 under one staff is expanded into singing order only when the text is analyzed again: **Strophe 1 → Refrain → Strophe 2 → Refrain**, with chords on the first line of each verse.
+
+To store that repair (snapshot text, title, BPM) for an existing song:
+
+1. Open the song, switch to **AKKORDE**, and tap **Erneut analysieren**. That re-reads the original PDF, replaces the verified snapshot, and keeps LeadSheet as notation.
+2. If the PDF is no longer attached, import the file again (scan or PDF upload).
+
+`=160` in a stored overlay is already parsed as BPM for the header, even before re-analyze.
+
 ## Architecture
 
 ```

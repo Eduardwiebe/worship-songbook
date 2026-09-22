@@ -415,6 +415,7 @@ export default {
     preparing: "Preparing song …",
     protected: "protected",
     reanalyze: "Re-analyze",
+    reanalyzeHint: "Re-reads the original PDF and stores a playable chord chart. The lead sheet stays notation.",
     resetFont: "Reset font",
     songTitle: "Song title",
     tempoAria: "Tempo in BPM",
