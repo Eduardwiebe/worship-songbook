@@ -52,6 +52,11 @@ import {
   snapshotStateResponse,
   snapshotSummaryForSong,
 } from './lib/songTrust.mjs'
+import {
+  ORIGINAL_ONLY_SONGBOOK,
+  extractPrintedMetadataFromText,
+  originalOnlyDisabledMessage,
+} from './lib/originalOnly.mjs'
 const execFileAsync=promisify(execFile)
 
 const OCR_PYTHON = process.env.SONGBOOK_OCR_PYTHON || '/var/www/songbook/.venv-ocr/bin/python'
@@ -248,7 +253,7 @@ const songRows = (ownerId,bandId='') => (bandId
     youtubeUrl: song.youtubeUrl || '',
     youtubeVideoId: song.youtubeVideoId || '',
     youtubeSource: song.youtubeSource || '',
-    hasLeadSheet: Boolean(song.musicxml),
+    hasLeadSheet: ORIGINAL_ONLY_SONGBOOK ? false : Boolean(song.musicxml),
     musicxml: undefined,
     composer: song.composer || '',
     translator: song.translator || '',
@@ -481,7 +486,60 @@ async function readNativePdfTokens(pdfPath) {
   }
 }
 
+/** Plain PDF text for printed metadata only (no chord/layout reconstruction). */
+async function extractPdfPlainText(pdfPath) {
+  try {
+    const result = await execFileAsync('/usr/bin/pdftotext', ['-layout', '-nopgbrk', pdfPath, '-'], { maxBuffer: 20 * 1024 * 1024 })
+    return String(result.stdout || '')
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Original-only import analysis: store nothing playable as chords/MusicXML.
+ * Detect key + BPM only when printed on the sheet; otherwise leave blank.
+ */
+async function extractOriginalSheetMetadata(pdfPath, { forceOcr = false, titleHint = '', filename = '' } = {}) {
+  let text = await extractPdfPlainText(pdfPath)
+  let method = 'pdf-text'
+  if ((!text.trim() && forceOcr) || (forceOcr && !inferKeyFromLeadsheet(text) && !parseTempoBpm(text))) {
+    const legacy = await ocrPdfPagesLegacy(pdfPath).catch((error) => {
+      console.error('metadata OCR failed:', error?.message || error)
+      return null
+    })
+    if (legacy?.text) {
+      text = legacy.text
+      method = legacy.method || 'ocr'
+    }
+  }
+  const printed = extractPrintedMetadataFromText(text)
+  const title = preferSongTitle({ nativeTitle: '', filename, hint: titleHint })
+  return {
+    text,
+    key: printed.key || '',
+    title,
+    method: `original-meta/${method}`,
+    chordCount: 0,
+    chordLines: 0,
+    quality: { score: 0, needsReview: false },
+    needsReview: false,
+    musicxml: '',
+    hasLeadSheet: false,
+    metadata: {
+      title,
+      bpm: printed.bpm,
+      key: printed.key || '',
+    },
+    bpm: printed.bpm,
+  }
+}
+
+/** @deprecated chord/LeadSheet reconstruction — kept behind ORIGINAL_ONLY_SONGBOOK gate for library tests only */
 async function analyzeSongPdf(pdfPath, { forceScan = false, titleHint = '', filename = '' } = {}) {
+  if (ORIGINAL_ONLY_SONGBOOK) {
+    return extractOriginalSheetMetadata(pdfPath, { forceOcr: forceScan, titleHint, filename })
+  }
   const native = await readNativePdfTokens(pdfPath)
   const nativeTokens = (native.pages || []).flatMap((page) => page.tokens || [])
   const nativeRebuild = nativeTokens.length
@@ -592,7 +650,6 @@ async function analyzeSongPdf(pdfPath, { forceScan = false, titleHint = '', file
   }
 
   const best = pickBestTextCandidate(candidates.map((c) => ({ text: c.text, method: c.method })))
-  // Chord view prefers hybrid reconstruction (native words + OMR geometry).
   if (reconstructed?.text) {
     const structuredScore = reconstructed.quality?.score ?? 0
     if (structuredScore >= (best.quality?.score ?? 0) - 8) {
@@ -639,6 +696,24 @@ async function analyzeSongPdf(pdfPath, { forceScan = false, titleHint = '', file
 }
 
 function finalizeScanResult(scanResult) {
+  if (ORIGINAL_ONLY_SONGBOOK) {
+    const text = String(scanResult?.text || '')
+    const printed = extractPrintedMetadataFromText(text)
+    return {
+      ...scanResult,
+      text,
+      key: printed.key || '',
+      musicxml: '',
+      hasLeadSheet: false,
+      needsReview: false,
+      bpm: printed.bpm,
+      metadata: {
+        ...(scanResult?.metadata || {}),
+        key: printed.key || '',
+        bpm: printed.bpm,
+      },
+    }
+  }
   if (!scanResult?.text) {
     return scanResult || { method: 'import_failed', needsReview: true, text: '', key: '' }
   }
@@ -669,7 +744,6 @@ ${text}`
 ${text}`
   }
   const qualityNeedsReview = Boolean(scanResult?.quality?.needsReview)
-  // Preserve quality warnings only when the original key remains unresolved/conflicting.
   const needsReview = Boolean(resolved.needsReview || !finalKey || (qualityNeedsReview && !resolved.key))
   return {
     ...scanResult,
@@ -686,8 +760,43 @@ function persistSongAnalysisFields(db, songId, result, { filename = '', fallback
     filename,
     hint: fallbackTitle,
   })
-  const parsedBpm = Number(meta.bpm)
+  const printedKey = normalizeEditorKey(result?.key || meta.key || '') || ''
+  const parsedBpm = Number(meta.bpm ?? result?.bpm)
   const trustedBpm = Number.isFinite(parsedBpm) && parsedBpm > 0 ? Math.round(parsedBpm) : null
+  if (ORIGINAL_ONLY_SONGBOOK) {
+    db.prepare(`
+      UPDATE songs
+      SET title=CASE WHEN ? != '' THEN ? ELSE title END,
+          artist=CASE WHEN ? != '' AND (artist IS NULL OR artist IN ('Importierte PDF','Gescannter Import','PDF-Import','Text-Import')) THEN ? ELSE artist END,
+          composer=?,
+          translator=?,
+          copyright=?,
+          ccli_song_number=?,
+          ccli_license=?,
+          musicxml='',
+          bpm=?,
+          song_key=CASE WHEN ? != '' THEN ? ELSE song_key END,
+          source_key=CASE WHEN ? != '' THEN ? ELSE source_key END
+      WHERE id=?
+    `).run(
+      title,
+      title,
+      meta.author || '',
+      meta.author || '',
+      meta.composer || '',
+      meta.translator || '',
+      meta.copyright || '',
+      meta.ccliSongNumber || '',
+      meta.ccliLicense || '',
+      trustedBpm,
+      printedKey,
+      printedKey || '–',
+      printedKey,
+      printedKey,
+      songId,
+    )
+    return
+  }
   db.prepare(`
     UPDATE songs
     SET title=CASE WHEN ? != '' THEN ? ELSE title END,
@@ -1435,10 +1544,21 @@ http.createServer(async (req,res) => { try {
     db.exec('BEGIN'); try { for (let i=0;i<files.length;i++) { const file=files[i]; const id=randomUUID(); const path=`${root}/pdfs/${id}.pdf`; await writeFile(path, Buffer.from(await file.arrayBuffer())); db.prepare('INSERT INTO songs (id,title,artist,file_name,file_size,pdf_path,sort_order,created_at,song_key,owner_id) VALUES (?,?,?,?,?,?,?,?,?,?)').run(id,preferSongTitle({hint:titles[i]||'',filename:file.name}),'Importierte PDF',file.name,file.size,path,base-i,new Date().toISOString(),'–',user.id);if(bandId)db.prepare('INSERT INTO band_songs VALUES (?,?)').run(bandId,id) } db.exec('COMMIT') } catch(e){db.exec('ROLLBACK');throw e}
     const createdSongs=songRows(user.id,bandId).slice(0,files.length)
     for (const song of createdSongs) {
+      if (ORIGINAL_ONLY_SONGBOOK) {
+        try {
+          const row = db.prepare('SELECT pdf_path,file_name,title FROM songs WHERE id=?').get(song.id)
+          if (row?.pdf_path) {
+            const meta = finalizeScanResult(await extractOriginalSheetMetadata(row.pdf_path, { forceOcr: false, titleHint: row.title || '', filename: row.file_name || '' }))
+            persistSongAnalysisFields(db, song.id, meta, { filename: row.file_name || '', fallbackTitle: row.title || '' })
+          }
+        } catch (error) {
+          console.error('bulk pdf metadata failed:', error?.message || error)
+        }
+      }
       queueResolveSongCover(db,{songId:song.id,title:song.title,artist:song.artist,key:song.key||song.preferredKey||'',root})
       queueResolveSongYoutube(db,{songId:song.id,title:song.title,artist:song.artist||''})
     }
-    return json(res,201,createdSongs) /* cover-bulk */
+    return json(res,201,songRows(user.id,bandId).slice(0,files.length)) /* cover-bulk */
   }
   if(req.method==='POST'&&url.pathname==='/api/scans/preview'){
     const request=new Request(url,{method:'POST',headers:req.headers,body:Readable.toWeb(req),duplex:'half'})
@@ -1488,18 +1608,20 @@ http.createServer(async (req,res) => { try {
     let forceScan=true
 
     if(typeof textRaw==='string' && textRaw.trim()){
-      const parsed=parseChordOverLyricsText(textRaw,{titleHint:title,injectTonart:true})
-      if(!parsed.text)return json(res,422,{error:'Aus dem Text konnte kein Lead-Sheet erkannt werden.'})
-      await textToReferencePdf(parsed.text,path,title)
-      fileSize=Buffer.byteLength(parsed.text,'utf8')
+      const rawText=String(textRaw)
+      await textToReferencePdf(rawText,path,title)
+      fileSize=Buffer.byteLength(rawText,'utf8')
       artist='Text-Import'
+      const printed=extractPrintedMetadataFromText(rawText)
       scanResult=finalizeScanResult({
-        text:parsed.text,
-        key:parsed.key,
-        method:parsed.method,
-        quality:parsed.quality,
-        needsReview:parsed.needsReview,
-        avgConfidence:parsed.chordConfidence||null,
+        text:rawText,
+        key:printed.key,
+        bpm:printed.bpm,
+        method:'original-meta/text',
+        quality:{score:0,needsReview:false},
+        needsReview:false,
+        musicxml:'',
+        metadata:{title,key:printed.key,bpm:printed.bpm},
       })
       forceScan=false
     }else if(pdf && typeof pdf!=='string'){
@@ -1550,12 +1672,14 @@ http.createServer(async (req,res) => { try {
 
     db.prepare('INSERT INTO songs (id,title,artist,file_name,file_size,pdf_path,sort_order,created_at,song_key,source_key,owner_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id,title,artist,fileName,fileSize,path,Date.now(),new Date().toISOString(),'–','',user.id)
     if(bandId)db.prepare('INSERT INTO band_songs VALUES (?,?)').run(bandId,id)
-    persistScanSnapshot(db,{
-      songId:id,
-      pdfPath:path,
-      documentHash:sha256(await readFile(path)),
-      result:scanResult||{method:forceScan?'scan_failed':'import_failed',needsReview:true},
-    })
+    if(!ORIGINAL_ONLY_SONGBOOK){
+      persistScanSnapshot(db,{
+        songId:id,
+        pdfPath:path,
+        documentHash:sha256(await readFile(path)),
+        result:scanResult||{method:forceScan?'scan_failed':'import_failed',needsReview:true},
+      })
+    }
     persistSongAnalysisFields(db,id,scanResult||{},{filename:fileName,fallbackTitle:title})
     const created=songRows(user.id,bandId).find(song=>song.id===id)
     queueResolveSongCover(db,{songId:id,title,artist,key:created?.key||created?.preferredKey||'',root})
@@ -1617,6 +1741,7 @@ http.createServer(async (req,res) => { try {
   }
   const musicXmlMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/musicxml$/)
   if(req.method==='GET'&&musicXmlMatch){
+    if(ORIGINAL_ONLY_SONGBOOK)return json(res,410,{error:originalOnlyDisabledMessage('LeadSheet'),originalOnly:true})
     const row=db.prepare('SELECT musicxml,source_key AS sourceKey FROM songs WHERE id=?').get(musicXmlMatch[1])
     if(!row?.musicxml)return json(res,404,{error:'Kein LeadSheet (MusicXML) vorhanden.'})
     const targetKey=url.searchParams.get('key')||''
@@ -1626,6 +1751,7 @@ http.createServer(async (req,res) => { try {
   }
   const analyzeMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/analyze-chords$/)
   if(req.method==='POST'&&analyzeMatch){
+    if(ORIGINAL_ONLY_SONGBOOK)return json(res,410,{error:originalOnlyDisabledMessage('Erneute Akkord-Analyse'),originalOnly:true})
     const songId=analyzeMatch[1]
     const soft=repairSongSnapshotFromStoredText(db,songId)
     if(soft.repaired){
@@ -1675,13 +1801,18 @@ http.createServer(async (req,res) => { try {
   }
   const variantMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/variants$/)
   if(req.method==='POST'&&variantMatch){
+    if(ORIGINAL_ONLY_SONGBOOK)return json(res,410,{error:originalOnlyDisabledMessage('Tonart ändern'),originalOnly:true})
     const b=await bodyJson(req)
     try{return json(res,201,saveVariantFromVerifiedSnapshot(db,variantMatch[1],{targetKey:b.targetKey,overlayText:b.overlayText,sheetColumns:b.sheetColumns,sheetFontSize:b.sheetFontSize}))}
     catch(error){if(error instanceof SongTrustError)return json(res,error.status,{error:error.message,code:error.code,snapshotStatus:'review_required'});throw error}
   }
-  if(req.method==='GET'&&variantMatch){const snapshot=getSongSnapshotState(db,variantMatch[1]).snapshot;if(!snapshot)return json(res,200,[]);const rows=db.prepare('SELECT target_key AS targetKey,source_key AS sourceKey,snapshot_id AS snapshotId,overlay_text AS overlayText,created_at AS createdAt FROM song_variants WHERE song_id=? AND snapshot_id=? ORDER BY created_at DESC').all(variantMatch[1],snapshot.id);return json(res,200,rows)}
+  if(req.method==='GET'&&variantMatch){
+    if(ORIGINAL_ONLY_SONGBOOK)return json(res,200,[])
+    const snapshot=getSongSnapshotState(db,variantMatch[1]).snapshot;if(!snapshot)return json(res,200,[]);const rows=db.prepare('SELECT target_key AS targetKey,source_key AS sourceKey,snapshot_id AS snapshotId,overlay_text AS overlayText,created_at AS createdAt FROM song_variants WHERE song_id=? AND snapshot_id=? ORDER BY created_at DESC').all(variantMatch[1],snapshot.id);return json(res,200,rows)
+  }
   const chartMatch=url.pathname.match(/^\/api\/songs\/([^/]+)\/chart$/)
   if(req.method==='GET'&&chartMatch){
+    if(ORIGINAL_ONLY_SONGBOOK)return json(res,410,{error:originalOnlyDisabledMessage('Akkorde'),originalOnly:true})
     const key=url.searchParams.get('key')
     const row=db.prepare("SELECT s.title,s.sheet_columns AS sheetColumns,s.sheet_font_size AS sheetFontSize,v.content,v.target_key AS targetKey FROM song_variants v JOIN songs s ON s.id=v.song_id JOIN song_original_snapshots snap ON snap.id=v.snapshot_id AND snap.song_id=v.song_id AND snap.status='verified' WHERE v.song_id=? AND v.target_key=?").get(chartMatch[1],key)
     if(!row)return json(res,404,{error:'Fassung nicht gefunden'})

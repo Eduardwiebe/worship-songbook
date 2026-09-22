@@ -2,12 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { NavLink, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Home, Music2, ListMusic, Users, CalendarDays, Plus, Settings, Search,
-  Upload, FileMusic, Play, Pause, Clock3, MoreHorizontal, X, FileText, CheckCircle2, Eye, ArrowUp, ArrowDown, Trash2, ChevronLeft, ChevronRight, Pencil, Printer, Download, Share2, Maximize2, Columns2, Type, RotateCcw, UserRound, LogOut, LockKeyhole, Heart, Menu, Copy, Link2,
+  Upload, FileMusic, Play, Pause, Clock3, MoreHorizontal, X, FileText, CheckCircle2, Eye, ArrowUp, ArrowDown, Trash2, ChevronLeft, ChevronRight, Pencil, Printer, Download, Share2, Maximize2, UserRound, LogOut, LockKeyhole, Heart, Menu, Copy, Link2,
 } from 'lucide-react'
 import './App.css'
 import './extra.css'
-import { analyzeSongChords, deleteSong, getImportedSongs, getSongOriginalSnapshot, getSongVariants, hasSongPdf, openSongChart, openSongPdf, previewScanPdf, saveImportedSongs, saveScanImport, saveSongVariant, songChartUrl, songPdfUrl, updateSong, resolveSongCover, resolveSongYoutube, songCoverPath } from './songStore'
-import { LeadSheetOsmd } from './LeadSheetOsmd'
+import { deleteSong, getImportedSongs, hasSongPdf, openSongPdf, previewScanPdf, saveImportedSongs, saveScanImport, songPdfUrl, updateSong, resolveSongCover, resolveSongYoutube, songCoverPath } from './songStore'
 import { createSet, deleteSet, getSets, saveSet } from './setStore'
 import { isProbablyOffline, prefetchSetCharts } from './offlineCache'
 import { deleteMember, getTeam, memberPhoto, saveMember } from './teamStore'
@@ -25,25 +24,7 @@ import { AuthScreen, PasswordRequired } from './AuthScreen'
 import SettingsPage from './SettingsPage'
 import { AboutDialog, UpdateDialog } from './AboutDialogs'
 import { BrandMark } from './BrandMark'
-import {
-  GERMAN_EDITOR_KEYS,
-  applyEditorKeyChange,
-  displayEditorKeyLabel,
-  normalizeEditorKey,
-  projectEditorSnapshot,
-  resolveEditorSnapshot,
-  simplifyChordToken,
-  transposeEditorText,
-} from '../../lib/editorKey.mjs'
-import {
-  softFormatChordChart,
-  parseChartBlocks,
-  normalizeChartInnerText,
-  wordStacksToChordLyric,
-  formatSectionLabel,
-  isRedundantKeyMeta,
-} from '../../lib/chartLayout.mjs'
-import { parseTempoBpm, clampTempoBpm } from '../../lib/leadsheetAnalysis.mjs'
+import { clampTempoBpm } from '../../lib/leadsheetAnalysis.mjs'
 import { playCajonHit, playCajonHtmlHit, preloadCajonSample, unlockCajonAudio, useCajon } from './cajonPlayer'
 import { installNativeDesktopChrome } from './nativeDesktop'
 import { ModalBackdrop } from './ModalBackdrop'
@@ -404,7 +385,7 @@ function HomePage({songs, setSongs, sets, openImport, openSetDialog, navigate}) 
   return <><Header title={t('home.title')} subtitle={t('home.subtitle')}/>
     <label className="home-search"><Search size={24}/><input value={query} onChange={(event)=>setQuery(event.target.value)} placeholder={t('home.searchPlaceholder')} autoComplete="off"/>{query&&<button onClick={()=>setQuery('')} aria-label={t('home.clearSearch')}><X size={18}/></button>}</label>
     <section className={`home-hero inspiration-hero${playing?' is-playing':''}`} aria-label={t('home.inspirationAria')}><img className="hero-background" src={slideImage} alt=""/><div className="hero-shade"/>{playing&&slide.videoId?<div className="hero-player"><iframe src={`https://www.youtube-nocookie.com/embed/${slide.videoId}?autoplay=1&rel=0`} title={t('home.youtubeTitle', { title: slide.title })} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen/><button onClick={()=>setPlaying(false)} aria-label={t('home.closeVideo')}><X size={20}/>{t('common.close')}</button></div>:<><button className="hero-arrow hero-arrow-left" onClick={()=>{setPlaying(false);setActiveSlide((safeSlide-1+inspirationSlides.length)%inspirationSlides.length)}} aria-label={t('home.prev')}><ChevronLeft size={25}/></button><div className={`hero-content${slide.kind==='intro'?' intro-slide':''}`}>{slide.kind==='video'&&<img className="hero-poster" src={slideImage} alt={t('home.coverAlt', { title: slide.title })}/>}<div className="hero-copy"><p className="hero-label">{slide.kind==='intro'?t('brand.songbook'):t('home.newWorship')}</p><h2>{slide.title}</h2><p className="hero-date">{slide.artist}</p>{slide.kind==='intro'?<div className="intro-features"><span>{t('home.featureLyrics')}</span><span>{t('home.featureChords')}</span><span>{t('home.featureSets')}</span><span>{t('home.featurePlay')}</span></div>:<button className="hero-set-link" onClick={()=>setPlaying(true)}><Play size={17}/>{t('home.toSong')}</button>}</div></div><button className="hero-arrow hero-arrow-right" onClick={()=>{setPlaying(false);setActiveSlide((safeSlide+1)%inspirationSlides.length)}} aria-label={t('home.next')}><ChevronRight size={25}/></button></>}<div className="hero-dots">{inspirationSlides.map((item,index)=><button key={item.title} className={index===safeSlide?'active':''} onClick={()=>{setPlaying(false);setActiveSlide(index)}} aria-label={t('home.slideN', { n: index+1 })}/>)}</div></section>
-    {selectedSong?<TransposeDialog embedded homeEmbedded song={selectedSong} onClose={()=>setSelectedSongId('')} onKeysResolved={(keys)=>setSongs((current)=>current.map((item)=>item.id===selectedSong.id?{...item,...keys}:item))} onSave={async(values)=>{const variant=await saveSongVariant(selectedSong.id,values);setSongs((current)=>current.map((item)=>item.id===selectedSong.id?{...item,key:variant.targetKey,sourceKey:variant.sourceKey,originalKey:variant.sourceKey,preferredKey:variant.targetKey,sheetColumns:variant.sheetColumns??values.sheetColumns??item.sheetColumns,sheetFontSize:variant.sheetFontSize??values.sheetFontSize??item.sheetFontSize,variantKeys:Array.from(new Set([variant.targetKey,...(item.variantKeys||[])]))}:item));return variant}}/>:<><section className="home-section"><div className="home-section-head"><div><p className="eyebrow">{t('home.library')}</p><h2>{query?t('home.searchResults', { query }):t('home.openSongs')}</h2></div><button className="text-button" onClick={openImport}><Plus size={17}/>{t('home.addSong')}</button></div>{shown.length?<div className="song-tile-row">{shown.map((song,index)=>{const songKey=song.preferredKey||song.key;return <button className="song-tile" key={song.id} onClick={()=>setSelectedSongId(song.id)} type="button"><span className={`song-cover cover-tone-${index%6}${song.hasCover?' has-cover':''}`}>{song.hasCover?<AuthorizedImg className="song-cover-image" path={songCoverPath(song)} alt=""/>:null}{songKey?<span className="song-key-badge" title={t('home.key', { key: songKey })} aria-label={t('home.key', { key: songKey })}>{songKey}</span>:null}<span className="song-cover-scrim"><strong className="song-cover-title">{song.title}</strong></span><Music2 className="song-cover-note" size={18} aria-hidden="true"/><i className="song-cover-play"><Play size={17}/></i></span></button>})}{!query&&songs.length>12&&<button className="song-tile more-tile" onClick={()=>navigate('/songs')} type="button"><span className="more-cover"><Plus size={28}/><strong>{t('home.allSongs')}</strong><small>{t('home.fullLibrary')}</small></span></button>}</div>:<div className="empty-state small"><Search size={30}/><h3>{t('home.noSongTitle')}</h3><p>{t('home.noSongText')}</p></div>}</section>
+    {selectedSong?<SongViewer embedded homeEmbedded song={selectedSong} onClose={()=>setSelectedSongId('')} onKeysResolved={(keys)=>setSongs((current)=>current.map((item)=>item.id===selectedSong.id?{...item,...keys}:item))}/>:<><section className="home-section"><div className="home-section-head"><div><p className="eyebrow">{t('home.library')}</p><h2>{query?t('home.searchResults', { query }):t('home.openSongs')}</h2></div><button className="text-button" onClick={openImport}><Plus size={17}/>{t('home.addSong')}</button></div>{shown.length?<div className="song-tile-row">{shown.map((song,index)=>{const songKey=song.preferredKey||song.key;return <button className="song-tile" key={song.id} onClick={()=>setSelectedSongId(song.id)} type="button"><span className={`song-cover cover-tone-${index%6}${song.hasCover?' has-cover':''}`}>{song.hasCover?<AuthorizedImg className="song-cover-image" path={songCoverPath(song)} alt=""/>:null}{songKey?<span className="song-key-badge" title={t('home.key', { key: songKey })} aria-label={t('home.key', { key: songKey })}>{songKey}</span>:null}<span className="song-cover-scrim"><strong className="song-cover-title">{song.title}</strong></span><Music2 className="song-cover-note" size={18} aria-hidden="true"/><i className="song-cover-play"><Play size={17}/></i></span></button>})}{!query&&songs.length>12&&<button className="song-tile more-tile" onClick={()=>navigate('/songs')} type="button"><span className="more-cover"><Plus size={28}/><strong>{t('home.allSongs')}</strong><small>{t('home.fullLibrary')}</small></span></button>}</div>:<div className="empty-state small"><Search size={30}/><h3>{t('home.noSongTitle')}</h3><p>{t('home.noSongText')}</p></div>}</section>
     <section className="home-section"><div className="home-section-head"><div><p className="eyebrow">{t('home.planning')}</p><h2>{t('home.setsEvents')}</h2></div><button className="text-button" onClick={openSetDialog}><Plus size={17}/>{t('home.newSet')}</button></div><div className="set-poster-row">{sets.map((set,index)=><button className="set-poster-card" key={set.id} onClick={()=>navigate(`/sets/${set.id}`)}><div className="set-poster-image">{(set.theme||set.title).toLowerCase().includes('fundament')?<img src="/worship-neutral.svg" alt=""/>:<span className={`poster-placeholder cover-tone-${index%6}`}><ListMusic size={32}/></span>}<span>{formatDate(set.date)}</span></div><strong>{set.theme||set.title}</strong><small>{set.venue||t('common.nSongs', { count: set.songIds.length })}</small></button>)}{!sets.length&&<p className="empty">{t('home.noSetYet')}</p>}</div></section>
     <section className="quick-actions home-quick"><button className="primary-action" onClick={openImport}><Upload size={21}/><span><strong>{t('home.importPdfs')}</strong><small>{t('home.importPdfsHint')}</small></span></button><button className="secondary-action" onClick={openSetDialog}><ListMusic size={21}/><span><strong>{t('home.planSet')}</strong><small>{t('home.planSetHint')}</small></span></button></section></>}
   </>
@@ -439,7 +420,7 @@ function SongRow({song, index, onTranspose, onEdit, onDelete}) {
   return <div className={`swipe-row${revealed ? ' revealed' : ''}`}>
     {onDelete && !song.isProtected && <button className="swipe-delete" onClick={() => onDelete(song)} aria-label={t('songs.deleteAria', { title: song.title })}><Trash2 size={22}/><span>{t('songs.delete')}</span></button>}
     <article className="song-row" onTouchStart={(event) => { touchStart.current = event.touches[0].clientX }} onTouchEnd={(event) => finishSwipe(event.changedTouches[0].clientX)}>
-      <div className="song-number">{String(index + 1).padStart(2, '0')}</div><div className={`song-icon${song.hasCover?' has-cover':''}`}>{song.hasCover?<AuthorizedImg className="song-row-cover" path={songCoverPath(song)} alt=""/>:<FileMusic size={21}/>}</div><div className="song-main"><strong>{song.title}</strong><span>{song.artist}{song.fileName ? ` · ${(song.fileSize / 1024 / 1024).toFixed(2)} MB` : ''}{song.preferredKey?` · ${t('songs.versionKey', { key: song.preferredKey })}`:''}{song.isProtected?` · ${t('songs.protected')}`:''}</span></div><div className="song-meta"><span><b>{song.key || '–'}</b> {t('songs.key')}</span><span><b>{song.bpm || '–'}</b> {t('songs.bpm')}</span><span><Clock3 size={14}/>{song.duration || '–'}</span></div>{hasSongPdf(song) && <button className="icon-button" title={t('songs.openPdf')} onClick={() => openSongPdf(song)}><Eye size={18}/></button>}{onTranspose&&<button className="transpose-button" title={t('songs.transpose')} onClick={()=>onTranspose(song)}><Music2 size={17}/></button>}{onEdit ? <button className="icon-button" title={t('songs.edit')} onClick={() => onEdit(song)}><Pencil size={17}/></button> : <button className="icon-button"><MoreHorizontal size={18}/></button>}{onDelete && !song.isProtected && <button className="desktop-delete" title={t('songs.deleteSongPdf')} onClick={() => onDelete(song)}><Trash2 size={18}/></button>}
+      <div className="song-number">{String(index + 1).padStart(2, '0')}</div><div className={`song-icon${song.hasCover?' has-cover':''}`}>{song.hasCover?<AuthorizedImg className="song-row-cover" path={songCoverPath(song)} alt=""/>:<FileMusic size={21}/>}</div><div className="song-main"><strong>{song.title}</strong><span>{song.artist}{song.fileName ? ` · ${(song.fileSize / 1024 / 1024).toFixed(2)} MB` : ''}{song.isProtected?` · ${t('songs.protected')}`:''}</span></div><div className="song-meta"><span><b>{song.key || '–'}</b> {t('songs.key')}</span><span><b>{song.bpm || '–'}</b> {t('songs.bpm')}</span><span><Clock3 size={14}/>{song.duration || '–'}</span></div>{hasSongPdf(song) && <button className="icon-button" title={t('songs.openPdf')} onClick={() => openSongPdf(song)}><Eye size={18}/></button>}{onTranspose&&<button className="transpose-button" title={t('songs.openSong')} onClick={()=>onTranspose(song)}><Music2 size={17}/></button>}{onEdit ? <button className="icon-button" title={t('songs.edit')} onClick={() => onEdit(song)}><Pencil size={17}/></button> : <button className="icon-button"><MoreHorizontal size={18}/></button>}{onDelete && !song.isProtected && <button className="desktop-delete" title={t('songs.deleteSongPdf')} onClick={() => onDelete(song)}><Trash2 size={18}/></button>}
     </article>
   </div>
 }
@@ -1235,11 +1216,10 @@ function SetDetailPage({sets, songs, team, updateSets, navigate}) {
   const setSongs = set.songIds.map((id) => songs.find((song) => song.id === id)).filter(Boolean)
   const available = songs.filter((song) => !set.songIds.includes(song.id))
   const update = (changes) => { const next={...set,...changes}; updateSets((current) => current.map((item) => item.id === set.id ? next : item)); saveSet(next).catch(console.error) }
-  const addSong = (id) => { const song=songs.find((item)=>item.id===id);update({songIds: [...set.songIds, id],songKeys:{...(set.songKeys||{}),...(song?.preferredKey?{[id]:song.preferredKey}:{})}}) }
+  const addSong = (id) => { update({songIds: [...set.songIds, id]}) }
   const removeSong = (index) => { const songId=set.songIds[index];const songKeys={...(set.songKeys||{})};delete songKeys[songId];const leaders={...(set.leaders||{})};delete leaders[songId];update({songIds: set.songIds.filter((_, itemIndex) => itemIndex !== index),songKeys,leaders}) }
   const moveSong = (index, offset) => { const next = [...set.songIds]; const target = index + offset; if (target < 0 || target >= next.length) return; [next[index], next[target]] = [next[target], next[index]]; update({songIds: next}) }
   const assignLeader = (songId, memberId) => update({leaders: {...(set.leaders || {}), [songId]: memberId}})
-  const assignSongKey = (songId, key) => update({songKeys: {...(set.songKeys || {}), [songId]: key}})
   const soundRole = t('team.role.sound')
   return <><button className="back-button" onClick={() => navigate('/sets')}><ChevronLeft size={18}/>{t('sets.allSets')}</button><Header title={set.title} subtitle={`${formatDate(set.date)} · ${t('common.nSongs', { count: setSongs.length })}`}/>
     <div className="set-toolbar"><button className="run-button" disabled={!setSongs.length} onClick={() => {
@@ -1248,7 +1228,7 @@ function SetDetailPage({sets, songs, team, updateSets, navigate}) {
     }}><Play size={19}/>{t('sets.start')}</button><span>{t('sets.autoSave')}</span>{!set.isProtected&&<button className="delete-set-button" onClick={async () => { if (!window.confirm(t('sets.confirmDelete', { title: set.title }))) return; await deleteSet(set.id); updateSets((current) => current.filter((item) => item.id !== set.id)); navigate('/sets') }}><Trash2 size={17}/>{t('sets.delete')}</button>}</div>
     <section className="panel event-details"><div className="panel-header"><div><p className="eyebrow">{t('sets.event')}</p><h2>{t('sets.eventMeta')}</h2></div></div><div className="briefing-grid"><label className="field"><span>{t('sets.bandProject')}</span><div><Users size={18}/><input value={set.band||''} onChange={(event)=>update({band:event.target.value})} placeholder={t('sets.bandPlaceholder')}/></div></label><label className="field"><span>{t('sets.theme')}</span><div><FileText size={18}/><input value={set.theme||''} onChange={(event)=>update({theme:event.target.value})} placeholder={t('sets.themePlaceholder')}/></div></label><label className="field"><span>{t('appointments.location')}</span><div><Home size={18}/><input value={set.venue||''} onChange={(event)=>update({venue:event.target.value})} placeholder={t('sets.venuePlaceholder')}/></div></label><label className="field"><span>{t('sets.date')}</span><div><CalendarDays size={18}/><input type="date" value={set.date||''} onChange={(event)=>update({date:event.target.value})}/></div></label><label className="field"><span>{t('sets.meetFrom')}</span><div><Clock3 size={18}/><input type="time" value={set.arrivalTime||''} onChange={(event)=>update({arrivalTime:event.target.value})}/></div></label><label className="field"><span>{t('sets.concertStart')}</span><div><Clock3 size={18}/><input type="time" value={set.eventTime||''} onChange={(event)=>update({eventTime:event.target.value})}/></div></label></div></section>
     <div className="planner-grid"><section className="panel planner-panel"><div className="panel-header"><div><p className="eyebrow">{t('sets.flow')}</p><h2>{t('sets.order')}</h2></div></div>
-      {setSongs.length ? <div className="planned-songs">{setSongs.map((song, index) => { const leaderId=set.leaders?.[song.id]||'';const leader=team.find((member)=>member.id===leaderId);const selectedKey=set.songKeys?.[song.id]||'';return <div className="planned-song" key={`${song.id}-${index}`}><span className="order-number">{index + 1}</span><div className="song-main"><strong>{song.title}</strong><span>{song.artist}{selectedKey?` · ${t('home.key', { key: selectedKey })}`:hasSongPdf(song)?` · ${t('songs.originalPdf')}`:''}</span></div><div className="set-song-options"><label className="leader-select">{leader&&<b>{leader.initials||initials(leader.name)}</b>}{leaderId==='group'&&<b>ALL</b>}<select value={leaderId} onChange={(event)=>assignLeader(song.id,event.target.value)}><option value="">{t('sets.chooseLead')}</option><option value="group">{t('sets.allTogether')}</option>{team.map((member)=><option value={member.id} key={member.id}>{member.name} ({member.initials||initials(member.name)})</option>)}</select></label><label className="set-key-select"><select value={selectedKey} onChange={(event)=>assignSongKey(song.id,event.target.value)}><option value="">{t('songs.originalPdf')}</option>{(song.variantKeys||[]).map((key)=><option value={key} key={key}>{t('home.key', { key })}</option>)}</select></label></div><div className="order-actions"><button className="icon-button" disabled={index === 0} onClick={() => moveSong(index, -1)}><ArrowUp size={17}/></button><button className="icon-button" disabled={index === setSongs.length - 1} onClick={() => moveSong(index, 1)}><ArrowDown size={17}/></button>{selectedKey?<button className="icon-button" onClick={()=>openSongChart(song,selectedKey)} title={t('sets.openVersion', { key: selectedKey })}><Eye size={17}/></button>:hasSongPdf(song) && <button className="icon-button" onClick={() => openSongPdf(song)} title={t('songs.openPdf')}><Eye size={17}/></button>}<button className="icon-button danger" onClick={() => removeSong(index)}><Trash2 size={17}/></button></div></div>})}</div> : <div className="empty-state small"><Music2 size={30}/><h3>{t('sets.noSongs')}</h3><p>{t('sets.noSongsHint')}</p></div>}
+      {setSongs.length ? <div className="planned-songs">{setSongs.map((song, index) => { const leaderId=set.leaders?.[song.id]||'';const leader=team.find((member)=>member.id===leaderId);return <div className="planned-song" key={`${song.id}-${index}`}><span className="order-number">{index + 1}</span><div className="song-main"><strong>{song.title}</strong><span>{song.artist}{hasSongPdf(song)?` · ${t('songs.originalPdf')}`:''}{song.key && song.key !== '–' ? ` · ${t('home.key', { key: song.key })}` : ''}</span></div><div className="set-song-options"><label className="leader-select">{leader&&<b>{leader.initials||initials(leader.name)}</b>}{leaderId==='group'&&<b>ALL</b>}<select value={leaderId} onChange={(event)=>assignLeader(song.id,event.target.value)}><option value="">{t('sets.chooseLead')}</option><option value="group">{t('sets.allTogether')}</option>{team.map((member)=><option value={member.id} key={member.id}>{member.name} ({member.initials||initials(member.name)})</option>)}</select></label></div><div className="order-actions"><button className="icon-button" disabled={index === 0} onClick={() => moveSong(index, -1)}><ArrowUp size={17}/></button><button className="icon-button" disabled={index === setSongs.length - 1} onClick={() => moveSong(index, 1)}><ArrowDown size={17}/></button>{hasSongPdf(song) && <button className="icon-button" onClick={() => openSongPdf(song)} title={t('songs.openPdf')}><Eye size={17}/></button>}<button className="icon-button danger" onClick={() => removeSong(index)}><Trash2 size={17}/></button></div></div>})}</div> : <div className="empty-state small"><Music2 size={30}/><h3>{t('sets.noSongs')}</h3><p>{t('sets.noSongsHint')}</p></div>}
     </section><section className="panel planner-panel"><div className="panel-header"><div><p className="eyebrow">{t('songs.library')}</p><h2>{t('sets.addSongs')}</h2></div></div>
       <div className="available-songs">{available.map((song) => <button key={song.id} onClick={() => addSong(song.id)}><div><strong>{song.title}</strong><span>{song.artist}{hasSongPdf(song) ? ' · PDF' : ''}</span></div><Plus size={18}/></button>)}{!available.length && <p className="empty">{t('sets.allAlready')}</p>}</div>
     </section></div><section className="panel tech-briefing"><div className="panel-header"><div><p className="eyebrow">{t('sets.tech')}</p><h2>{t('sets.techBrief')}</h2></div></div><div className="briefing-grid"><label className="field"><span>{t('sets.responsible')}</span><div><Users size={18}/><select value={set.technicianId||''} onChange={(event)=>update({technicianId:event.target.value})}><option value="">{t('sets.chooseTech')}</option>{team.filter((member)=>member.isTechnician||member.roles.includes(soundRole)||member.roles.includes('Tontechnik')).map((member)=><option value={member.id} key={member.id}>{member.name}</option>)}</select></div></label><label className="field"><span>{t('sets.dateAndStart')}</span><div><CalendarDays size={18}/><input value={`${formatDate(set.date)}${set.eventTime?` · ${t('common.timeSuffix', { time: set.eventTime })}`:''}`} readOnly/></div></label><label className="field briefing-notes"><span>{t('sets.techNotesLabel')}</span><textarea value={set.techNotes||''} onChange={(event)=>update({techNotes:event.target.value})} placeholder={t('sets.techNotesPlaceholder')}/></label></div></section>
@@ -1262,12 +1242,9 @@ function RunSet({set, songs, onClose}) {
   const [bpm, setBpm] = useState(null)
   const [bpmInput, setBpmInput] = useState('')
   const [cajonOn, setCajonOn] = useState(false)
-  const [lyricsOnly, setLyricsOnly] = useState(()=>{try{const s=localStorage.getItem('songbook-lyrics-only');return s==='1'||s==='true'}catch{return false}})
   const touchStart = useRef(null)
   const stageScrollRef = useRef(null)
   const song = songs[index]
-  const selectedKey = set.songKeys?.[song.id] || ''
-  const showingEditedChart = Boolean(selectedKey)
   const previous = () => setIndex((current) => Math.max(0, current - 1))
   const next = () => setIndex((current) => Math.min(songs.length - 1, current + 1))
   useEffect(() => {
@@ -1283,41 +1260,12 @@ function RunSet({set, songs, onClose}) {
   useEffect(() => {
     const pane = stageScrollRef.current
     if (pane) pane.scrollTop = 0
-  }, [index, song.id, selectedKey])
+  }, [index, song.id])
   useEffect(() => {
-    let active = true
     const fromMeta = clampTempoBpm(song?.bpm, { fallback: null })
-    if (fromMeta != null) {
-      setBpm(fromMeta)
-      setBpmInput(String(fromMeta))
-    }
-    ;(async () => {
-      try {
-        const data = await getSongOriginalSnapshot(song.id)
-        if (!active) return
-        const original = resolveEditorSnapshot(data)
-        if (!original.ok) {
-          if (fromMeta == null) { setBpm(null); setBpmInput('') }
-          return
-        }
-        let text = original.originalText
-        if (selectedKey) {
-          const variants = await getSongVariants(song.id)
-          if (!active) return
-          const current = variants.find((variant) => normalizeEditorKey(variant.targetKey) === normalizeEditorKey(selectedKey))
-          if (typeof current?.overlayText === 'string' && current.overlayText) text = current.overlayText
-        }
-        const tempo = parseTempoBpm(text) || parseTempoBpm(original.originalText) || fromMeta
-        if (!active) return
-        const nextBpm = tempo || 120
-        setBpm(nextBpm)
-        setBpmInput(String(nextBpm))
-      } catch {
-        if (active && fromMeta == null) { setBpm(null); setBpmInput('') }
-      }
-    })()
-    return () => { active = false }
-  }, [song.id, song.bpm, selectedKey])
+    setBpm(fromMeta)
+    setBpmInput(fromMeta == null ? '' : String(fromMeta))
+  }, [song.id, song.bpm])
   useEffect(() => {
     if (!autoScroll) return
     const timer = window.setInterval(() => {
@@ -1345,7 +1293,6 @@ function RunSet({set, songs, onClose}) {
     const start = touchStart.current
     const dx = clientX - (typeof start === 'number' ? start : start.x)
     const dy = typeof start === 'number' ? 0 : clientY - start.y
-    // Horizontal song change only — ignore mostly-vertical chart scrolls.
     if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.15) {
       if (dx < 0) next()
       if (dx > 0) previous()
@@ -1360,12 +1307,13 @@ function RunSet({set, songs, onClose}) {
     const touch = event.changedTouches[0]
     finishSwipe(touch.clientX, touch.clientY)
   }
-  return <div className="run-mode"><header><div className="run-meta"><p className="eyebrow">{t('sets.runMode')}</p><strong>{set.title}</strong><span>{index + 1}/{songs.length} · {song.title}{selectedKey?` · ${t('home.key', { key: selectedKey })}`:''}</span></div><div className="run-tools"><div className="tool-group scroll-tool"><span>{t('songs.autoScroll')}</span><button type="button" className={autoScroll?'active':''} onClick={()=>setAutoScroll((value)=>!value)} aria-pressed={autoScroll}>{autoScroll?<Pause size={18}/>:<Play size={18}/>}</button></div><div className={`tool-group lyrics-only-tool run-lyrics-tool${showingEditedChart?'':' tool-disabled'}`}><span>{t('songs.lyricsView')}</span><button type="button" disabled={!showingEditedChart} className={lyricsOnly?'active':''} onClick={()=>{const next=!lyricsOnly;setLyricsOnly(next);try{localStorage.setItem('songbook-lyrics-only', next?'1':'0')}catch{}}} title={t('songs.lyricsViewHint')} aria-pressed={lyricsOnly}>{lyricsOnly?t('songs.lyricsOnlyOn'):t('songs.lyricsOnlyOff')}</button></div><div className="tool-group cajon-tool"><span>{t('songs.cajon')}</span><input aria-label={t('songs.tempoAria')} type="number" min="40" max="240" inputMode="numeric" value={bpmInput} onChange={(event)=>{const raw=event.target.value;setBpmInput(raw);if(raw==='')return;const n=Number(raw);if(Number.isFinite(n))setBpm(n)}} onBlur={()=>{const nextTempo=clampTempoBpm(bpmInput,{fallback:bpm});if(nextTempo==null){setBpmInput(String(bpm));return}setBpm(nextTempo);setBpmInput(String(nextTempo))}}/><button type="button" className={cajonOn?'active':''} onClick={async ()=>{if(cajonOn){setCajonOn(false);return}playCajonHtmlHit({strong:true});await unlockCajonAudio();await preloadCajonSample();playCajonHit({strong:true});setCajonOn(true)}} title={t('songs.startCajon')} aria-pressed={cajonOn}>{cajonOn?<Pause size={18}/>:<Play size={18}/>}</button></div><button className="icon-button" onClick={onClose} aria-label={t('common.close')}><X size={22}/></button></div></header>
+  const metaBits = [song.key && song.key !== '–' ? t('home.key', { key: song.key }) : null, bpm ? `${bpm} BPM` : null].filter(Boolean)
+  return <div className="run-mode"><header><div className="run-meta"><p className="eyebrow">{t('sets.runMode')}</p><strong>{set.title}</strong><span>{index + 1}/{songs.length} · {song.title}{metaBits.length ? ` · ${metaBits.join(' · ')}` : ''}</span></div><div className="run-tools"><div className="tool-group scroll-tool"><span>{t('songs.autoScroll')}</span><button type="button" className={autoScroll?'active':''} onClick={()=>setAutoScroll((value)=>!value)} aria-pressed={autoScroll}>{autoScroll?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group cajon-tool"><span>{t('songs.cajon')}</span><input aria-label={t('songs.tempoAria')} type="number" min="40" max="240" inputMode="numeric" value={bpmInput} onChange={(event)=>{const raw=event.target.value;setBpmInput(raw);if(raw==='')return;const n=Number(raw);if(Number.isFinite(n))setBpm(n)}} onBlur={()=>{const nextTempo=clampTempoBpm(bpmInput,{fallback:bpm});if(nextTempo==null){setBpmInput(bpm==null?'':String(bpm));return}setBpm(nextTempo);setBpmInput(String(nextTempo))}}/><button type="button" className={cajonOn?'active':''} onClick={async ()=>{if(cajonOn){setCajonOn(false);return}playCajonHtmlHit({strong:true});await unlockCajonAudio();await preloadCajonSample();playCajonHit({strong:true});setCajonOn(true)}} title={t('songs.startCajon')} aria-pressed={cajonOn}>{cajonOn?<Pause size={18}/>:<Play size={18}/>}</button></div><button className="icon-button" onClick={onClose} aria-label={t('common.close')}><X size={22}/></button></div></header>
     <main className="pdf-stage">
       <div className="pdf-stage-scroll" ref={stageScrollRef} onTouchStart={onStageTouchStart} onTouchEnd={onStageTouchEnd}>
-        {showingEditedChart ? <AuthorizedFrame key={`${song.id}-${selectedKey}-${lyricsOnly?'ly':'ch'}-${bpm}`} title={`${song.title} – ${selectedKey}`} path={songChartUrl(song,selectedKey,{lyricsOnly,bpm})} fitContent className="stage-fit-content"/> : hasSongPdf(song) ? <AuthorizedFrame key={song.id} title={song.title} path={songPdfUrl(song)} hash="#toolbar=0&navpanes=0&view=FitH" className="stage-fill" songId={song.id} preferPageImages/> : <div className="no-pdf"><FileText size={42}/><strong>{song.title}</strong><span>{t('sets.noPdf')}</span></div>}
+        {hasSongPdf(song) ? <AuthorizedFrame key={song.id} title={song.title} path={songPdfUrl(song)} hash="#toolbar=0&navpanes=0&view=FitH" className="stage-fill" songId={song.id} preferPageImages/> : <div className="no-pdf"><FileText size={42}/><strong>{song.title}</strong><span>{t('sets.noPdf')}</span></div>}
       </div>
-      {!showingEditedChart && hasSongPdf(song) ? <><div className="stage-swipe-strip left" aria-hidden="true" onTouchStart={onStageTouchStart} onTouchEnd={onStageTouchEnd}/><div className="stage-swipe-strip right" aria-hidden="true" onTouchStart={onStageTouchStart} onTouchEnd={onStageTouchEnd}/></> : null}
+      {hasSongPdf(song) ? <><div className="stage-swipe-strip left" aria-hidden="true" onTouchStart={onStageTouchStart} onTouchEnd={onStageTouchEnd}/><div className="stage-swipe-strip right" aria-hidden="true" onTouchStart={onStageTouchStart} onTouchEnd={onStageTouchEnd}/></> : null}
       <button className="stage-arrow left" disabled={index === 0} onClick={previous} aria-label={t('sets.prevSong')}><ChevronLeft size={32}/></button><button className="stage-arrow right" disabled={index === songs.length - 1} onClick={next} aria-label={t('sets.nextSong')}><ChevronRight size={32}/></button>
     </main><footer><button disabled={index === 0} onClick={previous}><ChevronLeft size={21}/>{t('common.back')}</button><div>{songs.map((item, itemIndex) => <span className={itemIndex === index ? 'active' : ''} key={`${item.id}-${itemIndex}`}/>)}</div><button disabled={index === songs.length - 1} onClick={next}>{t('common.next')}<ChevronRight size={21}/></button></footer></div>
 }
@@ -1388,140 +1336,28 @@ function SongEditorRoute({songs,setSongs,navigate}) {
   const { t } = useI18n()
   const {songId}=useParams();const song=songs.find((item)=>item.id===songId)
   if(!song)return <SimplePage eyebrow={t('songs.editor')} title={t('songs.notFound')} text={t('songs.notInLibrary')}/>
-  return <TransposeDialog embedded song={song} onClose={()=>navigate('/songs')} onKeysResolved={(keys)=>setSongs((current)=>current.map((item)=>item.id===song.id?{...item,...keys}:item))} onSave={async(values)=>{const variant=await saveSongVariant(song.id,values);setSongs((current)=>current.map((item)=>item.id===song.id?{...item,key:variant.targetKey,sourceKey:variant.sourceKey,originalKey:variant.sourceKey,preferredKey:variant.targetKey,sheetColumns:variant.sheetColumns??values.sheetColumns??item.sheetColumns,sheetFontSize:variant.sheetFontSize??values.sheetFontSize??item.sheetFontSize,variantKeys:Array.from(new Set([variant.targetKey,...(item.variantKeys||[])]))}:item));return variant}}/>
+  return <SongViewer embedded song={song} onClose={()=>navigate('/songs')} onKeysResolved={(keys)=>setSongs((current)=>current.map((item)=>item.id===song.id?{...item,...keys}:item))}/>
 }
 
 
-function serializeChartSheetDom(root) {
-  if (!root) return ''
-  const parts = []
-  for (const child of Array.from(root.children || [])) {
-    const cls = child.classList || { contains: () => false }
-    if (cls.contains('chart-blank')) {
-      if (parts.length && parts[parts.length - 1] !== '') parts.push('')
-      continue
-    }
-    if (cls.contains('chart-section')) {
-      const label = String(child.innerText || '').trim().replace(/^\[|\]$/g, '')
-      parts.push(`[${label}]`)
-      continue
-    }
-    if (cls.contains('chart-meta')) {
-      parts.push(String(child.innerText || '').replace(/\s+$/g, ''))
-      continue
-    }
-    if (cls.contains('chart-pair')) {
-      const stacks = Array.from(child.querySelectorAll('.chart-stack')).map((el) => {
-        const chordEl = el.querySelector('.chart-stack-chord')
-        const visible = String(chordEl?.innerText || '').replace(/\u00a0/g, ' ').trim()
-        const full = String(chordEl?.getAttribute('data-full') || '').trim()
-        const chord = full && simplifyChordToken(full) === visible ? full : visible
-        const word = String(el.querySelector('.chart-stack-word')?.innerText || '').replace(/\u00a0/g, ' ').trim()
-        return { chord, word }
-      })
-      const packed = wordStacksToChordLyric(stacks)
-      if (packed.chordLine.trim()) parts.push(packed.chordLine)
-      parts.push(packed.lyricLine)
-      continue
-    }
-    if (cls.contains('chart-chords')) {
-      const full = String(child.getAttribute('data-full') || '').trim()
-      const visible = String(child.innerText || '').replace(/\s+$/g, '')
-      parts.push(full && simplifyChordToken(full.replace(/\s+$/g, '')) === visible.replace(/\s+$/g, '') ? full.replace(/\s+$/g, '') : visible)
-      continue
-    }
-    if (cls.contains('chart-lyrics')) {
-      parts.push(String(child.innerText || '').replace(/\s+$/g, ''))
-    }
-  }
-  return parts.join('\n').replace(/\n{3,}/g, '\n\n').trim()
-}
-
-function ChartSheet({ text, columns, fontSize, editable, onCommit, simplifyChords = true, lyricsOnly = false }) {
-  const display = softFormatChordChart(text || '')
-  // Wrap long pairs so iPad never needs horizontal pan; stacks keep chords on syllables.
-  const maxCols = columns === 2 ? 28 : 44
-  const blocks = parseChartBlocks(display, { maxCols }).filter((block) => {
-    if (block?.kind === 'meta' && isRedundantKeyMeta(block.text)) return false
-    if (lyricsOnly && block?.kind === 'chords') return false
-    return true
-  })
-  const showChord = (chord) => {
-    const full = String(chord || '')
-    if (!simplifyChords) return full || '\u00a0'
-    return simplifyChordToken(full) || '\u00a0'
-  }
-  return (
-    <div
-      key={`${display}::${simplifyChords ? 'simple' : 'full'}::${lyricsOnly ? 'lyrics' : 'chords'}`}
-      className={`chart-sheet columns-${columns}${lyricsOnly ? ' lyrics-only' : ''}`}
-      style={{ fontSize }}
-      contentEditable={editable && !lyricsOnly}
-      suppressContentEditableWarning
-      spellCheck="false"
-      onBlur={(event) => {
-        if (!editable || lyricsOnly || !onCommit) return
-        const shown = normalizeChartInnerText(serializeChartSheetDom(event.currentTarget))
-        if (shown === normalizeChartInnerText(display)) return
-        onCommit(shown)
-      }}
-    >
-      {blocks.map((block, index) => {
-        if (block.kind === 'blank') return <div key={index} className="chart-blank">&nbsp;</div>
-        if (block.kind === 'section') {
-          const label = formatSectionLabel(block.text)
-          return <div key={index} className="chart-section">{label}</div>
-        }
-        if (block.kind === 'meta') return <div key={index} className="chart-meta">{block.text}</div>
-        if (block.kind === 'pair') {
-          return (
-            <div key={index} className="chart-pair">
-              {(block.stacks || []).map((stack, stackIndex) => {
-                const shown = showChord(stack.chord)
-                const hasChord = Boolean(String(stack.chord || '').trim()) && !lyricsOnly
-                return (
-                  <span key={stackIndex} className="chart-stack">
-                    <span
-                      className={hasChord ? 'chart-stack-chord chart-chord-pill' : 'chart-stack-chord'}
-                      data-full={stack.chord || ''}
-                    >{lyricsOnly ? '' : shown}</span>
-                    <span className="chart-stack-word">{stack.word || '\u00a0'}</span>
-                  </span>
-                )
-              })}
-            </div>
-          )
-        }
-        if (block.kind === 'chords') {
-          const full = String(block.text || '')
-          const shown = simplifyChords
-            ? full.replace(/(Cis|Des|Dis|Es(?!us)|Fis|Ges|Gis|As(?!us)|Ais|C#|Db|D#|Eb|F#|Gb|G#|Ab|A#|Bb|[CDEFGABH])((?:m|maj|min|dim|aug|sus|add)?\d*(?:sus\d*)?(?:[#b+°\-]\d*)*(?:\/(?:Cis|Des|Dis|Es(?!us)|Fis|Ges|Gis|As(?!us)|Ais|C#|Db|D#|Eb|F#|Gb|G#|Ab|A#|Bb|[CDEFGABH]))?)/gu, (all) => simplifyChordToken(all))
-            : full
-          return <div key={index} className="chart-chords" data-full={full}>{shown}</div>
-        }
-        return <div key={index} className="chart-lyrics">{block.text}</div>
-      })}
-    </div>
-  )
-}
-
-function readSimplifyChordsPref(locale = 'de') {
-  try {
-    const stored = localStorage.getItem('songbook-simplify-chords')
-    if (stored === '0' || stored === 'false') return false
-    if (stored === '1' || stored === 'true') return true
-  } catch {}
-  return locale !== 'en' // DE (and default) → simplified chords ON
-}
-
-function TransposeDialog({song,onClose,onSave,onKeysResolved,embedded=false,homeEmbedded=false}) {
-  const { t, locale } = useI18n()
-  const [originalText,setOriginalText]=useState('');const [overlayText,setOverlayText]=useState('');const [sourceKey,setSourceKey]=useState('');const [targetKey,setTargetKey]=useState('');const [snapshotVerified,setSnapshotVerified]=useState(false);const [error,setError]=useState('');const [loading,setLoading]=useState(true);const [saving,setSaving]=useState(false);const [saved,setSaved]=useState('');const [needsReview,setNeedsReview]=useState(false);const [reanalyzing,setReanalyzing]=useState(false);const [reloadToken,setReloadToken]=useState(0);const [fontSize,setFontSize]=useState(()=>Math.min(28,Math.max(11,Number(song.sheetFontSize)||16)));const [columns,setColumns]=useState(()=>Number(song.sheetColumns)===2?2:1);const [autoScroll,setAutoScroll]=useState(false);const [bpm,setBpm]=useState(null);const [bpmInput,setBpmInput]=useState('');const [cajonOn,setCajonOn]=useState(false);const [view,setView]=useState(hasSongPdf(song)?'original':'chords');const [simplifyChords,setSimplifyChords]=useState(()=>readSimplifyChordsPref(locale));const [lyricsOnly,setLyricsOnly]=useState(()=>{try{const s=localStorage.getItem('songbook-lyrics-only');return s==='1'||s==='true'}catch{return false}});const [youtubeUrl,setYoutubeUrl]=useState(song.youtubeUrl||'');const [youtubeResolving,setYoutubeResolving]=useState(false);const [tunerOpen,setTunerOpen]=useState(false)
-  const setSimplifyPref=(next)=>{setSimplifyChords(next);try{localStorage.setItem('songbook-simplify-chords', next?'1':'0')}catch{}}
-  const setLyricsOnlyPref=(next)=>{setLyricsOnly(next);try{localStorage.setItem('songbook-lyrics-only', next?'1':'0')}catch{}}
+function SongViewer({song,onClose,onKeysResolved,embedded=false,homeEmbedded=false}) {
+  const { t } = useI18n()
+  const [error,setError]=useState('')
+  const [loading,setLoading]=useState(false)
+  const [saved,setSaved]=useState('')
+  const [autoScroll,setAutoScroll]=useState(false)
+  const [bpm,setBpm]=useState(()=>clampTempoBpm(song.bpm,{fallback:null}))
+  const [bpmInput,setBpmInput]=useState(()=>{const n=clampTempoBpm(song.bpm,{fallback:null});return n==null?'':String(n)})
+  const [cajonOn,setCajonOn]=useState(false)
+  const [youtubeUrl,setYoutubeUrl]=useState(song.youtubeUrl||'')
+  const [youtubeResolving,setYoutubeResolving]=useState(false)
+  const [tunerOpen,setTunerOpen]=useState(false)
   useEffect(()=>{
     setYoutubeUrl(song.youtubeUrl||'')
-  },[song.id,song.youtubeUrl])
+    const n=clampTempoBpm(song.bpm,{fallback:null})
+    setBpm(n)
+    setBpmInput(n==null?'':String(n))
+  },[song.id,song.youtubeUrl,song.bpm])
   useEffect(()=>{
     if(!song?.id || youtubeUrl) return
     let cancelled=false
@@ -1550,22 +1386,6 @@ function TransposeDialog({song,onClose,onSave,onKeysResolved,embedded=false,home
     const url=youtubeUrl || `https://www.youtube.com/results?search_query=${encodeURIComponent(song.title||'')}`
     openExternal(url)
   }
-  const projection=projectEditorSnapshot({originalText,overlayText,sourceKey,selectedKey:targetKey});const text=projection.text
-  useEffect(()=>{let active=true;(async()=>{try{setLoading(true);setError('');let data=await getSongOriginalSnapshot(song.id);if(!active)return;let original=resolveEditorSnapshot(data);if(!original.ok && hasSongPdf(song)){try{setReanalyzing(true);await analyzeSongChords(song.id);if(!active)return;data=await getSongOriginalSnapshot(song.id);original=resolveEditorSnapshot(data)}catch(repairError){if(!active)return;console.warn('song reanalyze failed',repairError)}finally{if(active)setReanalyzing(false)}}if(!original.ok){setOriginalText('');setOverlayText('');setSourceKey('');setTargetKey('');setSnapshotVerified(false);setNeedsReview(true);setLoading(false);return}const variants=await getSongVariants(song.id);if(!active)return;const preferred=normalizeEditorKey(song.preferredKey)||normalizeEditorKey(song.key);const current=variants.find((variant)=>normalizeEditorKey(variant.targetKey)===preferred);const selected=normalizeEditorKey(current?.targetKey)||preferred||original.sourceKey;const overlay=typeof current?.overlayText==='string'&&current.overlayText?current.overlayText:original.originalText;setOriginalText(original.originalText);setOverlayText(overlay);setSourceKey(original.sourceKey);setTargetKey(selected);setSnapshotVerified(true);setNeedsReview(false);onKeysResolved?.({sourceKey:original.sourceKey,originalKey:original.sourceKey,sourceKeyStatus:'verified',sourceKeyVerified:true,snapshotStatus:'verified',snapshotId:original.snapshotId,key:selected,preferredKey:selected});const tempo=parseTempoBpm(overlay)||parseTempoBpm(original.originalText)||(Number.isFinite(Number(data.bpm))&&Number(data.bpm)>0?Number(data.bpm):null);if(tempo){setBpm(tempo);setBpmInput(String(tempo))}else{setBpm(null);setBpmInput('')}setLoading(false)}catch(caught){if(active){setError(caught.message);setLoading(false)}}})();return()=>{active=false}},[song.id,reloadToken])
-  useEffect(()=>{
-    setColumns(Number(song.sheetColumns)===2?2:1)
-    setFontSize(Math.min(28,Math.max(11,Number(song.sheetFontSize)||16)))
-  },[song.id,song.sheetColumns,song.sheetFontSize])
-  const persistSheetLayout=async(nextColumns,nextFontSize)=>{
-    const sheetColumns=nextColumns??columns
-    const sheetFontSize=nextFontSize??fontSize
-    try{
-      const updated=await updateSong(song.id,{title:song.title,artist:song.artist,key:song.key,sheetColumns,sheetFontSize})
-      onKeysResolved?.({sheetColumns:updated.sheetColumns,sheetFontSize:updated.sheetFontSize})
-    }catch(error){
-      console.warn('sheet layout persist failed', error)
-    }
-  }
   useEffect(()=>{if(!autoScroll)return;const timer=window.setInterval(()=>window.scrollBy({top:1,behavior:'auto'}),70);return()=>window.clearInterval(timer)},[autoScroll])
   useCajon(cajonOn, bpm)
   const close=()=>embedded?onClose():dismissModal(onClose)
@@ -1574,24 +1394,36 @@ function TransposeDialog({song,onClose,onSave,onKeysResolved,embedded=false,home
     lockBodyScroll()
     return ()=>unlockBodyScroll()
   },[embedded])
-  const changeTargetKey=(next)=>{const applied=applyEditorKeyChange(overlayText,sourceKey,next);if(!applied.blocked)setTargetKey(applied.targetKey)}
-  const saveEditor=async()=>{
-    setSaving(true);setSaved('')
-    try{
-      const knownSource=normalizeEditorKey(sourceKey)
-      const knownTarget=normalizeEditorKey(targetKey)||knownSource
-      if(!snapshotVerified||!knownSource||!knownTarget)throw new Error(t('songs.snapshotReviewRequired'))
-      const variant=await onSave({overlayText,targetKey:knownTarget,sheetColumns:columns,sheetFontSize:fontSize})
-      if(variant?.sheetColumns!=null||variant?.sheetFontSize!=null){
-        onKeysResolved?.({sheetColumns:variant.sheetColumns??columns,sheetFontSize:variant.sheetFontSize??fontSize})
-      }
-      setSaved(t('songs.savedInKey', { key: knownTarget }))
-    }finally{setSaving(false)}
+  const originalUrl=songPdfUrl(song)
+  const share=async()=>{
+    const data={title:song.title,url:new URL(originalUrl,window.location.origin).href}
+    if(navigator.share)await navigator.share(data)
+    else{await navigator.clipboard.writeText(data.url);setSaved(t('songs.copiedClipboard'))}
   }
-  const originalUrl=songPdfUrl(song);const share=async()=>{const data=view==='original'?{title:song.title,url:new URL(originalUrl,window.location.origin).href}:{title:song.title,text:`${song.title}\n\n${text}`};if(navigator.share)await navigator.share(data);else{await navigator.clipboard.writeText(data.url||data.text);setSaved(t('songs.copiedClipboard'))}}
-  const download=async()=>{const link=document.createElement('a');if(view==='original'){try{const href=await authorizedObjectUrl(originalUrl);link.href=href;link.download=song.fileName||`${song.title}.pdf`;link.click();if(href.startsWith('blob:'))setTimeout(()=>URL.revokeObjectURL(href),30000)}catch{link.href=originalUrl;link.download=song.fileName||`${song.title}.pdf`;link.click()}}else{link.href=URL.createObjectURL(new Blob([`${song.title}\n\n${text}`],{type:'text/plain;charset=utf-8'}));link.download=`${song.title}.txt`;link.click();URL.revokeObjectURL(link.href)}}
-  const printSheet=async()=>{if(view==='original'){try{const href=await authorizedObjectUrl(originalUrl);window.open(`${href}#toolbar=1`,'_blank','noopener')}catch{window.open(`${originalUrl}#toolbar=1`,'_blank','noopener')}}else window.print()}
-  return <div className={`${embedded?'song-editor-page':'modal-backdrop'}${homeEmbedded?' home-song-editor':''}`} onMouseDown={(event)=>!embedded&&event.target===event.currentTarget&&close()}>{embedded&&<button className="back-button editor-back" onClick={close}><ChevronLeft size={18}/>{t('songs.toLibrary')}</button>}<section className={embedded?'song-editor-surface':'modal modal-wide transpose-modal'}>{loading?<div className="analysis-loading"><Music2 size={30}/><strong>{t('songs.preparing')}</strong></div>:error?<div className="form-error analysis-error">{error}</div>:<><div className="editor-view-switch"><button className={view==='original'?'active':''} onClick={()=>setView('original')} disabled={!hasSongPdf(song)}>{t('songs.originalPdf')}</button><button className={view==='chords'||view==='edited'?'active':''} onClick={()=>setView('chords')}>{t('songs.editKey')}</button><button className={view==='leadsheet'?'active':''} onClick={()=>setView('leadsheet')}>{t('songs.viewLeadsheet')}</button><button type="button" className="youtube-rehearsal" onClick={openYoutubeRehearsal} disabled={youtubeResolving&&!youtubeUrl} title={t('songs.youtubeRehearsalHint')}>{youtubeResolving&&!youtubeUrl?t('songs.youtubeResolving'):t('songs.youtubeRehearsal')}</button><button type="button" className="guitar-tuner-btn" onClick={()=>setTunerOpen(true)} title={t('songs.tunerHint')}>{t('songs.tuner')}</button><span>{view==='original'?t('songs.originalHint'):view==='leadsheet'?t('songs.leadsheetHint'):t('songs.editableHint')}</span></div>{needsReview&&(view==='chords'||view==='edited')&&<div className="analysis-quality-warn" role="status"><p>{t('songs.snapshotReviewRequired')}</p>{hasSongPdf(song)?<button className="add-button compact" disabled={reanalyzing} onClick={()=>{setReanalyzing(true);setReloadToken((value)=>value+1)}}>{reanalyzing?t('songs.reanalyzing'):t('songs.reanalyze')}</button>:<p>{t('songs.reuploadHint')}</p>}</div>}<div className="sheet-toolbar"><label className={view==='original'||!snapshotVerified?'tool-disabled':''}><span>{t('songs.changeKey')}</span><select disabled={view==='original'||!snapshotVerified} value={targetKey||'–'} onChange={(event)=>changeTargetKey(event.target.value)}>{!targetKey&&<option value="–">–</option>}{GERMAN_EDITOR_KEYS.map((key)=><option key={key} value={key}>{displayEditorKeyLabel(key)}</option>)}</select></label><div className={`tool-group simplify-tool${view==='original'||view==='leadsheet'||!snapshotVerified||lyricsOnly?' tool-disabled':''}`}><span>{t('songs.simplifyChords')}</span><button disabled={view==='original'||view==='leadsheet'||!snapshotVerified||lyricsOnly} className={simplifyChords?'active':''} onClick={()=>setSimplifyPref(!simplifyChords)} title={t('songs.simplifyChordsHint')}>{simplifyChords?t('songs.simplifyOn'):t('songs.simplifyOff')}</button></div><div className={`tool-group lyrics-only-tool${view==='original'||view==='leadsheet'||!snapshotVerified?' tool-disabled':''}`}><span>{t('songs.lyricsView')}</span><button disabled={view==='original'||view==='leadsheet'||!snapshotVerified} className={lyricsOnly?'active':''} onClick={()=>setLyricsOnlyPref(!lyricsOnly)} title={t('songs.lyricsViewHint')}>{lyricsOnly?t('songs.lyricsOnlyOn'):t('songs.lyricsOnlyOff')}</button></div><div className={`columns-font-cluster${view==='original'||view==='leadsheet'?' tool-disabled':''}`}><div className={`tool-group${view==='original'||view==='leadsheet'?' tool-disabled':''}`}><span>{t('songs.columns')}</span><button disabled={view==='original'||view==='leadsheet'} className={columns===1?'active':''} onClick={()=>{setColumns(1);persistSheetLayout(1,fontSize)}}>1</button><button disabled={view==='original'||view==='leadsheet'} className={columns===2?'active':''} onClick={()=>{setColumns(2);persistSheetLayout(2,fontSize)}}><Columns2 size={16}/></button></div><div className={`tool-group font-tools${view==='original'||view==='leadsheet'?' tool-disabled':''}`}><span>{t('songs.font')}</span><button disabled={view==='original'||view==='leadsheet'} onClick={()=>{setFontSize((size)=>{const next=Math.max(11,size-1);persistSheetLayout(columns,next);return next})}}>−</button><Type size={18}/><button disabled={view==='original'||view==='leadsheet'} onClick={()=>{setFontSize((size)=>{const next=Math.min(28,size+1);persistSheetLayout(columns,next);return next})}}>+</button><button disabled={view==='original'||view==='leadsheet'} onClick={()=>{setFontSize(16);persistSheetLayout(columns,16)}} title={t('songs.resetFont')}><RotateCcw size={15}/></button></div></div><div className="tool-group scroll-tool"><span>{t('songs.autoScroll')}</span><button className={autoScroll?'active':''} onClick={()=>setAutoScroll((value)=>!value)}>{autoScroll?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group cajon-tool"><span>{t('songs.cajon')}</span><input aria-label={t('songs.tempoAria')} type="number" min="40" max="240" inputMode="numeric" value={bpmInput} onChange={(event)=>{const raw=event.target.value;setBpmInput(raw);if(raw==='')return;const n=Number(raw);if(Number.isFinite(n))setBpm(n)}} onBlur={()=>{const next=clampTempoBpm(bpmInput,{fallback:null});if(next==null){setBpm(null);setBpmInput('');return}setBpm(next);setBpmInput(String(next))}}/><button className={cajonOn?'active':''} onClick={async ()=>{if(cajonOn){setCajonOn(false);return}playCajonHtmlHit({strong:true});await unlockCajonAudio();await preloadCajonSample();playCajonHit({strong:true});setCajonOn(true)}} title={t('songs.startCajon')}>{cajonOn?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group sheet-actions"><span>{t('songs.sheet')}</span><button onClick={printSheet} title={t('songs.print')}><Printer size={18}/></button><button onClick={download} title={t('songs.download')}><Download size={18}/></button><button onClick={share} title={t('songs.share')}><Share2 size={18}/></button><button onClick={()=>document.documentElement.requestFullscreen?.()} title={t('songs.fullscreen')}><Maximize2 size={18}/></button></div></div>{view==='original'?<div className="original-pdf-sheet"><AuthorizedFrame title={`${song.title} – ${t('songs.originalPdf')}`} path={originalUrl} hash="#toolbar=0&navpanes=0&view=FitH" songId={song.id} preferPageImages/></div>:view==='leadsheet'?<LeadSheetOsmd songId={song.id} targetKey={targetKey} title={song.title}/>:<><article className="editor-paper"><header><div><h2>{song.title}</h2>{song.artist?<p>{song.artist}</p>:null}<p className="chart-header-meta">{[targetKey?`Tonart ${displayEditorKeyLabel(targetKey)}`:null, bpm?`${bpm} BPM`:null].filter(Boolean).join(' · ')||'–'}</p></div><Music2 size={30}/></header><ChartSheet text={text} columns={columns} fontSize={fontSize} editable={snapshotVerified} simplifyChords={simplifyChords} lyricsOnly={lyricsOnly} onCommit={(shown)=>{const knownSource=normalizeEditorKey(sourceKey);const knownTarget=normalizeEditorKey(targetKey);setOverlayText(knownSource&&knownTarget?transposeEditorText(shown,knownTarget,knownSource):shown);setSaved('')}}/></article><div className="editor-bottom-actions">{saved&&<span className="editor-saved"><CheckCircle2 size={16}/>{saved}</span>}<button className="add-button compact" disabled={!snapshotVerified||!text.trim()||saving} onClick={saveEditor}><CheckCircle2 size={18}/>{saving?t('common.saving'):t('songs.saveEdited', { key: targetKey||'–' })}</button></div></>}</>}</section>{tunerOpen&&<GuitarTunerModal onClose={()=>setTunerOpen(false)}/>}</div>
+  const download=async()=>{
+    const link=document.createElement('a')
+    try{
+      const href=await authorizedObjectUrl(originalUrl)
+      link.href=href
+      link.download=song.fileName||`${song.title}.pdf`
+      link.click()
+      if(href.startsWith('blob:'))setTimeout(()=>URL.revokeObjectURL(href),30000)
+    }catch{
+      link.href=originalUrl
+      link.download=song.fileName||`${song.title}.pdf`
+      link.click()
+    }
+  }
+  const printSheet=async()=>{
+    try{
+      const href=await authorizedObjectUrl(originalUrl)
+      window.open(`${href}#toolbar=1`,'_blank','noopener')
+    }catch{
+      window.open(`${originalUrl}#toolbar=1`,'_blank','noopener')
+    }
+  }
+  const metaBits=[song.key && song.key !== '–' ? `${t('songs.key')} ${song.key}` : null, bpm ? `${bpm} BPM` : null].filter(Boolean)
+  return <div className={`${embedded?'song-editor-page':'modal-backdrop'}${homeEmbedded?' home-song-editor':''}`} onMouseDown={(event)=>!embedded&&event.target===event.currentTarget&&close()}>{embedded&&<button className="back-button editor-back" onClick={close}><ChevronLeft size={18}/>{t('songs.toLibrary')}</button>}<section className={embedded?'song-editor-surface':'modal modal-wide transpose-modal'}>{loading?<div className="analysis-loading"><Music2 size={30}/><strong>{t('songs.preparing')}</strong></div>:error?<div className="form-error analysis-error">{error}</div>:<><div className="editor-view-switch"><button type="button" className="active" disabled={!hasSongPdf(song)}>{t('songs.originalPdf')}</button><button type="button" className="youtube-rehearsal" onClick={openYoutubeRehearsal} disabled={youtubeResolving&&!youtubeUrl} title={t('songs.youtubeRehearsalHint')}>{youtubeResolving&&!youtubeUrl?t('songs.youtubeResolving'):t('songs.youtubeRehearsal')}</button><button type="button" className="guitar-tuner-btn" onClick={()=>setTunerOpen(true)} title={t('songs.tunerHint')}>{t('songs.tuner')}</button><span>{t('songs.originalHint')}</span></div><div className="sheet-toolbar"><div className="tool-group scroll-tool"><span>{t('songs.autoScroll')}</span><button className={autoScroll?'active':''} onClick={()=>setAutoScroll((value)=>!value)}>{autoScroll?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group cajon-tool"><span>{t('songs.cajon')}</span><input aria-label={t('songs.tempoAria')} type="number" min="40" max="240" inputMode="numeric" value={bpmInput} onChange={(event)=>{const raw=event.target.value;setBpmInput(raw);if(raw==='')return;const n=Number(raw);if(Number.isFinite(n))setBpm(n)}} onBlur={()=>{const next=clampTempoBpm(bpmInput,{fallback:null});if(next==null){setBpm(null);setBpmInput('');return}setBpm(next);setBpmInput(String(next))}}/><button className={cajonOn?'active':''} onClick={async ()=>{if(cajonOn){setCajonOn(false);return}playCajonHtmlHit({strong:true});await unlockCajonAudio();await preloadCajonSample();playCajonHit({strong:true});setCajonOn(true)}} title={t('songs.startCajon')}>{cajonOn?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group sheet-actions"><span>{t('songs.sheetOriginal')}</span><button onClick={printSheet} title={t('songs.print')}><Printer size={18}/></button><button onClick={download} title={t('songs.download')}><Download size={18}/></button><button onClick={share} title={t('songs.share')}><Share2 size={18}/></button><button onClick={()=>document.documentElement.requestFullscreen?.()} title={t('songs.fullscreen')}><Maximize2 size={18}/></button></div>{metaBits.length>0&&<div className="tool-group original-meta"><span>{metaBits.join(' · ')}</span>{saved&&<span className="editor-saved"><CheckCircle2 size={16}/>{saved}</span>}</div>}</div>{hasSongPdf(song)?<div className="original-pdf-sheet"><AuthorizedFrame title={`${song.title} – ${t('songs.originalPdf')}`} path={originalUrl} hash="#toolbar=0&navpanes=0&view=FitH" songId={song.id} preferPageImages/></div>:<div className="no-pdf"><FileText size={42}/><strong>{song.title}</strong><span>{t('sets.noPdf')}</span></div>}</>}</section>{tunerOpen&&<GuitarTunerModal onClose={()=>setTunerOpen(false)}/>}</div>
 }
 
 function ScanDialog({onClose,onSave}) {

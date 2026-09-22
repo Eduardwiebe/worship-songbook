@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.1.0 — 2026-09-22
+
+- **Release version for Original-only Songbook Band.** Round version **1.1.0** supersedes the draft numbering **1.0.1.27**. GitHub is the source of truth for this release.
+- **Product decision unchanged:** Songbook Band shows the imported Original PDF/scan for practice. No player UI for **Tonart ändern**, **AKKORDE**, or **LEADSHEET** (chord/notation reconstruction belongs in lyruma.de).
+- **Kept:** ORIGINAL view, YouTube Probe, Stimmgerät, Auto-Scroll, BPM/Cajón, library/sets/bands/PWA.
+- Public release URL is **https://songbook.lyruma.de** (`app/public/version.json` `releaseUrl`).
+- Native shell version (`tauri.conf.json`, `Cargo.toml`, iOS bundle) aligned to **1.1.0** so it tracks the web release.
+
+
+## 1.0.1.27 — 2026-09-22
+
+- **Product pivot — Original-only digital songbook:** Songbook Band shows the imported Original PDF/scan for practice. Removed player UI for **Tonart ändern**, **AKKORDE**, and **LEADSHEET** (chord/notation reconstruction belongs in lyruma.de).
+- **Kept:** ORIGINAL view, YouTube Probe, Stimmgerät, Auto-Scroll, BPM/Cajón, library/sets/bands/PWA.
+- **Import:** PDF + images/scans are deskewed/stored as Original. Key and BPM are filled only when printed on the sheet; otherwise blank. No chord/ChordPro/LeadSheet rebuild for Songbook Band.
+- Flag: `ORIGINAL_ONLY_SONGBOOK` in `lib/originalOnly.mjs`. Analyze-chords / MusicXML / variant / chart APIs return 410.
+
+
 ## 1.0.1.26 — 2026-09-18
 
 - **Chord view vs LeadSheet:** two reconstructions. Akkorde shows readable German words (syllables rehydrated from native PDF words/boxes/baselines); LeadSheet is MusicXML + OpenSheetMusicDisplay (chords above staff, melody, syllabic lyrics under notes) — never faked from chord-view text.

@@ -154,35 +154,33 @@ export async function cacheFetchTextMedia(cacheKey, fetchUrl, { mime = 'text/htm
  * Best-effort prefetch of edited charts for a set (online only).
  */
 export async function prefetchSetCharts(set, songs, { apiFetch, apiUrl } = {}) {
+  // Original-only: cache original PDFs for offline Set play (no chord charts).
   if (isProbablyOffline() || !set?.songIds?.length) return { cached: 0 }
   let cached = 0
   for (const songId of set.songIds) {
-    const key = set.songKeys?.[songId]
-    if (!key) continue
     const song = (songs || []).find((item) => item.id === songId)
-    if (!song) continue
-    const cacheKey = chartCacheKey(songId, key)
+    if (!song?.hasPdf) continue
+    const cacheKey = chartCacheKey(songId, 'original-pdf')
     try {
       const existing = await cacheGetMedia(cacheKey)
-      // Refresh if older than 12h while online
       if (existing?.savedAt && Date.now() - existing.savedAt < 12 * 60 * 60 * 1000) {
         cached += 1
         continue
       }
-      const path = `/api/songs/${songId}/chart?key=${encodeURIComponent(key)}`
+      const path = `/api/songs/${songId}/pdf`
       const response = apiFetch
         ? await apiFetch(path)
         : await fetch(apiUrl ? apiUrl(path) : path)
       if (!response.ok) continue
-      const text = await response.text()
+      const buffer = await response.arrayBuffer()
       await cachePutMedia(cacheKey, {
-        mime: 'text/html; charset=utf-8',
-        buffer: new TextEncoder().encode(text).buffer,
-        meta: { title: song.title, key },
+        mime: 'application/pdf',
+        buffer,
+        meta: { title: song.title, key: 'original' },
       })
       cached += 1
     } catch (error) {
-      console.warn('[offlineCache] chart prefetch failed', songId, key, error)
+      console.warn('[offlineCache] pdf prefetch failed', songId, error)
     }
   }
   return { cached }
