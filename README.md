@@ -16,7 +16,8 @@ _Screenshots can be added later._
 
 - Account login / registration with session authentication
 - Guided onboarding wizard
-- Song library (PDF import, scan import, transpose/chart views)
+- Song library (PDF/scan import as **Original** digital songbook; YouTube Probe, tuner, auto-scroll, BPM)
+- No in-app chord/LeadSheet reconstruction or key transpose (analysis belongs in lyruma.de)
 - Sets and set planning
 - Bands, invites, and join requests
 - Team members

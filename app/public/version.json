@@ -1,9 +1,9 @@
 {
   "name": "Songbook Band",
-  "version": "1.0.1.26",
-  "releasedAt": "2026-09-18",
+  "version": "1.0.1.27",
+  "releasedAt": "2026-09-22",
   "releaseUrl": "https://songbook.lyruma.app",
-  "notes": "Chord view vs LeadSheet: readable German lyrics in Akkorde; real MusicXML notation in LeadSheet. ORIGINAL / AKKORDE / LEADSHEET tabs. No default 120 BPM.",
+  "notes": "Songbook Band is Original-only: PDF/scan digital songbook. Removed Akkorde/LeadSheet/Tonart \u00e4ndern. Key/BPM only when printed on the sheet.",
   "channel": "web",
   "canReload": true
 }
