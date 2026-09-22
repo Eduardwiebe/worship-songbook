@@ -1,9 +1,9 @@
 {
   "name": "Songbook Band",
-  "version": "1.0.1.27",
+  "version": "1.1.0",
   "releasedAt": "2026-09-22",
-  "releaseUrl": "https://songbook.lyruma.app",
-  "notes": "Songbook Band is Original-only: PDF/scan digital songbook. Removed Akkorde/LeadSheet/Tonart \u00e4ndern. Key/BPM only when printed on the sheet.",
+  "releaseUrl": "https://songbook.lyruma.de",
+  "notes": "Songbook Band 1.1.0 is the Original-only release (supersedes draft numbering 1.0.1.27). PDF/scan digital songbook. Removed Akkorde/LeadSheet/Tonart \u00e4ndern. Key/BPM only when printed on the sheet. Public site: https://songbook.lyruma.de.",
   "channel": "web",
   "canReload": true
 }

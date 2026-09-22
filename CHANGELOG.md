@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.0 — 2026-09-22
+
+- **Release version for Original-only Songbook Band.** Round version **1.1.0** supersedes the draft numbering **1.0.1.27**. GitHub is the source of truth for this release.
+- **Product decision unchanged:** Songbook Band shows the imported Original PDF/scan for practice. No player UI for **Tonart ändern**, **AKKORDE**, or **LEADSHEET** (chord/notation reconstruction belongs in lyruma.de).
+- **Kept:** ORIGINAL view, YouTube Probe, Stimmgerät, Auto-Scroll, BPM/Cajón, library/sets/bands/PWA.
+- Public release URL is **https://songbook.lyruma.de** (`app/public/version.json` `releaseUrl`).
+- Native shell version (`tauri.conf.json`, `Cargo.toml`, iOS bundle) aligned to **1.1.0** so it tracks the web release.
+- **Song list:** import `normalizeSheetColumns` (and chart HTML helper) from `lib/chartHtml.mjs`. `GET /api/songs` called it without an import, which would throw after a Git redeploy.
+
+
 ## 1.0.1.27 — 2026-09-22
 
 - **Product pivot — Original-only digital songbook:** Songbook Band shows the imported Original PDF/scan for practice. Removed player UI for **Tonart ändern**, **AKKORDE**, and **LEADSHEET** (chord/notation reconstruction belongs in lyruma.de).

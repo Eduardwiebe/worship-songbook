@@ -6,7 +6,7 @@ Identifier: `studio.lyruma.worshipsongbook`
 Product name: Worship Songbook  
 Author: Eduard Wiebe  
 Copyright: Copyright 2026 Eduard Wiebe  
-Version: keep in sync with `app/package.json` / `tauri.conf.json` / `Cargo.toml` / `appMeta.js` (currently **0.1.2**)
+Version: keep in sync with `app/package.json` / `tauri.conf.json` / `Cargo.toml` / `appMeta.js` (currently **1.1.0**)
 
 ## Status
 

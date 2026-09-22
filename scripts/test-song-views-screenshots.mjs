@@ -78,7 +78,7 @@ async function routeApi(request, route) {
   if (url.includes('/api/team')) return fulfillJson(route, [])
   if (url.includes('/api/bands')) return fulfillJson(route, [])
   if (url.includes('/api/appointments')) return fulfillJson(route, [])
-  if (url.includes('/api/version')) return fulfillJson(route, { version: '1.0.1.27' })
+  if (url.includes('/api/version')) return fulfillJson(route, { version: '1.1.0', releaseUrl: 'https://songbook.lyruma.de' })
   return fulfillJson(route, [])
 }
 

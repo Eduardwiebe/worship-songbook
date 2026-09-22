@@ -57,6 +57,7 @@ import {
   extractPrintedMetadataFromText,
   originalOnlyDisabledMessage,
 } from './lib/originalOnly.mjs'
+import { normalizeSheetColumns, renderChartHtmlDocument } from './lib/chartHtml.mjs'
 const execFileAsync=promisify(execFile)
 
 const OCR_PYTHON = process.env.SONGBOOK_OCR_PYTHON || '/var/www/songbook/.venv-ocr/bin/python'

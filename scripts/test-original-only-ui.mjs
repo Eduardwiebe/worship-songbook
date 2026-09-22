@@ -36,5 +36,7 @@ assert.doesNotMatch(de, /Scannen und Lead-Sheet erstellen/)
 assert.match(server, /ORIGINAL_ONLY_SONGBOOK/)
 assert.match(server, /extractOriginalSheetMetadata/)
 assert.match(server, /originalOnlyDisabledMessage/)
+assert.match(server, /from '\.\/lib\/chartHtml\.mjs'/)
+assert.match(server, /normalizeSheetColumns/)
 
 console.log('ok: original-only UI and import gates')
