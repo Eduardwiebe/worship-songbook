@@ -22,8 +22,11 @@ const use = slice.indexOf('pdf && typeof pdf')
 assert.ok(declaration !== -1 && use !== -1, 'pdf declaration or use missing')
 assert.ok(declaration < use, 'pdf is read before its const declaration')
 assert.match(source, /runScanToPdf/)
+assert.match(source, /execFileAsync\(OCR_PYTHON, \[scanPdfScript\(\)/)
+assert.match(source, /execFileAsync\(OCR_PYTHON, \[pyPath\]/)
+assert.doesNotMatch(source, /execFileAsync\(\s*['"]\/usr\/bin\/python3['"]/, 'PIL scripts must use OCR_PYTHON, not system python3')
 assert.match(source, /statusCode === 422|statusCode===422/)
-console.log('OK scan route reads pdf before preferSongTitle')
+console.log('OK scan route reads pdf before preferSongTitle and runs Pillow via OCR_PYTHON')
 
 const broken = `
   const form = { get(name) { return name === 'title' ? 'Herr, ich komme zu dir' : null } }

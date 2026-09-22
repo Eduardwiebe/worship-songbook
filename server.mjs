@@ -8,7 +8,6 @@ import { DatabaseSync } from 'node:sqlite'
 import { randomUUID } from 'node:crypto'
 import { createAuth, initializeAuth } from './auth.mjs'
 import { execFile } from 'node:child_process'
-import { existsSync } from 'node:fs'
 import { promisify } from 'node:util'
 import {
   chordTokens,
@@ -407,19 +406,11 @@ function scanPdfScript() {
   return process.env.SONGBOOK_SCAN_SCRIPT || join(SERVER_DIR, 'scan_to_pdf.py')
 }
 
-function scanPythonCandidates() {
-  if (process.env.SONGBOOK_PYTHON) return [process.env.SONGBOOK_PYTHON]
-  const candidates = []
-  if (existsSync(OCR_PYTHON)) candidates.push(OCR_PYTHON)
-  candidates.push('/usr/bin/python3')
-  return candidates
-}
-
 function scanConvertErrorMessage(error) {
   const detail = `${error?.stderr || ''}\n${error?.stdout || ''}\n${error?.message || ''}`
   console.error('scan_to_pdf failed:', detail.slice(0, 2000))
   if (/No module named ['"]PIL['"]/i.test(detail)) {
-    return 'Die Scan-Seiten konnten nicht als PDF gespeichert werden (Bildbibliothek Pillow fehlt auf dem Server).'
+    return 'Die Scan-Seiten konnten nicht als PDF gespeichert werden (Pillow fehlt in der OCR-Umgebung).'
   }
   if (/Bildformat|cannot identify image|UnidentifiedImage/i.test(detail)) {
     return 'Bildformat wird nicht unterstützt. Bitte JPEG oder PNG verwenden.'
@@ -427,28 +418,20 @@ function scanConvertErrorMessage(error) {
   return 'Die Scan-Seiten konnten nicht als Original-PDF gespeichert werden.'
 }
 
-/** Page-detect, deskew, and write an Original PDF. Pillow only — OpenCV is not used. */
+/**
+ * Page-detect, deskew, and write an Original PDF.
+ * Always OCR_PYTHON (.venv-ocr). /usr/bin/python3 has no Pillow and raises
+ * ModuleNotFoundError: No module named 'PIL'.
+ */
 async function runScanToPdf(outputPath, inputs) {
-  const script = scanPdfScript()
-  const candidates = scanPythonCandidates()
-  let lastError = null
-  for (let index = 0; index < candidates.length; index += 1) {
-    const python = candidates[index]
-    try {
-      const result = await execFileAsync(python, [script, outputPath, ...inputs], { maxBuffer: 20 * 1024 * 1024, timeout: 90000 })
-      if (result?.stderr) console.log(String(result.stderr).slice(0, 800))
-      return
-    } catch (error) {
-      lastError = error
-      const detail = `${error?.stderr || ''}\n${error?.message || ''}`
-      const retryable = error?.code === 'ENOENT' || /No module named ['"]PIL['"]/i.test(detail)
-      if (retryable && index < candidates.length - 1) continue
-      break
-    }
+  try {
+    const result = await execFileAsync(OCR_PYTHON, [scanPdfScript(), outputPath, ...inputs], { maxBuffer: 20 * 1024 * 1024, timeout: 90000 })
+    if (result?.stderr) console.log(String(result.stderr).slice(0, 800))
+  } catch (error) {
+    const wrapped = new Error(scanConvertErrorMessage(error))
+    wrapped.statusCode = 422
+    throw wrapped
   }
-  const wrapped = new Error(scanConvertErrorMessage(lastError))
-  wrapped.statusCode = 422
-  throw wrapped
 }
 
 async function textToReferencePdf(text, outputPath, title = 'Lead Sheet') {
@@ -480,7 +463,8 @@ async function textToReferencePdf(text, outputPath, title = 'Lead Sheet') {
         `img.save(${JSON.stringify(pngPath)})`,
       ].join('\n')
       await writeFile(pyPath, script)
-      await execFileAsync('/usr/bin/python3', [pyPath], { maxBuffer: 10 * 1024 * 1024, timeout: 30000 })
+      // Same venv as scan_to_pdf: this script imports PIL.
+      await execFileAsync(OCR_PYTHON, [pyPath], { maxBuffer: 10 * 1024 * 1024, timeout: 30000 })
       pagePaths.push(pngPath)
     }
     await runScanToPdf(outputPath, pagePaths)

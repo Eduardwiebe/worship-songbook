@@ -3,7 +3,7 @@
   "version": "1.1.2",
   "releasedAt": "2026-09-22",
   "releaseUrl": "https://songbook.lyruma.de",
-  "notes": "Songbook Band 1.1.2 fixes POST /api/scans ReferenceError (pdf used before initialization — not deskew) and adds a live document camera: blue page edges, auto-capture, then a straightened Original preview. Gallery and PDF import stay. No Akkorde/LeadSheet/Tonart ändern.",
+  "notes": "Songbook Band 1.1.2 fixes two scan-save failures: pdf used before initialization, and scan_to_pdf.py running on system Python without Pillow (now OCR_PYTHON). Live document camera: blue page edges, auto-capture, then a straightened Original preview. No Akkorde/LeadSheet/Tonart ändern.",
   "channel": "web",
   "canReload": true
 }
