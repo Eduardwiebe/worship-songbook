@@ -1636,6 +1636,9 @@ http.createServer(async (req,res) => { try {
     const request=new Request(url,{method:'POST',headers:req.headers,body:Readable.toWeb(req),duplex:'half'})
     const form=await request.formData()
     const pages=form.getAll('pages')
+    // Declare pdf before preferSongTitle. Reading it earlier throws
+    // ReferenceError: Cannot access 'pdf' before initialization and the
+    // request becomes "Interner Serverfehler." Deskew is not involved.
     const pdf=form.get('pdf')
     const title=preferSongTitle({
       hint:String(form.get('title')||'').trim(),

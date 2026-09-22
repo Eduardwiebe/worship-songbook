@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * POST /api/scans must not touch `pdf` before it is initialized.
- * That temporal-dead-zone throw was the "Interner Serverfehler." after Begradigt.
+ * srv1: ReferenceError: Cannot access 'pdf' before initialization
+ * at preferSongTitle — that was the "Interner Serverfehler." Deskew was not the cause.
  */
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'

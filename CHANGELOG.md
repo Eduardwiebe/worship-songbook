@@ -2,8 +2,8 @@
 
 ## 1.1.2 — 2026-09-22
 
-- **Scan save 500:** `POST /api/scans` read `pdf` before the `const` declaration, so every save (including a page that already showed “Begradigt”) threw and came back as “Interner Serverfehler.” The form fields are read first. If `scan_to_pdf.py` still fails, the API returns 422 with a German message instead of a generic 500.
-- **Scan PDF deps:** Deskew stays on Pillow (no OpenCV). The server uses the OCR virtualenv when that interpreter exists, because that environment already installs Pillow, then falls back to `/usr/bin/python3`. A bad image or a missing library no longer aborts the process with an uncaught traceback. Oversized phone photos are capped so the PDF step cannot blow up memory.
+- **Scan save 500:** srv1 `POST /api/scans` threw `ReferenceError: Cannot access 'pdf' before initialization` because `preferSongTitle` read `pdf` before `const pdf=form.get('pdf')`. That was the “Interner Serverfehler.” after **Begradigt**. Deskew and OpenCV were not the cause. `pdf` is declared before the title. `scripts/test-scan-save-guard.mjs` keeps that order.
+- **Scan PDF path (not the 500):** If `scan_to_pdf.py` fails later, the API returns 422 with a German message. Deskew stays on Pillow. The server uses the OCR virtualenv when that interpreter exists, then `/usr/bin/python3`.
 - **Live document camera:** “Seite scannen” / “Nächste Seite scannen” opens the camera with a live page outline (blue fill, shadow, and corners). When the sheet holds still it captures automatically; the shutter is always there. The next screen is the cropped, straightened page. Gallery, PDF, and text import are unchanged, and gallery photos are still deskewed after import. iOS VisionKit stays the native scanner. Original-only: no Akkorde, LeadSheet, or Tonart ändern.
 
 
