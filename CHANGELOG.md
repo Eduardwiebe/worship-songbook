@@ -7,6 +7,7 @@
 - **Kept:** ORIGINAL view, YouTube Probe, Stimmgerät, Auto-Scroll, BPM/Cajón, library/sets/bands/PWA.
 - Public release URL is **https://songbook.lyruma.de** (`app/public/version.json` `releaseUrl`).
 - Native shell version (`tauri.conf.json`, `Cargo.toml`, iOS bundle) aligned to **1.1.0** so it tracks the web release.
+- **Song list:** import `normalizeSheetColumns` (and chart HTML helper) from `lib/chartHtml.mjs`. `GET /api/songs` called it without an import, which would throw after a Git redeploy.
 
 
 ## 1.0.1.27 — 2026-09-22
