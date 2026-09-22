@@ -113,7 +113,33 @@ async function main() {
     const text = msg.text()
     if (msg.type() === 'error' || text.startsWith('scan:')) console.error('CONSOLE', msg.type(), text)
   })
-  await page.addInitScript(() => localStorage.setItem('songbook-locale', 'de'))
+  await page.addInitScript(() => {
+    localStorage.setItem('songbook-locale', 'de')
+    const canvas = document.createElement('canvas')
+    canvas.width = 640
+    canvas.height = 880
+    const ctx = canvas.getContext('2d')
+    const draw = () => {
+      ctx.fillStyle = '#2b2622'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.fillStyle = '#f7f4ec'
+      ctx.beginPath()
+      ctx.moveTo(90, 78)
+      ctx.lineTo(560, 68)
+      ctx.lineTo(576, 802)
+      ctx.lineTo(72, 812)
+      ctx.closePath()
+      ctx.fill()
+      ctx.fillStyle = '#161616'
+      for (let y = 120; y < 760; y += 28) ctx.fillRect(110, y, 420, 3)
+    }
+    draw()
+    const stream = canvas.captureStream(12)
+    const loop = () => { draw(); requestAnimationFrame(loop) }
+    loop()
+    navigator.mediaDevices = navigator.mediaDevices || {}
+    navigator.mediaDevices.getUserMedia = async () => stream
+  })
   await page.route('**/api/**', routeApi)
   await page.goto(base, { waitUntil: 'networkidle' })
 
@@ -149,6 +175,43 @@ async function main() {
     throw new Error(`full-frame photo was cropped: ${fullPreview.w}x${fullPreview.h}`)
   }
   console.log('OK scan dialog keeps a full-bleed sheet')
+
+  await modal.getByRole('button', { name: /Nächste Seite scannen|Seite scannen/ }).click()
+  const live = page.locator('.live-scan')
+  await live.waitFor()
+  const sawOutline = await page.waitForFunction(() => {
+    const stage = document.querySelector('.live-scan-stage')
+    const canvas = document.querySelector('.live-scan-overlay')
+    if (!stage || !canvas || stage.getAttribute('data-quad') !== '1') return false
+    const ctx = canvas.getContext('2d')
+    if (!ctx || !canvas.width || !canvas.height) return false
+    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data
+    let blue = 0
+    for (let i = 0; i < pixels.length; i += 16) {
+      const r = pixels[i]
+      const g = pixels[i + 1]
+      const b = pixels[i + 2]
+      const a = pixels[i + 3]
+      if (a > 18 && b > r + 12 && b > 70) blue += 1
+    }
+    return blue > 24
+  }, null, { timeout: 12000 }).then(() => true).catch(() => false)
+  if (!sawOutline) {
+    console.error('LIVE TEXT:', await live.innerText().catch(() => ''))
+    throw new Error('live camera did not draw a blue page outline')
+  }
+  console.log('OK live camera draws a blue page outline')
+  await live.screenshot({ path: '/tmp/live-scan-overlay.png' })
+  await page.getByText('Begradigte Seite').waitFor({ timeout: 12000 })
+  await live.screenshot({ path: '/tmp/live-scan-preview.png' })
+  const liveText = await live.innerText()
+  if (/AKKORDE|LEADSHEET|Tonart ändern/.test(liveText)) {
+    throw new Error('live scanner reintroduced chord controls')
+  }
+  await live.getByRole('button', { name: 'Seite übernehmen' }).click()
+  await live.waitFor({ state: 'hidden' })
+  await modal.getByText('Begradigt', { exact: true }).waitFor({ timeout: 5000 })
+  console.log('OK live capture returns a straightened page')
 
   await browser.close()
   server.close()

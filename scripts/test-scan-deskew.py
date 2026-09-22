@@ -216,6 +216,29 @@ def test_pdf_script_writes_pdf():
     print("OK scan_to_pdf.py writes a PDF")
 
 
+def test_unreadable_image_exits_cleanly():
+    import subprocess
+
+    with tempfile.TemporaryDirectory() as tmp:
+        src = Path(tmp) / "notes.txt"
+        out = Path(tmp) / "out.pdf"
+        src.write_bytes(b"this is not an image")
+        proc = subprocess.run(
+            ["python3", str(ROOT / "scan_to_pdf.py"), str(out), str(src)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode == 0:
+            fail("unreadable image should not produce a PDF")
+        combined = f"{proc.stderr}\n{proc.stdout}"
+        if "Bildformat" not in combined:
+            fail(f"unreadable image did not report the format error: {combined}")
+        if out.exists() and out.stat().st_size > 0 and out.read_bytes().startswith(b"%PDF"):
+            fail("unreadable image still wrote a PDF")
+    print("OK unreadable image exits with a format error")
+
+
 def main():
     test_perspective_photo()
     test_rotated_page()
@@ -223,6 +246,7 @@ def main():
     test_second_pass_stable()
     test_text_holes_do_not_split_page()
     test_pdf_script_writes_pdf()
+    test_unreadable_image_exits_cleanly()
     print("All scan deskew checks passed")
 
 

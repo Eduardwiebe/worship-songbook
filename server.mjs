@@ -59,6 +59,7 @@ import {
 } from './lib/originalOnly.mjs'
 import { normalizeSheetColumns, renderChartHtmlDocument } from './lib/chartHtml.mjs'
 const execFileAsync=promisify(execFile)
+const SERVER_DIR = dirname(fileURLToPath(import.meta.url))
 
 const OCR_PYTHON = process.env.SONGBOOK_OCR_PYTHON || '/var/www/songbook/.venv-ocr/bin/python'
 const OCR_SCRIPT = '/var/www/songbook/ocr_structured.py'
@@ -401,6 +402,38 @@ async function extractPdfPages(pdfPath, selectedPages, outputPath) {
   }
 }
 
+function scanPdfScript() {
+  return process.env.SONGBOOK_SCAN_SCRIPT || join(SERVER_DIR, 'scan_to_pdf.py')
+}
+
+function scanConvertErrorMessage(error) {
+  const detail = `${error?.stderr || ''}\n${error?.stdout || ''}\n${error?.message || ''}`
+  console.error('scan_to_pdf failed:', detail.slice(0, 2000))
+  if (/No module named ['"]PIL['"]/i.test(detail)) {
+    return 'Die Scan-Seiten konnten nicht als PDF gespeichert werden (Pillow fehlt in der OCR-Umgebung).'
+  }
+  if (/Bildformat|cannot identify image|UnidentifiedImage/i.test(detail)) {
+    return 'Bildformat wird nicht unterstützt. Bitte JPEG oder PNG verwenden.'
+  }
+  return 'Die Scan-Seiten konnten nicht als Original-PDF gespeichert werden.'
+}
+
+/**
+ * Page-detect, deskew, and write an Original PDF.
+ * Always OCR_PYTHON (.venv-ocr). /usr/bin/python3 has no Pillow and raises
+ * ModuleNotFoundError: No module named 'PIL'.
+ */
+async function runScanToPdf(outputPath, inputs) {
+  try {
+    const result = await execFileAsync(OCR_PYTHON, [scanPdfScript(), outputPath, ...inputs], { maxBuffer: 20 * 1024 * 1024, timeout: 90000 })
+    if (result?.stderr) console.log(String(result.stderr).slice(0, 800))
+  } catch (error) {
+    const wrapped = new Error(scanConvertErrorMessage(error))
+    wrapped.statusCode = 422
+    throw wrapped
+  }
+}
+
 async function textToReferencePdf(text, outputPath, title = 'Lead Sheet') {
   const dir = await mkdtemp(join(tmpdir(), 'songbook-text-pdf-'))
   try {
@@ -430,10 +463,11 @@ async function textToReferencePdf(text, outputPath, title = 'Lead Sheet') {
         `img.save(${JSON.stringify(pngPath)})`,
       ].join('\n')
       await writeFile(pyPath, script)
-      await execFileAsync('/usr/bin/python3', [pyPath], { maxBuffer: 10 * 1024 * 1024, timeout: 30000 })
+      // Same venv as scan_to_pdf: this script imports PIL.
+      await execFileAsync(OCR_PYTHON, [pyPath], { maxBuffer: 10 * 1024 * 1024, timeout: 30000 })
       pagePaths.push(pngPath)
     }
-    await execFileAsync('/usr/bin/python3', ['/var/www/songbook/scan_to_pdf.py', outputPath, ...pagePaths], { maxBuffer: 30 * 1024 * 1024, timeout: 90000 })
+    await runScanToPdf(outputPath, pagePaths)
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
@@ -1585,12 +1619,15 @@ http.createServer(async (req,res) => { try {
   if(req.method==='POST'&&url.pathname==='/api/scans'){
     const request=new Request(url,{method:'POST',headers:req.headers,body:Readable.toWeb(req),duplex:'half'})
     const form=await request.formData()
+    const pages=form.getAll('pages')
+    // Declare pdf before preferSongTitle. Reading it earlier throws
+    // ReferenceError: Cannot access 'pdf' before initialization and the
+    // request becomes "Interner Serverfehler." Deskew is not involved.
+    const pdf=form.get('pdf')
     const title=preferSongTitle({
       hint:String(form.get('title')||'').trim(),
       filename: (pdf && typeof pdf !== 'string') ? String(pdf.name || '') : String(form.get('title')||'').trim(),
     })
-    const pages=form.getAll('pages')
-    const pdf=form.get('pdf')
     const textRaw=form.get('text')
     const selectedPagesRaw=String(form.get('selectedPages')||'').trim()
     let selectedPages=[]
@@ -1610,7 +1647,13 @@ http.createServer(async (req,res) => { try {
 
     if(typeof textRaw==='string' && textRaw.trim()){
       const rawText=String(textRaw)
-      await textToReferencePdf(rawText,path,title)
+      try{
+        await textToReferencePdf(rawText,path,title)
+      }catch(error){
+        await unlink(path).catch(()=>{})
+        if(error?.statusCode===422) return json(res,422,{error:error.message})
+        throw error
+      }
       fileSize=Buffer.byteLength(rawText,'utf8')
       artist='Text-Import'
       const printed=extractPrintedMetadataFromText(rawText)
@@ -1663,7 +1706,11 @@ http.createServer(async (req,res) => { try {
           inputs.push(input)
         }
         // Detect the sheet, deskew, and crop (VisionKit photos already fill the frame and stay full-bleed).
-        await execFileAsync('/usr/bin/python3',['/var/www/songbook/scan_to_pdf.py',path,...inputs],{maxBuffer:20*1024*1024,timeout:90000})
+        await runScanToPdf(path, inputs)
+      }catch(error){
+        await unlink(path).catch(()=>{})
+        if(error?.statusCode===422) return json(res,422,{error:error.message})
+        throw error
       }finally{
         await rm(dir,{recursive:true,force:true})
       }

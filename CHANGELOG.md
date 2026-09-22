@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.2 — 2026-09-22
+
+- **Scan save 500:** srv1 `POST /api/scans` threw `ReferenceError: Cannot access 'pdf' before initialization` because `preferSongTitle` read `pdf` before `const pdf=form.get('pdf')`. That was the “Interner Serverfehler.” after **Begradigt**. Deskew and OpenCV were not the cause. `pdf` is declared before the title. `scripts/test-scan-save-guard.mjs` keeps that order.
+- **Scan PDF interpreter:** After the `pdf` reorder, srv1 failed with `ModuleNotFoundError: No module named 'PIL'` because `scan_to_pdf.py` and the text-page renderer ran on `/usr/bin/python3`. Both now use `OCR_PYTHON` (`.venv-ocr`, which has Pillow). There is no fallback to system Python.
+- **Live document camera:** “Seite scannen” / “Nächste Seite scannen” opens the camera with a live page outline (blue fill, shadow, and corners). When the sheet holds still it captures automatically; the shutter is always there. The next screen is the cropped, straightened page. Gallery, PDF, and text import are unchanged, and gallery photos are still deskewed after import. iOS VisionKit stays the native scanner. Original-only: no Akkorde, LeadSheet, or Tonart ändern.
+
+
 ## 1.1.1 — 2026-09-22
 
 - **Document scan:** Camera and gallery photos of Original lead sheets are page-detected, perspective-deskewed, and cropped before they are stored (Adobe Scan style). The scan dialog shows “Seite wird erkannt” and then “Begradigt”, or “Ganzes Foto” when no reliable page edge is found.

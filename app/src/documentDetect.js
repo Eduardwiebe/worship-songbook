@@ -447,6 +447,11 @@ async function loadBitmap(file) {
   }
 }
 
+export async function jpegFileFromRgba(data, width, height, name, quality = 0.92) {
+  const blob = await rgbaToJpegBlob(data, width, height, quality)
+  return new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() })
+}
+
 function rgbaToJpegBlob(data, width, height, quality) {
   const canvas = document.createElement('canvas')
   canvas.width = width
