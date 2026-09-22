@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.3 — 2026-09-22
+
+- **Original sheet stays fitted and fixed** on iPhone, iPad, desktop, and the set stage. The scanned page is a page image scaled to the frame (`object-fit: contain`), centered, with pan, drag, and plugin scroll turned off. A single page stays fully visible. Multi-page songs scroll vertically one full page at a time.
+- Cause: iPad and desktop embedded the PDF (`view=FitH`, `overflow: auto`, PDF plugin pointer events), so the sheet could be dragged inside the frame. iPhone already looked locked because the page image or the narrow fit filled the screen.
+- YouTube Probe, Stimmgerät, and Original-only (no Akkorde / LeadSheet / Tonart ändern) are unchanged.
+
+
 ## 1.1.2 — 2026-09-22
 
 - **Scan save 500:** srv1 `POST /api/scans` threw `ReferenceError: Cannot access 'pdf' before initialization` because `preferSongTitle` read `pdf` before `const pdf=form.get('pdf')`. That was the “Interner Serverfehler.” after **Begradigt**. Deskew and OpenCV were not the cause. `pdf` is declared before the title. `scripts/test-scan-save-guard.mjs` keeps that order.

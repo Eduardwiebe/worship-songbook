@@ -48,13 +48,16 @@ export function AuthorizedImg({ path, alt = '', className, ...rest }) {
 }
 
 /**
- * iOS WKWebView: render PDF pages as full-width images (no crop).
- * Avoids incomplete PDF embed/iframe rendering.
+ * Raster page images for the Original view on every device.
+ * The browser PDF plugin (iPad / desktop) lets the player drag the sheet
+ * inside the frame. Images scale to the frame and stay fixed.
  */
 export function OriginalPagesViewer({ songId, title, className }) {
   const [pages, setPages] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const rootRef = useRef(null)
+  const multi = pages.length > 1
 
   useEffect(() => {
     let active = true
@@ -85,32 +88,49 @@ export function OriginalPagesViewer({ songId, title, className }) {
     return () => { active = false }
   }, [songId])
 
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el || multi) return undefined
+    const block = (event) => { event.preventDefault() }
+    el.addEventListener('wheel', block, { passive: false })
+    el.addEventListener('touchmove', block, { passive: false })
+    el.addEventListener('gesturestart', block)
+    return () => {
+      el.removeEventListener('wheel', block)
+      el.removeEventListener('touchmove', block)
+      el.removeEventListener('gesturestart', block)
+    }
+  }, [multi, loading, error, pages.length])
+
+  const frameClass = `original-pages${multi ? ' is-multi' : ' is-single'}${className ? ` ${className}` : ''}`
+
   if (loading) {
     return (
-      <div className={`pdf-media-loading original-pages${className ? ` ${className}` : ''}`}>
+      <div className={`pdf-media-loading original-pages is-single${className ? ` ${className}` : ''}`}>
         <strong>{title || 'Original'}</strong>
         <span>Lädt …</span>
       </div>
     )
   }
-  if (error) {
+  if (error || !pages.length) {
     return (
-      <div className={`pdf-media-error original-pages${className ? ` ${className}` : ''}`}>
+      <div className={`pdf-media-error original-pages is-single${className ? ` ${className}` : ''}`}>
         <strong>{title || 'Original'}</strong>
-        <span>{error}</span>
+        <span>{error || 'Keine Seiten im Original.'}</span>
       </div>
     )
   }
-  if (!pages.length) return null
 
   return (
-    <div className={`original-pages${className ? ` ${className}` : ''}`}>
+    <div ref={rootRef} className={frameClass}>
       {pages.map((page, index) => (
         <img
           key={index}
           src={page.dataUrl}
           alt={`${title || 'Seite'} ${index + 1}`}
           className="original-page-image"
+          draggable={false}
+          onDragStart={(event) => event.preventDefault()}
         />
       ))}
     </div>
@@ -220,12 +240,14 @@ function PdfNativeViewer({ src, title, className, fitContent = false }) {
  * Protected PDFs/charts — blob URL on native, direct URL on web.
  * iOS WKWebView often fails to render PDFs inside iframes; embed is used there for PDFs only.
  * HTML lead sheets (fitContent) always use iframe srcDoc — never PDF embed (that was blank on iPad).
- * For song originals on iOS, prefer OriginalPagesViewer (full page images).
+ * Song originals use OriginalPagesViewer on every device (phone, tablet, desktop)
+ * so the sheet scales to the frame and cannot be dragged. iOS PDF embed stays
+ * only for non-page fallbacks.
  * fitContent: size HTML chart iframes to document height so the stage can scroll
  * while keeping pointer-events none (song swipe stays on the stage).
  */
 export function AuthorizedFrame({ path, title, className, hash = '', songId = '', preferPageImages = false, fitContent = false }) {
-  const usePages = preferPageImages && songId && isLikelyIosNative()
+  const usePages = Boolean(preferPageImages && songId)
   const [frameClassName, setFrameClassName] = useState(className || '')
   const [src, setSrc] = useState('')
   const [htmlDoc, setHtmlDoc] = useState('')

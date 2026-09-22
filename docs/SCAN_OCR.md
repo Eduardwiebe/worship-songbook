@@ -78,7 +78,7 @@ Root cause of “only part of the page visible”: WKWebView PDF `<iframe>`/`<em
 Fix:
 
 - CSP allows `object-src 'self' blob:`
-- iOS original tab uses **`GET /api/songs/:id/pages`** → full-width JPEG page images (`OriginalPagesViewer`)
+- Original view on every device uses **`GET /api/songs/:id/pages`** → JPEG page images (`OriginalPagesViewer`), scaled to the frame and locked (no PDF-plugin pan)
 - `scan_to_pdf.py` deskews and crops a photographed page; an already full-bleed sheet is not cropped again
 
 ## Tests

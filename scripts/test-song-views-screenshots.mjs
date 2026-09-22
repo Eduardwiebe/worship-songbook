@@ -63,7 +63,10 @@ async function routeApi(request, route) {
   if (url.includes('/api/songs/bahnt-1/pdf')) {
     return route.fulfill({ status: 200, contentType: 'application/pdf', body: MINI_PDF })
   }
-  if (url.includes('/api/songs/bahnt-1/pages')) return fulfillJson(route, { pages: [] })
+  if (url.includes('/api/songs/bahnt-1/pages')) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="840"><rect width="100%" height="100%" fill="#fff"/><text x="36" y="72" font-size="28" font-family="sans-serif" fill="#172230">Bahnt einen Weg unserm Gott</text></svg>`
+    return fulfillJson(route, { pages: [{ mime: 'image/svg+xml', dataUrl: `data:image/svg+xml,${encodeURIComponent(svg)}` }] })
+  }
   if (url.includes('/api/songs/bahnt-1/resolve-youtube')) {
     return fulfillJson(route, { ok: true, youtubeUrl: 'https://www.youtube.com/results?search_query=test' })
   }
