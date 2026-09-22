@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.1 — 2026-09-22
+
+- **Document scan:** Camera and gallery photos of Original lead sheets are page-detected, perspective-deskewed, and cropped before they are stored (Adobe Scan style). The scan dialog shows “Seite wird erkannt” and then “Begradigt”, or “Ganzes Foto” when no reliable page edge is found.
+- VisionKit pages and an already-straightened sheet stay full-frame so they are not cropped twice. Printed key/BPM extraction is unchanged. Akkorde, LeadSheet, and Tonart ändern stay out of Songbook Band.
+
+
 ## 1.1.0 — 2026-09-22
 
 - **Release version for Original-only Songbook Band.** Round version **1.1.0** supersedes the draft numbering **1.0.1.27**. GitHub is the source of truth for this release.

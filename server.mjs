@@ -1662,6 +1662,7 @@ http.createServer(async (req,res) => { try {
           await writeFile(input,Buffer.from(await pages[index].arrayBuffer()))
           inputs.push(input)
         }
+        // Detect the sheet, deskew, and crop (VisionKit photos already fill the frame and stay full-bleed).
         await execFileAsync('/usr/bin/python3',['/var/www/songbook/scan_to_pdf.py',path,...inputs],{maxBuffer:20*1024*1024,timeout:90000})
       }finally{
         await rm(dir,{recursive:true,force:true})

@@ -15,7 +15,7 @@ Plugin: `app/src-tauri/plugins/document-scanner/` (Swift + Rust)
 Same path for desktop upload and iOS scan:
 
 ```
-pages → scan_to_pdf.py (full-frame PDF, no crop)
+pages → scan_to_pdf.py (detect page, deskew, crop; full-bleed VisionKit pages stay full-frame)
      → POST /api/songs/:id/analyze-chords
      → Vision model (primary leadsheet JSON, one call per page)
      → Audiveris + RapidOCR (validator / fallback)
@@ -78,7 +78,7 @@ Fix:
 
 - CSP allows `object-src 'self' blob:`
 - iOS original tab uses **`GET /api/songs/:id/pages`** → full-width JPEG page images (`OriginalPagesViewer`)
-- `scan_to_pdf.py` no longer over-sharpens/crops; preserves full frame
+- `scan_to_pdf.py` deskews and crops a photographed page; an already full-bleed sheet is not cropped again
 
 ## Tests
 

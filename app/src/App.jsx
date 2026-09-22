@@ -28,6 +28,7 @@ import { clampTempoBpm } from '../../lib/leadsheetAnalysis.mjs'
 import { playCajonHit, playCajonHtmlHit, preloadCajonSample, unlockCajonAudio, useCajon } from './cajonPlayer'
 import { installNativeDesktopChrome } from './nativeDesktop'
 import { ModalBackdrop } from './ModalBackdrop'
+import { straightenScanFile } from './documentDetect'
 import { GuitarTunerModal } from './GuitarTunerModal'
 import { blurActiveElement, dismissModal, lockBodyScroll, scheduleViewportRestore, unlockBodyScroll } from './modalLock'
 import { useAvoidMobileAutoFocus } from './useMobileFormFocus'
@@ -1433,6 +1434,7 @@ function ScanDialog({onClose,onSave}) {
   const cameraRef=useRef(null)
   const galleryRef=useRef(null)
   const fileRef=useRef(null)
+  const straightenStarted=useRef(new Set())
   const [title,setTitle]=useState('')
   const [pages,setPages]=useState([])
   const [pdfFile,setPdfFile]=useState(null)
@@ -1452,13 +1454,47 @@ function ScanDialog({onClose,onSave}) {
   const clearImagePages=()=>setPages((current)=>{current.forEach((page)=>URL.revokeObjectURL(page.url));return []})
   const resetPdf=()=>{setPdfFile(null);setPdfPages([]);setSelectedPdfPages([])}
 
+  const straightenPage=(page)=>{
+    if(straightenStarted.current.has(page.id))return
+    straightenStarted.current.add(page.id)
+    const finish=(patch)=>setPages((current)=>{
+      const existing=current.find((item)=>item.id===page.id)
+      if(!existing)return current
+      if(patch.file && patch.file!==existing.file){
+        const nextUrl=URL.createObjectURL(patch.file)
+        URL.revokeObjectURL(existing.url)
+        return current.map((item)=>item.id===page.id?{...item,file:patch.file,url:nextUrl,detect:patch.detect}:item)
+      }
+      return current.map((item)=>item.id===page.id?{...item,detect:patch.detect}:item)
+    })
+    const run=async()=>{
+      await new Promise((resolve)=>setTimeout(resolve, 16))
+      try{
+        const result=await Promise.race([
+          straightenScanFile(page.file),
+          new Promise((resolve)=>setTimeout(()=>resolve({file:page.file,detected:false}),15000)),
+        ])
+        finish({file:result.file,detect:result.detected?'straightened':'original'})
+      }catch{
+        finish({detect:'original'})
+      }
+    }
+    run()
+  }
   const add=files=>{
     const next=Array.from(files||[]).filter(file=>file.type.startsWith('image/'))
     if(!next.length)return
     setMode('images')
     resetPdf()
     setPasteText('')
-    setPages(current=>[...current,...next.slice(0,8-current.length).map(file=>({id:crypto.randomUUID(),file,url:URL.createObjectURL(file)}))])
+    const slice=next.slice(0,Math.max(0,8-pages.length)).map(file=>({id:crypto.randomUUID(),file,url:URL.createObjectURL(file),detect:'pending'}))
+    if(!slice.length)return
+    setPages((current)=>{
+      const ids=new Set(current.map((page)=>page.id))
+      const extra=slice.filter((page)=>!ids.has(page.id))
+      return extra.length?[...current,...extra]:current
+    })
+    slice.forEach(straightenPage)
   }
   const remove=id=>setPages(current=>{const page=current.find(item=>item.id===id);if(page)URL.revokeObjectURL(page.url);return current.filter(item=>item.id!==id)})
   const move=(index,offset)=>setPages(current=>{const target=index+offset;if(target<0||target>=current.length)return current;const next=[...current];[next[index],next[target]]=[next[target],next[index]];return next})
@@ -1525,7 +1561,8 @@ function ScanDialog({onClose,onSave}) {
     })
   }
 
-  const canSubmit=Boolean(title.trim()) && (
+  const detecting=pages.some((page)=>page.detect==='pending')
+  const canSubmit=Boolean(title.trim()) && !detecting && (
     (mode==='images' && pages.length>0) ||
     (mode==='pdf' && pdfFile && selectedPdfPages.length>0) ||
     (mode==='text' && pasteText.trim())
@@ -1568,11 +1605,15 @@ function ScanDialog({onClose,onSave}) {
       </article>)}</div>
     </>}
 
-    {mode==='images'&&pages.length>0&&<div className="scan-pages">{pages.map((page,index)=><article key={page.id}><img src={page.url} alt={t('scan.pageAlt', { n: index+1 })}/><span>{t('scan.pageN', { n: index+1 })}</span><div><button disabled={index===0} onClick={()=>move(index,-1)}><ArrowUp size={16}/></button><button disabled={index===pages.length-1} onClick={()=>move(index,1)}><ArrowDown size={16}/></button><button onClick={()=>remove(page.id)}><Trash2 size={16}/></button></div></article>)}</div>}
+    {mode==='images'&&pages.length>0&&<div className="scan-pages">{pages.map((page,index)=>{
+      const detectClass=page.detect==='pending'?'is-detecting':page.detect==='straightened'?'is-straightened':'is-plain'
+      const detectLabel=page.detect==='pending'?t('scan.detectingShort'):page.detect==='straightened'?t('scan.straightened'):t('scan.keptPhoto')
+      return <article key={page.id} className={detectClass}><img src={page.url} alt={t('scan.pageAlt', { n: index+1 })}/><span>{t('scan.pageN', { n: index+1 })}</span><em className="scan-detect-badge">{detectLabel}</em><div><button disabled={index===0} onClick={()=>move(index,-1)}><ArrowUp size={16}/></button><button disabled={index===pages.length-1} onClick={()=>move(index,1)}><ArrowDown size={16}/></button><button onClick={()=>remove(page.id)}><Trash2 size={16}/></button></div></article>
+    })}</div>}
 
     {error&&<p className="form-error">{error}</p>}
-    <div className="scan-processing-note"><CheckCircle2 size={18}/><span><strong>{t('scan.autoProcess')}</strong><small>{t('scan.processHintExtended')}</small></span></div>
-    <div className="modal-actions"><button className="cancel-button" onClick={close} disabled={saving}>{t('common.back')}</button><button className="add-button compact" disabled={!canSubmit||saving||previewing} onClick={submit}><Upload size={18}/>{saving?t('scan.processing'):t('scan.create')}</button></div>
+    <div className="scan-processing-note"><CheckCircle2 size={18}/><span><strong>{detecting?t('scan.detecting'):t('scan.autoProcess')}</strong><small>{detecting?t('scan.detectingHint'):t('scan.processHintExtended')}</small></span></div>
+    <div className="modal-actions"><button className="cancel-button" onClick={close} disabled={saving}>{t('common.back')}</button><button className="add-button compact" disabled={!canSubmit||saving||previewing} onClick={submit}><Upload size={18}/>{saving?t('scan.processing'):detecting?t('scan.detecting'):t('scan.create')}</button></div>
   </section></ModalBackdrop>
 }
 

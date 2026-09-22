@@ -1410,3 +1410,22 @@ a.auth-install-button {
 @media (max-width: 900px) {
   .header-install-cta { display: none; }
 }
+
+.scan-pages img { object-fit: contain; background: #e7eef2; }
+.scan-pages article.is-straightened { box-shadow: inset 0 0 0 2px #1f7a4d; }
+.scan-pages article.is-detecting img { opacity: .72; }
+.scan-detect-badge {
+  position: absolute;
+  left: 7px;
+  bottom: 48px;
+  border-radius: 15px;
+  padding: 3px 7px;
+  color: #fff;
+  background: rgba(31, 122, 77, .94);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: .01em;
+}
+.scan-pages article.is-detecting .scan-detect-badge { background: rgba(24, 31, 38, .78); }
+.scan-pages article.is-plain .scan-detect-badge { background: rgba(70, 84, 96, .9); }
