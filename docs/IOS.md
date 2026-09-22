@@ -6,7 +6,7 @@ Identifier: `studio.lyruma.worshipsongbook`
 Product name: Worship Songbook  
 Author: Eduard Wiebe  
 Copyright: Copyright 2026 Eduard Wiebe  
-Version: keep in sync with `app/package.json` / `tauri.conf.json` / `Cargo.toml` / `appMeta.js` (currently **1.1.0**)
+Version: keep in sync with `app/package.json` / `tauri.conf.json` / `Cargo.toml` / `appMeta.js` (currently **1.1.1**)
 
 ## Status
 
@@ -178,17 +178,17 @@ Status marker when build + static tests green: `WORSHIP_SONGBOOK_IOS_VIEWPORT_KE
 Full write-up: **`docs/SCAN_OCR.md`**.
 
 ```
-VisionKit (iOS) / file input (fallback)
-  → POST /api/scans → scan_to_pdf.py (full-frame PDF)
-  → POST /api/songs/:id/analyze-chords
-  → Audiveris OMR + leadsheetReconstruct.mjs
+VisionKit (iOS) / file input (camera + gallery)
+  → page detect, deskew, crop (browser preview + scan_to_pdf.py)
+  → POST /api/scans → Original PDF
+  → printed key/BPM only (no chord/LeadSheet rebuild)
 ```
 
 | Step | Implementation |
 |------|----------------|
 | Capture | **VisionKit** `VNDocumentCameraViewController` via Tauri `document-scanner` plugin; HTML camera/gallery fallback |
-| PDF build | `scan_to_pdf.py` EXIF transpose, light autocontrast, upscale if needed — **no crop** |
-| Analysis | Vision leadsheet JSON (primary); Audiveris/RapidOCR validate or fallback |
+| PDF build | `scan_to_pdf.py` detects the page, deskews, and crops; full-bleed sheets (VisionKit) stay uncropped |
+| Analysis | Printed key/BPM only. Chord/LeadSheet APIs stay disabled in Songbook Band. |
 | Quality | `needsReview` when confidence/structure low — original still shown |
 | Original view | iOS uses page JPEGs from `GET /api/songs/:id/pages` (full width, no clip) |
 
@@ -202,7 +202,7 @@ Desktop PDF import with text layer may skip OCR; book scans always use structure
 
 **Causes:** WKWebView PDF embed unreliability; CSP `object-src 'none'`; fixed-height sheet; regular camera photos without document crop.
 
-**Fix:** VisionKit corrected pages + page-image original viewer + CSP `object-src 'self' blob:` + full-frame `scan_to_pdf.py`.
+**Fix:** VisionKit corrected pages + page-image original viewer + CSP `object-src 'self' blob:`. `scan_to_pdf.py` crops to the detected page and leaves an already full-bleed sheet untouched.
 
 ## Device retest checklist (Eduard)
 
