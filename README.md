@@ -36,7 +36,7 @@ Production UI is https://songbook.lyruma.de. Native API hosts still use `songboo
 
 Akkordansicht and LeadSheet are separate reconstructions. Chord view merges SongSelect syllables into words; LeadSheet stays MusicXML with syllabic underlay.
 
-Opening **AKKORDE** repairs the chart you see (word merge, wrap, tempo/CCLI stripped from the body) without waiting for a new OCR pass. The song list title is cleaned on read as well.
+Opening **AKKORDE** repairs syllable spacing, wrap, and tempo/CCLI noise in the chart you see. A SongSelect page that stacks verse 1 and verse 2 under one staff is expanded into singing order only when the text is analyzed again: **Strophe 1 → Refrain → Strophe 2 → Refrain**, with chords on the first line of each verse.
 
 To store that repair (snapshot text, title, BPM) for an existing song:
 

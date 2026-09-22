@@ -3,10 +3,14 @@
  * Chord-view vs LeadSheet reconstruction quality.
  * Chord view rehydrates syllables; LeadSheet is MusicXML, never faked from chord text.
  */
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   reconstructLeadsheet,
   reconstructHybridSong,
   reconstructFromPdfBBox,
+  reconstructFromFlatText,
 } from '../lib/leadsheetReconstruct.mjs'
 import { rehydrateLyricTokens, lyricTokensLookSyllabic } from '../lib/syllableRehydrate.mjs'
 import { preferSongTitle, isMetadataText, extractSongMetadata, filterMetadataLines, keyFromLeadSheetFilename } from '../lib/songMetadata.mjs'
@@ -174,6 +178,65 @@ assert(!html.includes('ei nen') && !html.includes('=160') && !/CCLI/.test(html),
 assert(/min-width:0/.test(html) && /flex-wrap:wrap/.test(html) && /white-space:pre-wrap/.test(html), 'html wraps instead of clipping')
 assert(/width:100%/.test(html), 'chart width constrained')
 console.log('OK SongSelect flat syllable chart')
+
+// Real SongSelect lead sheet: two lyric rows under one staff.
+// Singing order is Strophe 1, Refrain, Strophe 2, Refrain — not interleaved.
+const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
+const bahntBBox = readFileSync(join(fixtureDir, 'bahnt-songselect-bbox.html'), 'utf8')
+const bahntLayout = readFileSync(join(fixtureDir, 'bahnt-songselect-layout.txt'), 'utf8')
+
+function sectionBlocks(chart) {
+  const parts = chart.split(/\n(?=\[[^\]]+\])/)
+  const blocks = {}
+  for (const part of parts) {
+    const match = part.match(/^\[([^\]]+)\]\n([\s\S]*)$/)
+    if (!match) continue
+    blocks[match[1]] = blocks[match[1]] ? `${blocks[match[1]]}\n---\n${match[2]}` : match[2].trim()
+  }
+  return blocks
+}
+
+function assertBahntStructure(chart, label) {
+  const order = [...chart.matchAll(/\[(Strophe \d|Refrain)\]/g)].map((match) => match[1])
+  assert(order.join(' > ') === 'Strophe 1 > Refrain > Strophe 2 > Refrain', `${label} order ${order.join(' > ')}\n${chart}`)
+  const blocks = sectionBlocks(chart)
+  const verse1 = blocks['Strophe 1'].split('\n---\n')[0]
+  const verse2 = blocks['Strophe 2'].split('\n---\n')[0]
+  const refrains = blocks.Refrain.split('\n---\n')
+  assert(refrains.length === 2 && refrains[0] === refrains[1], `${label} refrain should repeat`)
+  const v1Lines = verse1.split('\n').filter((line) => line.trim())
+  const v2Lines = verse2.split('\n').filter((line) => line.trim())
+  assert(isChordLineSafe(v1Lines[0]) && /\bG\b/.test(v1Lines[0]), `${label} verse 1 opening chords\n${verse1}`)
+  assert(isChordLineSafe(v2Lines[0]) && /\bG\b/.test(v2Lines[0]), `${label} verse 2 opening chords\n${verse2}`)
+  assert(/Bahnt einen Weg unserm Gott, der uns erlöst/.test(verse1), `${label} verse 1 line\n${verse1}`)
+  assert(/aus der Not/.test(verse1) && /König der Könige/.test(verse1), `${label} verse 1 continuation\n${verse1}`)
+  assert(/gesiegt durch seinen Tod/.test(verse1), `${label} verse 1 ending\n${verse1}`)
+  assert(!/erwählt|Ewigkeit|Herzen|bereit/.test(verse1), `${label} verse 2 leaked into verse 1\n${verse1}`)
+  assert(/Bahnt einen Weg unserm Gott, der uns erwählt/.test(verse2), `${label} verse 2 line\n${verse2}`)
+  assert(/als sein Volk/.test(verse2) && /herrschen in Ewigkeit/.test(verse2), `${label} verse 2 continuation\n${verse2}`)
+  assert(/Öffnet die Herzen und macht euch bereit/.test(verse2), `${label} verse 2 ending\n${verse2}`)
+  assert(!/erlöst|Könige|seinen Tod/.test(verse2), `${label} verse 1 leaked into verse 2\n${verse2}`)
+  assert(/Dein Reich komme, o Herr, erhebe dich in deiner Macht/.test(refrains[0]), `${label} refrain\n${refrains[0]}`)
+  assert(/Deine Herrlichkeit ist/.test(refrains[0]) && /\nhier\./.test(refrains[0]), `${label} refrain ending\n${refrains[0]}`)
+  assert(!/=160|CCLI|SongSelect|Kosse|Lothar/.test(chart), `${label} metadata in chart\n${chart}`)
+}
+
+const bahntFromBBox = reconstructFromPdfBBox(bahntBBox, { filename: 'Bahnt einen Weg unserm Gott-lead-G.pdf' })
+assert(bahntFromBBox.metadata?.bpm === 160, `bbox bpm ${bahntFromBBox.metadata?.bpm}`)
+assert(bahntFromBBox.title === 'Bahnt einen Weg unserm Gott', bahntFromBBox.title)
+assertBahntStructure(bahntFromBBox.text, 'bbox')
+assert(/D\/F#/.test(bahntFromBBox.text), 'bbox keeps D/F#')
+const bahntFromLayout = reconstructFromFlatText(bahntLayout)
+assertBahntStructure(bahntFromLayout.text, 'layout')
+const bahntHybrid = reconstructHybridSong(
+  { engine: 'pdftotext-bbox', pages: [{ page_index: 0, width: 595, height: 842, tokens: [], notes: [
+    { id: 'n1', measure: 1, onset: 0, staff: 1, step: 'G', octave: 4, duration: 1, x: 130, y: 160 },
+    { id: 'n2', measure: 1, onset: 1, staff: 1, step: 'A', octave: 4, duration: 1, x: 180, y: 155 },
+  ] }] },
+  { filename: 'Bahnt einen Weg unserm Gott-lead-G.pdf', nativeTokens: [] },
+)
+assert(!bahntHybrid.chordView.text.includes('[Strophe 1]'), 'without stacked rows, do not invent strophes')
+console.log('OK SongSelect dual-verse expansion')
 
 function isChordLineSafe(line) {
   return /[A-G]/.test(line) && !/[a-zäöü]{3,}/u.test(line)
