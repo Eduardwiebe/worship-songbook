@@ -97,7 +97,7 @@ jobs:
         working-directory: app
         env:
           CI: 'true'
-          VITE_API_BASE: https://songbook.lyruma.app
+          VITE_API_BASE: https://songbook.lyruma.de
         run: npx tauri ios build --debug --target aarch64-sim -v
 
       - name: Collect simulator artifacts
@@ -134,7 +134,7 @@ jobs:
             echo "date_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             echo "runner=$(uname -m)"
             echo "head_sha=${GITHUB_SHA}"
-            echo "vite_api_base=https://songbook.lyruma.app"
+            echo "vite_api_base=https://songbook.lyruma.de"
             echo "target=aarch64-sim"
             python3 -c 'import json;print("version="+json.load(open("src-tauri/tauri.conf.json"))["version"])'
             if [ -n "${BIN}" ]; then

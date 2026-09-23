@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.4 — 2026-09-23
+
+- **Public links use the current .de domains.** About “Webseiten” shows only https://lyruma.de and https://eduardwiebe.lyruma.de. Footer, login, the native Help menu, invite share links, and the native API base use those hosts or https://songbook.lyruma.de. The footer link to lyruma.app is gone.
+- Displayed app version is **1.1.4** (`appMeta.js`, `package.json`, Tauri/`Cargo.toml`, public `version.json`, iOS bundle).
+
+
 ## 1.1.3 — 2026-09-22
 
 - **Original sheet stays fitted and fixed** on iPhone, iPad, desktop, and the set stage. The scanned page is a page image scaled to the frame (`object-fit: contain`), centered, with pan, drag, and plugin scroll turned off. A single page stays fully visible. Multi-page songs scroll vertically one full page at a time.

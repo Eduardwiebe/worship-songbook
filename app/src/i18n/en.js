@@ -194,7 +194,7 @@ export default {
     closeWindow: "Close Window",
     eduardWiebe: "Eduard Wiebe",
     checkUpdates: "Check for Updates …",
-    lyrumaStudio: "Lyruma Studio",
+    lyrumaStudio: "Lyruma",
     contactSupport: "Contact Support",
   },
   sets: {

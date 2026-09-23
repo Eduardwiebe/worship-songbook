@@ -51,7 +51,7 @@ jobs:
         # Unsigned development / smoke build. No Apple signing or notarization.
         run: npm run tauri build -- --bundles app,dmg
         env:
-          VITE_API_BASE: https://songbook.lyruma.app
+          VITE_API_BASE: https://songbook.lyruma.de
 
       - name: Summarize macOS artifacts
         run: |

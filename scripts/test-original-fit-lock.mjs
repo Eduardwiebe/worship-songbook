@@ -32,7 +32,7 @@ assert(css.includes('object-fit:contain') || css.includes('object-fit: contain')
 assert(css.includes('.pdf-stage .original-pages.stage-fill.is-single'), 'set stage locks a single page')
 assert(css.includes('.pdf-stage .original-pages.stage-fill.is-multi'), 'set stage scrolls multi-page vertically')
 assert(css.includes('touch-action:none') || css.includes('touch-action: none'), 'single-page touch pan is disabled')
-assert(meta.includes("APP_VERSION = '1.1.3'"), 'patch version 1.1.3')
+assert(meta.includes("APP_VERSION = '1.1.4'"), 'patch version 1.1.4')
 console.log('ok: source fit-lock')
 
 function pageSvg(label, width = 600, height = 840) {

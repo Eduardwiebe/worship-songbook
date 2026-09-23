@@ -6,7 +6,7 @@ Identifier: `studio.lyruma.worshipsongbook`
 Product name: Worship Songbook  
 Author: Eduard Wiebe  
 Copyright: Copyright 2026 Eduard Wiebe  
-Version: keep in sync with `app/package.json` / `tauri.conf.json` / `Cargo.toml` / `appMeta.js` (currently **1.1.3**)
+Version: keep in sync with `app/package.json` / `tauri.conf.json` / `Cargo.toml` / `appMeta.js` (currently **1.1.4**)
 
 ## Status
 
@@ -57,7 +57,7 @@ npm run tauri:ios:build:sim
 npx tauri ios build --debug --target aarch64-sim
 ```
 
-API base for native builds: `VITE_API_BASE=https://songbook.lyruma.app` (default in `apiConfig.js` when native).
+API base for native builds: `VITE_API_BASE=https://songbook.lyruma.de` (default in `apiConfig.js` when native).
 
 ## Native Auth (iOS)
 
@@ -65,7 +65,7 @@ Same stack as desktop Tauri:
 
 | Concern | Implementation |
 |---------|----------------|
-| Login / logout / refresh | `/api/auth/native/*` against `https://songbook.lyruma.app` |
+| Login / logout / refresh | `/api/auth/native/*` against `https://songbook.lyruma.de` |
 | Access token | In-memory only |
 | Refresh token | `secure_*` Tauri commands → **iOS Keychain** via `keyring` (`apple-native`) |
 | Fallback | Process memory only if Keychain fails — **not** localStorage |

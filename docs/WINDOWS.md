@@ -30,7 +30,7 @@ The git tag `v0.1.0` remains the **web baseline**. Windows work lives in later c
 
 - GitHub Actions workflow: `.github/workflows/windows-native.yml`
 - Bundles uploaded today: **NSIS setup `.exe`** and **WiX `.msi`** (unsigned)
-- Native API base: `https://songbook.lyruma.app` via `app/src/apiConfig.js`
+- Native API base: `https://songbook.lyruma.de` via `app/src/apiConfig.js`
 - Native auth: Bearer access + refresh (Credential Manager via `keyring` / `secure_*`)
 - Native HTTP: `@tauri-apps/plugin-http` (scoped to production host; avoids WebView CORS)
 - External links: `@tauri-apps/plugin-opener` (system browser)
@@ -118,7 +118,7 @@ Where to wire: add env vars to the “Build Tauri Windows bundles” step / `tau
 
 - `core:default`
 - custom `secure_set|get|delete` (OS keyring)
-- `http:default` **only** `https://songbook.lyruma.app/**`
+- `http:default` **only** `https://songbook.lyruma.de/**`
 - `opener:default` for known public https sites (Lyruma, PayPal, GitHub, Instagram)
 
 No broad shell, no full filesystem ACL.

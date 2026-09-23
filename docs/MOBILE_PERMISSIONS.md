@@ -12,6 +12,6 @@ Enable permissions only when a feature needs them. Desktop shells do not surface
 | Open external links | implicit VIEW intents | opener → Safari / openURL | Legal + donations |
 | Notifications | POST_NOTIFICATIONS (13+) | push entitlement | Future only — **not planned for v0.1** |
 
-Desktop capability file (`app/src-tauri/capabilities/default.json`) and mobile (`mobile.json`) grant `core:default`, secure storage, scoped `http` to `https://songbook.lyruma.app/**`, and scoped `opener` allow-list. Keep them minimal until new features land.
+Desktop capability file (`app/src-tauri/capabilities/default.json`) and mobile (`mobile.json`) grant `core:default`, secure storage, scoped `http` to `https://songbook.lyruma.de/**`, and scoped `opener` allow-list. Keep them minimal until new features land.
 
 See also `docs/IOS.md`.

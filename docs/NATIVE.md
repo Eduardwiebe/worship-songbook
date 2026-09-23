@@ -13,7 +13,7 @@ All client HTTP calls go through `app/src/apiConfig.js`:
 | Environment | API base |
 |-------------|----------|
 | Web (production / same origin) | `''` → relative `/api/...` |
-| Native (Tauri) | `VITE_API_BASE` or default `https://songbook.lyruma.app` |
+| Native (Tauri) | `VITE_API_BASE` or default `https://songbook.lyruma.de` |
 
 Helpers: `getApiBase()`, `apiUrl(path)`, `apiFetch(path, options)`.
 
@@ -34,7 +34,7 @@ Native `apiFetch` also attaches:
 
 ### Why cookies fail in typical Tauri WebViews
 
-Bundled UI origin ≠ `https://songbook.lyruma.app`:
+Bundled UI origin ≠ `https://songbook.lyruma.de`:
 
 1. `SameSite=Strict` cookies are not sent on cross-site API calls
 2. CSRF Origin check rejects mutations from `tauri://` / custom schemes

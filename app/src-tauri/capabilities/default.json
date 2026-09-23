@@ -11,8 +11,8 @@
     {
       "identifier": "http:default",
       "allow": [
-        { "url": "https://songbook.lyruma.app" },
-        { "url": "https://songbook.lyruma.app/**" },
+        { "url": "https://songbook.lyruma.de" },
+        { "url": "https://songbook.lyruma.de/**" },
         { "url": "https://api.github.com" },
         { "url": "https://api.github.com/**" }
       ]
@@ -20,14 +20,12 @@
     {
       "identifier": "opener:default",
       "allow": [
-        { "url": "https://lyruma.studio" },
-        { "url": "https://lyruma.studio/**" },
-        { "url": "https://lyruma.app" },
-        { "url": "https://lyruma.app/**" },
-        { "url": "https://*.lyruma.studio" },
-        { "url": "https://*.lyruma.studio/**" },
-        { "url": "https://songbook.lyruma.app" },
-        { "url": "https://songbook.lyruma.app/**" },
+        { "url": "https://lyruma.de" },
+        { "url": "https://lyruma.de/**" },
+        { "url": "https://*.lyruma.de" },
+        { "url": "https://*.lyruma.de/**" },
+        { "url": "https://songbook.lyruma.de" },
+        { "url": "https://songbook.lyruma.de/**" },
         { "url": "https://www.paypal.com" },
         { "url": "https://www.paypal.com/**" },
         { "url": "https://paypal.com" },
