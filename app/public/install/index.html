@@ -35,7 +35,7 @@
     }
     .wrap { width: min(720px, 100%); margin: 0 auto; }
     .top {
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
       margin-bottom: 14px;
     }
     .brand {
@@ -147,8 +147,9 @@
     .site-links {
       display: flex;
       flex-wrap: wrap;
+      justify-content: flex-end;
       gap: 14px 18px;
-      margin-top: 22px;
+      margin: 0;
       font-size: 14px;
       font-weight: 750;
     }
@@ -176,6 +177,10 @@
         <img src="/brand-icon.png" alt="" width="44" height="44" />
         <span>Songbook Band</span>
       </a>
+      <nav class="site-links" aria-label="Webseiten">
+        <a href="https://lyruma.de" rel="noreferrer">Lyruma</a>
+        <a href="https://eduardwiebe.lyruma.de" rel="noreferrer">Eduard Wiebe</a>
+      </nav>
     </div>
 
     <a class="back-app" href="/" id="backToApp">
@@ -211,11 +216,6 @@
         <button type="button" id="langToggle">English</button>
       </p>
     </section>
-
-    <nav class="site-links" aria-label="Webseiten">
-      <a href="https://lyruma.de" rel="noreferrer">Lyruma</a>
-      <a href="https://eduardwiebe.lyruma.de" rel="noreferrer">Eduard Wiebe</a>
-    </nav>
   </div>
 
   <script>
