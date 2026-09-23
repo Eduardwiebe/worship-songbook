@@ -3,7 +3,7 @@ import { Music2, LockKeyhole } from 'lucide-react'
 import { login, register, changePassword, logout } from './authStore'
 import { useI18n } from './i18n'
 import { useAvoidMobileAutoFocus } from './useMobileFormFocus'
-import { URL_APP, URL_LYRUMA_STUDIO } from './appMeta'
+import { URL_APP, URL_EDUARD_WIEBE, URL_LYRUMA_STUDIO } from './appMeta'
 import { BrandMark } from './BrandMark'
 
 export function AuthScreen({ onAuthenticated }) {
@@ -46,6 +46,8 @@ export function AuthScreen({ onAuthenticated }) {
         </div>
         <p className="auth-studio-link">
           <a href={URL_LYRUMA_STUDIO} target="_blank" rel="noreferrer">Lyruma</a>
+          <span aria-hidden="true"> · </span>
+          <a href={URL_EDUARD_WIEBE} target="_blank" rel="noreferrer">Eduard Wiebe</a>
           <span aria-hidden="true"> · </span>
           <a href={`${URL_APP}/install/`} target="_blank" rel="noreferrer">{t('nav.install')}</a>
         </p>

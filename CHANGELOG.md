@@ -1,5 +1,13 @@
 # Changelog
 
+## Static HTML — 2026-09-23
+
+Displayed app version stays **1.1.4**. This note is static HTML and navigation only; `APP_VERSION` is unchanged. A deploy of the web build picks the tags up.
+
+- **Social cards:** `twitter:image` matches `og:image` at `https://songbook.lyruma.de/brand-icon.png` on the app entry, install page, and legal pages. `twitter:card` stays `summary` because the icon is 256×256 (a large-image card wants a wide image).
+- **Cross-links:** the page header and the login screen show Lyruma and Eduard Wiebe next to Install. The footer websites nav (Lyruma, Eduard Wiebe) and the footer Install link stay. The install page header and the Impressum, Datenschutz, and Nutzungsbedingungen footers link the same hosts.
+
+
 ## 1.1.4 — 2026-09-23
 
 - **Public links use the current .de domains.** About “Webseiten” shows only https://lyruma.de and https://eduardwiebe.lyruma.de. Footer, login, the native Help menu, invite share links, and the native API base use those hosts or https://songbook.lyruma.de. The footer link to lyruma.app is gone.

@@ -253,6 +253,23 @@ a {
   line-height:1.7;
 }
 
+.legal-sites {
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px 16px;
+  margin:0 0 12px;
+}
+
+.legal-sites a {
+  color:#344155;
+  font-weight:800;
+  text-decoration:none;
+}
+
+.legal-sites a:hover {
+  color:#8a6a2b;
+}
+
 .legal-footer strong {
   color:#344155;
 }
