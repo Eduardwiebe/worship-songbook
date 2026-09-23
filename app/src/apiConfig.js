@@ -4,6 +4,7 @@
  * Native: @tauri-apps/plugin-http (bypasses WebView CORS; scoped in capabilities).
  */
 
+import { URL_APP } from './appMeta'
 import {
   applyNativeLoginTokens,
   clearAccessToken,
@@ -15,7 +16,7 @@ import {
   setAccessToken,
 } from './nativeSession'
 
-const DEFAULT_NATIVE_API = 'https://songbook.lyruma.app'
+const DEFAULT_NATIVE_API = URL_APP
 
 let refreshPromise = null
 let nativeFetchImpl = null

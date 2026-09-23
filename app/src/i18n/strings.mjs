@@ -185,7 +185,7 @@ export const STRINGS = {
   'menu.help': { de: 'Hilfe', en: 'Help' },
   'menu.helpItem': { de: 'Songbook Band Hilfe', en: 'Songbook Band Help' },
   'menu.contactSupport': { de: 'Support kontaktieren', en: 'Contact Support' },
-  'menu.lyrumaStudio': { de: 'Lyruma Studio', en: 'Lyruma Studio' },
+  'menu.lyrumaStudio': { de: 'Lyruma', en: 'Lyruma' },
   'menu.eduardWiebe': { de: 'Eduard Wiebe', en: 'Eduard Wiebe' },
 
   'pages.songs': { de: 'Songs', en: 'Songs' },

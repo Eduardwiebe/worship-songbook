@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 import { randomUUID } from 'node:crypto'
 import { createAuth, initializeAuth } from './auth.mjs'
+import { APP_VERSION, URL_APP } from './app/src/appMeta.js'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import {
@@ -879,7 +880,7 @@ http.createServer(async (req,res) => { try {
       const raw = await readFile(join(dirname(fileURLToPath(import.meta.url)), 'app/public/version.json'), 'utf8')
       return json(res, 200, JSON.parse(raw))
     } catch {
-      return json(res, 200, { version: '1.0.1.3', releaseUrl: 'https://songbook.lyruma.app', channel: 'web', canReload: true })
+      return json(res, 200, { version: APP_VERSION, releaseUrl: URL_APP, channel: 'web', canReload: true })
     }
   }
   if(url.pathname.startsWith('/api/auth/'))return await auth.route(req,res,url,bodyJson)
@@ -1205,7 +1206,7 @@ http.createServer(async (req,res) => { try {
       maxUses,
       useCount:0,
       active:true,
-      shareUrl:`https://songbook.lyruma.app/join?code=${code}`
+      shareUrl:`${URL_APP}/join?code=${code}`
     })
   }
 
@@ -1238,7 +1239,7 @@ http.createServer(async (req,res) => { try {
     return json(res,200,rows.map(item=>({
       ...item,
       active:Boolean(item.active),
-      shareUrl:`https://songbook.lyruma.app/join?code=${item.code}`
+      shareUrl:`${URL_APP}/join?code=${item.code}`
     })))
   }
 

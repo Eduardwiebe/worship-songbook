@@ -4,7 +4,7 @@ Thanks for your interest in contributing.
 
 ## Ground rules
 
-- The live web app at https://songbook.lyruma.app is the reference UX. Prefer small, focused changes over redesigns.
+- The live web app at https://songbook.lyruma.de is the reference UX. Prefer small, focused changes over redesigns.
 - Do not commit private or user data: databases, PDFs, uploads, `.env`, keys, backups, or session material.
 - Keep the existing footer attribution: `Open Source · Entwickelt von Eduard Wiebe`.
 

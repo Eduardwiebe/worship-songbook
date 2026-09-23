@@ -48,8 +48,8 @@ jobs:
         run: npm run tauri build -- --bundles nsis,msi
         env:
           # Ensure native builds never accidentally bake a relative-only assumption via env.
-          # Runtime still detects Tauri and defaults to https://songbook.lyruma.app.
-          VITE_API_BASE: https://songbook.lyruma.app
+          # Runtime still detects Tauri and defaults to https://songbook.lyruma.de.
+          VITE_API_BASE: https://songbook.lyruma.de
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4

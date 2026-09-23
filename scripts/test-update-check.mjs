@@ -16,7 +16,7 @@ const upToDate = await checkForUpdates({
       return {
         ok: true,
         status: 200,
-        json: async () => ({ version: '1.0.1.3', releaseUrl: 'https://songbook.lyruma.app', channel: 'web', canReload: true }),
+        json: async () => ({ version: '1.0.1.3', releaseUrl: 'https://songbook.lyruma.de', channel: 'web', canReload: true }),
       }
     }
     throw new Error(`unexpected url ${url}`)
@@ -32,7 +32,7 @@ const available = await checkForUpdates({
       return {
         ok: true,
         status: 200,
-        json: async () => ({ version: '1.0.1.3', name: 'Lyruma Songbook', releaseUrl: 'https://songbook.lyruma.app', channel: 'web', canReload: true }),
+        json: async () => ({ version: '1.0.1.3', name: 'Lyruma Songbook', releaseUrl: 'https://songbook.lyruma.de', channel: 'web', canReload: true }),
       }
     }
     throw new Error(`unexpected url ${url}`)

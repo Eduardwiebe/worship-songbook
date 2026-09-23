@@ -47,7 +47,7 @@ Ad-hoc ≠ public distribution. Public opens still need Apple Developer ID + not
 
 - GitHub Actions workflow: `.github/workflows/macos-native.yml`
 - Bundles: **`.app`** and **`.dmg`** (unsigned)
-- Same native API base as Windows: `https://songbook.lyruma.app` (`app/src/apiConfig.js`)
+- Same native API base as Windows: `https://songbook.lyruma.de` (`app/src/apiConfig.js`)
 - Native auth: Bearer access + refresh via OS keyring (`keyring` crate with `apple-native` → **macOS Keychain**)
 - Native HTTP: `@tauri-apps/plugin-http` (scoped to production host)
 - External links: `@tauri-apps/plugin-opener` (system browser)
@@ -139,7 +139,7 @@ Default window in `tauri.conf.json`: 1280×800, min 1024×700. Responsive layout
 
 ## Security (minimal)
 
-- CSP and capabilities as in Windows prep (`http` only to `https://songbook.lyruma.app/**`)
+- CSP and capabilities as in Windows prep (`http` only to `https://songbook.lyruma.de/**`)
 - Opener limited to known public https hosts
 - No broad filesystem ACL, no shell rights
 - Signing / notarization secrets never in git

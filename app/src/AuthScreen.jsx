@@ -45,7 +45,7 @@ export function AuthScreen({ onAuthenticated }) {
           <div><strong>{t('brand.songbook')}</strong></div>
         </div>
         <p className="auth-studio-link">
-          <a href={URL_LYRUMA_STUDIO} target="_blank" rel="noreferrer">Lyruma Studio</a>
+          <a href={URL_LYRUMA_STUDIO} target="_blank" rel="noreferrer">Lyruma</a>
           <span aria-hidden="true"> · </span>
           <a href={`${URL_APP}/install/`} target="_blank" rel="noreferrer">{t('nav.install')}</a>
         </p>

@@ -1,4 +1,5 @@
 import { isNativeRuntime } from './apiConfig'
+import { URL_APP } from './appMeta'
 
 /**
  * Open https URLs in the system browser on native; keep web target=_blank behavior.
@@ -44,7 +45,7 @@ export function installNativeExternalLinkHandler() {
 
     if (href.startsWith('/') && href.includes('.html')) {
       event.preventDefault()
-      openExternal(`https://songbook.lyruma.app${href}`)
+      openExternal(`${URL_APP}${href}`)
     }
   }
 

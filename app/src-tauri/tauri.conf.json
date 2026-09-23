@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Songbook Band",
-  "version": "1.1.3",
+  "version": "1.1.4",
   "identifier": "studio.lyruma.worshipsongbook",
   "build": {
     "frontendDist": "../dist",
@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' https://songbook.lyruma.app https://api.github.com ipc: http://ipc.localhost; img-src 'self' https://songbook.lyruma.app data: blob: https://i.ytimg.com; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-src 'self' blob: https://songbook.lyruma.app https://www.youtube-nocookie.com; font-src 'self' data:; object-src 'self' blob:; base-uri 'self'"
+      "csp": "default-src 'self'; connect-src 'self' https://songbook.lyruma.de https://api.github.com ipc: http://ipc.localhost; img-src 'self' https://songbook.lyruma.de data: blob: https://i.ytimg.com; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-src 'self' blob: https://songbook.lyruma.de https://www.youtube-nocookie.com; font-src 'self' data:; object-src 'self' blob:; base-uri 'self'"
     }
   },
   "bundle": {

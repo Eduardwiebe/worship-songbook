@@ -2,7 +2,7 @@
 
 Lyruma Songbook is a web app for bands to plan sets, manage songs, team members, bands, and appointments.
 
-**Live web version:** https://songbook.lyruma.app
+**Live web version:** https://songbook.lyruma.de
 
 **Original developer:** Eduard Wiebe
 
@@ -47,7 +47,7 @@ User-generated content (imported SongSelect/CCLI PDFs, scans, profile photos, ba
 API calls go through a central helper (`app/src/apiConfig.js`):
 
 - **Web:** relative `/api/...` (same origin) with cookie sessions
-- **Native (Tauri):** `VITE_API_BASE` or default `https://songbook.lyruma.app` with Bearer access tokens + OS keyring refresh storage
+- **Native (Tauri):** `VITE_API_BASE` or default `https://songbook.lyruma.de` with Bearer access tokens + OS keyring refresh storage
 
 Details: [docs/NATIVE.md](docs/NATIVE.md).
 
