@@ -144,7 +144,30 @@
       background: none; border: 0; color: var(--gold); font-weight: 750; cursor: pointer; padding: 0;
     }
     .hidden { display: none !important; }
+    .site-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px 18px;
+      margin-top: 22px;
+      font-size: 14px;
+      font-weight: 750;
+    }
+    .site-links a { color: var(--gold); text-decoration: none; }
+    .site-links a:hover { text-decoration: underline; }
   </style>
+  <meta name="description" content="Installiere Songbook Band auf dem Home-Bildschirm oder Desktop — schnell starten, offline Sets spielen, ohne APK oder Store.">
+  <link rel="canonical" href="https://songbook.lyruma.de/install/">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="de_DE">
+  <meta property="og:site_name" content="Songbook Band">
+  <meta property="og:title" content="Songbook Band installieren">
+  <meta property="og:description" content="Installiere Songbook Band auf dem Home-Bildschirm oder Desktop — schnell starten, offline Sets spielen, ohne APK oder Store.">
+  <meta property="og:url" content="https://songbook.lyruma.de/install/">
+  <meta property="og:image" content="https://songbook.lyruma.de/brand-icon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Songbook Band installieren">
+  <meta name="twitter:description" content="Installiere Songbook Band auf dem Home-Bildschirm oder Desktop — schnell starten, offline Sets spielen, ohne APK oder Store.">
+  <meta name="twitter:image" content="https://songbook.lyruma.de/brand-icon.png">
 </head>
 <body>
   <div class="wrap">
@@ -188,6 +211,11 @@
         <button type="button" id="langToggle">English</button>
       </p>
     </section>
+
+    <nav class="site-links" aria-label="Webseiten">
+      <a href="https://lyruma.de" rel="noreferrer">Lyruma</a>
+      <a href="https://eduardwiebe.lyruma.de" rel="noreferrer">Eduard Wiebe</a>
+    </nav>
   </div>
 
   <script>

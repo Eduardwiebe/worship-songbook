@@ -369,15 +369,21 @@ function Header({title, subtitle}) {
         {subtitle&&<p className="subtitle">{subtitle}</p>}
       </div>
     </div>
-    <a
-      className="header-install-cta"
-      href={`${URL_APP}/install/`}
-      target="_blank"
-      rel="noreferrer"
-      onClick={(e)=>{e.preventDefault();openExternal(`${URL_APP}/install/`)}}
-    >
-      <Download size={17}/>{t('nav.install')}
-    </a>
+    <div className="header-actions">
+      <nav className="header-sites" aria-label={t('footer.ariaWebsites')}>
+        <a href={URL_LYRUMA_STUDIO} target="_blank" rel="noreferrer">Lyruma</a>
+        <a href={URL_EDUARD_WIEBE} target="_blank" rel="noreferrer">Eduard Wiebe</a>
+      </nav>
+      <a
+        className="header-install-cta"
+        href={`${URL_APP}/install/`}
+        target="_blank"
+        rel="noreferrer"
+        onClick={(e)=>{e.preventDefault();openExternal(`${URL_APP}/install/`)}}
+      >
+        <Download size={17}/>{t('nav.install')}
+      </a>
+    </div>
   </header>
 }
 
