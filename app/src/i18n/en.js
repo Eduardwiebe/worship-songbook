@@ -469,7 +469,7 @@ export default {
     searchPlaceholder: "Search songs…",
     simplifyChordsHint: "Simplified chords for band play (no maj7/m7/slash). Original PDF stays unchanged.",
     tunerMicUnsupported: "This device does not support microphone access in the app.",
-    youtubeRehearsalHint: "Open on YouTube for listening / rehearsal",
+    youtubeRehearsalHint: "YouTube rehearsal needs internet",
     snapshotReviewRequired: "The original version has not been verified yet. Transposition remains locked until review.",
   },
   common: {
@@ -643,6 +643,16 @@ export default {
     supportText: "The code stays free and open source. Voluntary support helps with hosting, development, and future updates.",
     ariaWebsites: "Websites",
     supportTitle: "Support Songbook Band",
+  },
+  offline: {
+    ready: "Ready offline ({count} songs)",
+    banner: "Offline — saved songs and sets are available",
+    partial: "{done} of {total} songs saved offline",
+    prepare: "Prepare for offline",
+    notCached: "Not available offline yet — open it once while online",
+    preparing: "Offline copy {done}/{total} …",
+    pagesFailed: "Pages could not be loaded.",
+    needsNetwork: "Uploading, editing the team, and new sets need internet.",
   },
   settings: {
     name: "Name",

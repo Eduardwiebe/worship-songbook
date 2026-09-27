@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — offline rehearsals
+
+Displayed app version stays **1.1.4**. No production deploy from this change.
+
+- **Offline after one online visit.** The service worker keeps the app shell (Home, Songs, Sets, Team, in-app original viewer). Song sheets, covers, and lists live in IndexedDB. Set songs are prepared first, then page images for the rest of the library, so the eye viewer works for every uploaded sheet. Raw PDF print/download stays set-priority. iPad Cache Storage keeps only the shell.
+- The eye button opens the in-app original viewer (Zurück and X), not a raw PDF tab. A sheet that was never cached says „Noch nicht offline verfügbar — einmal online öffnen“.
+- Uploading, team edits, new sets, and YouTube Probe still need the internet. Re-login needs the network; the last successful session is reused offline (web cookie 30 days, not refreshed while offline).
+
 ## Static HTML — 2026-09-23
 
 Displayed app version stays **1.1.4**. This note is static HTML and navigation only; `APP_VERSION` is unchanged. A deploy of the web build picks the tags up.

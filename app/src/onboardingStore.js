@@ -1,5 +1,6 @@
 import { apiFetch } from './apiConfig'
 import { tStatic } from './i18n'
+import { cacheGetMeta, cachePutMeta } from './offlineCache'
 
 async function request(path,options={}){
   const response=await apiFetch(path,options)
@@ -11,8 +12,17 @@ async function request(path,options={}){
   return data
 }
 
-export const getOnboarding=()=>
-  request('/api/onboarding')
+export async function getOnboarding() {
+  try {
+    const data = await request('/api/onboarding')
+    await cachePutMeta('onboarding', data)
+    return data
+  } catch (error) {
+    const cached = await cacheGetMeta('onboarding')
+    if (cached) return cached
+    throw error
+  }
+}
 
 export const saveOnboarding=value=>
   request('/api/onboarding',{

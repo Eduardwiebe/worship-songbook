@@ -7,7 +7,7 @@ import {
   loadSelectedBand,
   onNativeAuthFailure,
 } from './nativeSession'
-import { cacheGetMeta, cachePutMeta, clearOfflineCache, isProbablyOffline } from './offlineCache'
+import { cacheGetMeta, cachePutMeta, clearOfflineCache, isNetworkError, isProbablyOffline } from './offlineCache'
 
 export { onNativeAuthFailure, isNativeRuntime }
 
@@ -42,8 +42,11 @@ export const getCurrentUser = async () => {
     if (data?.user) await cachePutMeta('user', data)
     return data
   } catch (error) {
+    // Network miss (Airplane Mode, dead church Wi-Fi): keep reading the last
+    // successful session. HTTP 401 means the server is reachable and the
+    // session is gone — re-login needs the network. Web cookie Max-Age is 30 days.
     const cached = await cacheGetMeta('user')
-    if (cached?.user && (isProbablyOffline() || isNativeRuntime())) {
+    if (cached?.user && (isNetworkError(error) || isProbablyOffline())) {
       console.warn('[offline] using cached user session')
       return cached
     }

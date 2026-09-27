@@ -469,7 +469,7 @@ export default {
     searchPlaceholder: "Songs durchsuchen…",
     simplifyChordsHint: "Vereinfachte Akkorde für die Band (ohne maj7/m7/Bass). Original-PDF bleibt unverändert.",
     tunerMicUnsupported: "Dieses Gerät unterstützt keinen Mikrofonzugriff in der App.",
-    youtubeRehearsalHint: "Zum Anhören / Proben auf YouTube öffnen",
+    youtubeRehearsalHint: "YouTube Probe braucht Internet",
     snapshotReviewRequired: "Die Originalfassung ist noch nicht verifiziert. Die Transposition bleibt bis zur Prüfung gesperrt.",
   },
   common: {
@@ -643,6 +643,16 @@ export default {
     supportText: "Der Code bleibt frei und Open Source. Deine freiwillige Unterstützung hilft bei Betrieb, Weiterentwicklung und kommenden Updates.",
     ariaWebsites: "Webseiten",
     supportTitle: "Songbook Band unterstützen",
+  },
+  offline: {
+    ready: "Offline bereit ({count} Songs)",
+    banner: "Offline — gespeicherte Songs und Sets sind verfügbar",
+    partial: "{done} von {total} Songs offline gespeichert",
+    prepare: "Für Offline vorbereiten",
+    notCached: "Noch nicht offline verfügbar — einmal online öffnen",
+    preparing: "Offline-Kopie {done}/{total} …",
+    pagesFailed: "Seiten konnten nicht geladen werden.",
+    needsNetwork: "Hochladen, Team bearbeiten und neue Sets brauchen Internet.",
   },
   settings: {
     name: "Name",

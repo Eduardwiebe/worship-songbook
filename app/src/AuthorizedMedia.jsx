@@ -2,40 +2,84 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronLeft, X } from 'lucide-react'
 import { authorizedObjectUrl, isNativeRuntime, toApiPath, apiFetch } from './apiConfig'
 import { isLikelyIosNative } from './nativePlatform'
-import { cacheGetMedia, cacheGetMediaObjectUrl, cachePutMedia, chartCacheKey, pdfCacheKey, isProbablyOffline } from './offlineCache'
-import { useI18n } from './i18n'
+import { tStatic, useI18n } from './i18n'
 import { lockBodyScroll, unlockBodyScroll } from './modalLock'
+import {
+  cacheGetMedia,
+  cacheGetMediaObjectUrl,
+  cachePagesPayload,
+  cachePutMedia,
+  chartCacheKey,
+  isNetworkError,
+  isProbablyOffline,
+  loadCachedPageUrls,
+  mediaKeyForApiPath,
+  pdfCacheKey,
+} from './offlineCache'
 
 /**
  * <img> that loads protected API media with Bearer on native (blob URL).
  * On web, uses the normal same-origin URL.
  */
 export function AuthorizedImg({ path, alt = '', className, ...rest }) {
-  const [src, setSrc] = useState(() => (isNativeRuntime() ? '' : path || ''))
+  const [src, setSrc] = useState('')
 
   useEffect(() => {
     let active = true
     let objectUrl = ''
 
-    async function load() {
-      if (!path) {
-        if (active) setSrc('')
+    const show = (url) => {
+      if (!active) {
+        if (url?.startsWith('blob:')) URL.revokeObjectURL(url)
         return
       }
-      if (!isNativeRuntime()) {
-        if (active) setSrc(path)
+      if (objectUrl && objectUrl !== url && objectUrl.startsWith('blob:')) URL.revokeObjectURL(objectUrl)
+      objectUrl = url || ''
+      setSrc(objectUrl)
+    }
+
+    async function load() {
+      if (!path) {
+        show('')
+        return
+      }
+      const apiPath = toApiPath(path) || path
+      const mediaKey = mediaKeyForApiPath(apiPath)
+      const cached = mediaKey ? await cacheGetMediaObjectUrl(mediaKey) : ''
+      if (!active) {
+        if (cached?.startsWith('blob:')) URL.revokeObjectURL(cached)
+        return
+      }
+      if (cached) show(cached)
+      if (isProbablyOffline()) {
+        if (!cached) show('')
         return
       }
       try {
-        const url = await authorizedObjectUrl(toApiPath(path) || path)
-        if (!active) {
-          if (url.startsWith('blob:')) URL.revokeObjectURL(url)
-          return
+        const response = await apiFetch(apiPath)
+        if (!response.ok) throw new Error('media')
+        const blob = await response.blob()
+        if (!blob.size) throw new Error('empty')
+        const mime = blob.type && blob.type !== 'application/octet-stream' ? blob.type : 'image/jpeg'
+        if (mediaKey) {
+          const buffer = await blob.arrayBuffer()
+          await cachePutMedia(mediaKey, {
+            mime,
+            buffer,
+            meta: { kind: 'thumb', priority: 2 },
+          })
         }
-        objectUrl = url
-        setSrc(url)
+        const url = URL.createObjectURL(blob)
+        show(url)
       } catch {
-        if (active) setSrc('')
+        if (!cached && mediaKey) {
+          const fallback = await cacheGetMediaObjectUrl(mediaKey)
+          if (fallback) {
+            show(fallback)
+            return
+          }
+        }
+        if (!cached) show('')
       }
     }
 
@@ -69,32 +113,61 @@ export function OriginalPagesViewer({ songId, title, className, onViewChange }) 
 
   useEffect(() => {
     let active = true
+    const blobUrls = []
+    const revoke = () => {
+      while (blobUrls.length) {
+        const url = blobUrls.pop()
+        if (url?.startsWith('blob:')) URL.revokeObjectURL(url)
+      }
+    }
     async function load() {
       if (!songId) {
         setPages([])
         setLoading(false)
+        setError('')
         return
       }
       setLoading(true)
       setError('')
+      let showedCache = false
       try {
+        const cached = await loadCachedPageUrls(songId)
+        if (!active) {
+          cached?.forEach((url) => URL.revokeObjectURL(url))
+          return
+        }
+        if (cached?.length) {
+          blobUrls.push(...cached)
+          setPages(cached.map((url) => ({ dataUrl: url })))
+          setLoading(false)
+          setError('')
+          showedCache = true
+          if (isProbablyOffline()) return
+        }
         const response = await apiFetch(`/api/songs/${songId}/pages`)
         const data = await response.json().catch(() => ({}))
-        if (!response.ok) throw new Error(data.error || 'Seiten konnten nicht geladen werden.')
-        if (active) {
-          setPages(data.pages || [])
-          setLoading(false)
-        }
+        if (!response.ok) throw new Error(data.error || tStatic('offline.pagesFailed'))
+        cachePagesPayload(songId, data.pages, { title, priority: 0 }).catch(() => {})
+        if (!active) return
+        revoke()
+        setPages(data.pages || [])
+        setLoading(false)
+        setError('')
       } catch (caught) {
-        if (active) {
-          setError(caught?.message || 'Seiten konnten nicht geladen werden.')
-          setLoading(false)
-        }
+        if (!active) return
+        if (showedCache) return
+        const offline = isProbablyOffline() || isNetworkError(caught)
+        setPages([])
+        setError(offline ? tStatic('offline.notCached') : (caught?.message || tStatic('offline.pagesFailed')))
+        setLoading(false)
       }
     }
     load()
-    return () => { active = false }
-  }, [songId])
+    return () => {
+      active = false
+      revoke()
+    }
+  }, [songId, title])
 
   useEffect(() => {
     const el = rootRef.current
@@ -372,9 +445,9 @@ export function AuthorizedFrame({ path, title, className, hash = '', songId = ''
 
       setHtmlDoc('')
       if (!isNativeRuntime()) {
-        // Web PDF: prefer live URL when online; fall back to cached blob offline.
-        if (isProbablyOffline() && mediaKey) {
-          const cached = await tryCacheObjectUrl()
+        // Web PDF fallback (not the in-app page viewer): cached blob offline, live URL online.
+        if (isProbablyOffline()) {
+          const cached = mediaKey ? await tryCacheObjectUrl() : ''
           if (cached && active) {
             objectUrl = cached
             setSrc(cached)
@@ -382,6 +455,13 @@ export function AuthorizedFrame({ path, title, className, hash = '', songId = ''
             setError('')
             return
           }
+          if (active) {
+            setSrc('')
+            setHtmlDoc('')
+            setError(tStatic('offline.notCached'))
+            setLoading(false)
+          }
+          return
         }
         if (active) {
           setSrc(`${path}${hash || ''}`)
@@ -436,7 +516,8 @@ export function AuthorizedFrame({ path, title, className, hash = '', songId = ''
         }
         if (active) {
           setSrc('')
-          setError(caught?.message || 'PDF konnte nicht geladen werden.')
+          const offline = isProbablyOffline() || isNetworkError(caught)
+          setError(offline ? tStatic('offline.notCached') : (caught?.message || 'PDF konnte nicht geladen werden.'))
           setLoading(false)
         }
       }
@@ -480,7 +561,7 @@ export function AuthorizedFrame({ path, title, className, hash = '', songId = ''
       <div className={`pdf-media-error${className ? ` ${className}` : ''}`}>
         <strong>{title || (fitContent ? 'Chart' : 'PDF')}</strong>
         <span>{error}</span>
-        {path && !isNativeRuntime() && !fitContent ? (
+        {path && !isNativeRuntime() && !fitContent && !isProbablyOffline() ? (
           <a href={`${path}${hash || ''}`} target="_blank" rel="noopener noreferrer">In neuem Tab öffnen</a>
         ) : null}
       </div>
