@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ChevronLeft, X } from 'lucide-react'
 import { authorizedObjectUrl, isNativeRuntime, toApiPath, apiFetch } from './apiConfig'
 import { isLikelyIosNative } from './nativePlatform'
 import { cacheGetMedia, cacheGetMediaObjectUrl, cachePutMedia, chartCacheKey, pdfCacheKey, isProbablyOffline } from './offlineCache'
+import { useI18n } from './i18n'
+import { lockBodyScroll, unlockBodyScroll } from './modalLock'
 
 /**
  * <img> that loads protected API media with Bearer on native (blob URL).
@@ -52,12 +55,17 @@ export function AuthorizedImg({ path, alt = '', className, ...rest }) {
  * The browser PDF plugin (iPad / desktop) lets the player drag the sheet
  * inside the frame. Images scale to the frame and stay fixed.
  */
-export function OriginalPagesViewer({ songId, title, className }) {
+export function OriginalPagesViewer({ songId, title, className, onViewChange }) {
   const [pages, setPages] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const rootRef = useRef(null)
+  const onViewChangeRef = useRef(onViewChange)
   const multi = pages.length > 1
+
+  useEffect(() => {
+    onViewChangeRef.current = onViewChange
+  }, [onViewChange])
 
   useEffect(() => {
     let active = true
@@ -101,6 +109,27 @@ export function OriginalPagesViewer({ songId, title, className }) {
       el.removeEventListener('gesturestart', block)
     }
   }, [multi, loading, error, pages.length])
+
+  useEffect(() => {
+    onViewChangeRef.current?.({ index: 0, count: pages.length })
+  }, [pages])
+
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root || pages.length < 2) return undefined
+    const images = [...root.querySelectorAll('.original-page-image')]
+    if (!images.length) return undefined
+    const observer = new IntersectionObserver((entries) => {
+      const best = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
+      if (!best) return
+      const index = images.indexOf(best.target)
+      if (index >= 0) onViewChangeRef.current?.({ index, count: pages.length })
+    }, { root, threshold: [0.45, 0.7] })
+    images.forEach((image) => observer.observe(image))
+    return () => observer.disconnect()
+  }, [pages])
 
   const frameClass = `original-pages${multi ? ' is-multi' : ' is-single'}${className ? ` ${className}` : ''}`
 
@@ -484,5 +513,127 @@ export function AuthorizedFrame({ path, title, className, hash = '', songId = ''
       src={src}
       onLoad={handleFrameLoad}
     />
+  )
+}
+
+/** One history entry per open, even if React StrictMode remounts the effect. */
+let originalViewerHistoryPushed = false
+
+/**
+ * Fullscreen original scan. Always shows a way back — the raw PDF viewer
+ * in a standalone PWA does not.
+ */
+export function OriginalViewerOverlay({ song, onClose }) {
+  const { t } = useI18n()
+  const onCloseRef = useRef(onClose)
+  const closingRef = useRef(false)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+  const backRef = useRef(null)
+  const swipeRef = useRef(null)
+  const [view, setView] = useState({ index: 0, count: 0 })
+  const onViewChange = useCallback((next) => setView(next), [])
+
+  const requestClose = useCallback(() => {
+    if (closingRef.current) return
+    closingRef.current = true
+    if (originalViewerHistoryPushed && window.history.state?.sbOriginalViewer) {
+      window.history.back()
+      window.setTimeout(() => {
+        if (closingRef.current) onCloseRef.current()
+      }, 300)
+      return
+    }
+    originalViewerHistoryPushed = false
+    onCloseRef.current()
+  }, [])
+
+  useEffect(() => {
+    if (!originalViewerHistoryPushed) {
+      window.history.pushState({ sbOriginalViewer: true }, '')
+      originalViewerHistoryPushed = true
+    }
+    const onPop = () => {
+      originalViewerHistoryPushed = false
+      closingRef.current = true
+      onCloseRef.current()
+    }
+    const onKey = (event) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      requestClose()
+    }
+    window.addEventListener('popstate', onPop)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [requestClose])
+
+  useEffect(() => {
+    lockBodyScroll()
+    backRef.current?.focus()
+    return () => unlockBodyScroll()
+  }, [])
+
+  const onBarTouchStart = (event) => {
+    const touch = event.touches[0]
+    swipeRef.current = { x: touch.clientX, y: touch.clientY }
+  }
+  const onBarTouchEnd = (event) => {
+    const start = swipeRef.current
+    swipeRef.current = null
+    if (!start) return
+    const touch = event.changedTouches[0]
+    const dy = touch.clientY - start.y
+    const dx = touch.clientX - start.x
+    if (dy > 72 && Math.abs(dx) < 80) requestClose()
+  }
+
+  const pageLabel = view.count > 1
+    ? t('songs.pageOf', { current: view.index + 1, total: view.count })
+    : ''
+
+  return (
+    <div
+      className="original-viewer"
+      role="dialog"
+      aria-modal="true"
+      aria-label={song?.title || t('songs.originalPdf')}
+    >
+      <div
+        className="original-viewer-bar"
+        onTouchStart={onBarTouchStart}
+        onTouchEnd={onBarTouchEnd}
+      >
+        <button
+          ref={backRef}
+          type="button"
+          className="original-viewer-back"
+          onClick={requestClose}
+        >
+          <ChevronLeft size={22} aria-hidden="true"/>
+          {t('common.back')}
+        </button>
+        {pageLabel ? <span className="original-viewer-count">{pageLabel}</span> : <span className="original-viewer-count original-viewer-title">{song?.title || ''}</span>}
+        <button
+          type="button"
+          className="original-viewer-close"
+          onClick={requestClose}
+          aria-label={t('common.close')}
+        >
+          <X size={22}/>
+        </button>
+      </div>
+      <OriginalPagesViewer
+        songId={song?.id}
+        title={song?.title || t('songs.originalPdf')}
+        className="original-viewer-pages"
+        onViewChange={onViewChange}
+      />
+    </div>
   )
 }
