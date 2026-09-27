@@ -1823,3 +1823,101 @@ body:has(.original-viewer) .mobile-nav,
 body:has(.original-viewer) .app-footer {
   display: none !important;
 }
+
+/* Autoscroll temporarily unlocks the fitted sheet so the page can move.
+   Fit-lock (overflow hidden, scroll-snap) returns when the class is removed. */
+.original-pages.is-autoscrolling,
+.pdf-stage .original-pages.stage-fill.is-autoscrolling,
+.pdf-stage .original-pages.stage-fill.is-single.is-autoscrolling,
+.pdf-stage .original-pages.stage-fill.is-multi.is-autoscrolling,
+.original-pdf-sheet .original-pages.is-autoscrolling,
+.original-viewer .original-pages.is-autoscrolling {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  scroll-snap-type: none !important;
+  touch-action: pan-y !important;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.original-pages.is-autoscrolling .original-page-image {
+  max-height: none !important;
+  height: auto;
+  scroll-snap-align: none !important;
+  scroll-snap-stop: normal !important;
+}
+.wake-lock-hint {
+  flex: 1 1 100%;
+  margin: 0;
+  color: #8d6a2f;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+.run-mode .wake-lock-hint { color: #c5d0dc; }
+.original-viewer-wake {
+  position: absolute;
+  z-index: 2;
+  top: calc(max(10px, env(safe-area-inset-top, 0px)) + 52px);
+  left: max(12px, env(safe-area-inset-left, 0px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+  color: rgba(255, 255, 255, .82);
+  text-align: center;
+  pointer-events: none;
+}
+.record-tool {
+  grid-template-columns: auto auto auto;
+  align-items: center;
+  justify-items: start;
+}
+.record-tool > .record-time { grid-column: auto; color: #edf2f7; }
+.record-tool > .record-error { grid-column: 1 / -1; }
+.record-tool button { width: 34px; }
+.record-tool select {
+  grid-column: 1 / -1;
+  width: min(100%, 11rem);
+  height: 34px;
+  border: 1px solid #33485c;
+  border-radius: 6px;
+  padding: 0 6px;
+  color: #edf2f7;
+  background: #152536;
+  font: 700 11px/1 inherit;
+}
+.record-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 4.5rem;
+  height: 34px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: #152536;
+  font: 700 13px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.record-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e23b3b;
+  box-shadow: 0 0 0 0 rgba(226, 59, 59, .65);
+}
+.record-tool.is-recording .record-dot { animation: record-pulse 1.2s ease-out infinite; }
+.record-tool.is-paused .record-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px #e23b3b;
+  animation: none;
+}
+.record-stop { color: #ffd0d0; }
+.record-error {
+  margin: 0;
+  max-width: 16rem;
+  color: #ffb4b4;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.35;
+  white-space: normal;
+}
+@keyframes record-pulse {
+  70% { box-shadow: 0 0 0 6px rgba(226, 59, 59, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(226, 59, 59, 0); }
+}

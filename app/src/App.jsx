@@ -32,6 +32,9 @@ import { straightenScanFile } from './documentDetect'
 import { LiveDocumentCamera } from './liveDocumentCamera'
 import { openEnvironmentCamera } from './openEnvironmentCamera'
 import { GuitarTunerModal } from './GuitarTunerModal'
+import { useScreenWakeLock } from './screenWakeLock'
+import { useSheetAutoscroll } from './sheetAutoscroll'
+import { RehearsalAufnahme } from './RehearsalAufnahme'
 import { blurActiveElement, dismissModal, lockBodyScroll, scheduleViewportRestore, unlockBodyScroll } from './modalLock'
 import { useAvoidMobileAutoFocus } from './useMobileFormFocus'
 import { URL_APP, URL_EDUARD_WIEBE, URL_LYRUMA_STUDIO, APP_VERSION } from './appMeta'
@@ -1335,39 +1338,19 @@ function RunSet({set, songs, onClose}) {
   }, [songs.length, onClose])
   useEffect(() => {
     const pane = stageScrollRef.current
-    if (pane) pane.scrollTop = 0
+    if (!pane) return
+    pane.scrollTop = 0
+    const pages = pane.querySelector('.original-pages')
+    if (pages) pages.scrollTop = 0
   }, [index, song.id])
+  const wakeBlocked = useScreenWakeLock(true)
+  const wakeHint = wakeBlocked ? t('sets.wakeLockHint') : ''
+  useSheetAutoscroll(autoScroll, stageScrollRef, { onReachEnd: () => setAutoScroll(false) })
   useEffect(() => {
     const fromMeta = clampTempoBpm(song?.bpm, { fallback: null })
     setBpm(fromMeta)
     setBpmInput(fromMeta == null ? '' : String(fromMeta))
   }, [song.id, song.bpm])
-  useEffect(() => {
-    if (!autoScroll) return
-    const timer = window.setInterval(() => {
-      const pane = stageScrollRef.current
-      if (!pane) return
-      const pages = pane.querySelector('.original-pages.is-multi')
-      if (pages) {
-        pages.scrollTop += 1
-        return
-      }
-      const frame = pane.querySelector('iframe.stage-fill, embed.stage-fill')
-      if (frame) {
-        try {
-          const win = frame.contentWindow
-          if (win) {
-            win.scrollBy(0, 1)
-            return
-          }
-        } catch {
-          /* cross-origin / PDF plugin — fall through to pane scroll */
-        }
-      }
-      pane.scrollBy({ top: 1, behavior: 'auto' })
-    }, 70)
-    return () => window.clearInterval(timer)
-  }, [autoScroll])
   useCajon(cajonOn, bpm)
   const finishSwipe = (clientX, clientY) => {
     if (touchStart.current === null) return
@@ -1389,7 +1372,7 @@ function RunSet({set, songs, onClose}) {
     finishSwipe(touch.clientX, touch.clientY)
   }
   const metaBits = [song.key && song.key !== '–' ? t('home.key', { key: song.key }) : null, bpm ? `${bpm} BPM` : null].filter(Boolean)
-  return <div className="run-mode"><header><div className="run-meta"><p className="eyebrow">{t('sets.runMode')}</p><strong>{set.title}</strong><span>{index + 1}/{songs.length} · {song.title}{metaBits.length ? ` · ${metaBits.join(' · ')}` : ''}</span></div><div className="run-tools"><div className="tool-group scroll-tool"><span>{t('songs.autoScroll')}</span><button type="button" className={autoScroll?'active':''} onClick={()=>setAutoScroll((value)=>!value)} aria-pressed={autoScroll}>{autoScroll?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group cajon-tool"><span>{t('songs.cajon')}</span><input aria-label={t('songs.tempoAria')} type="number" min="40" max="240" inputMode="numeric" value={bpmInput} onChange={(event)=>{const raw=event.target.value;setBpmInput(raw);if(raw==='')return;const n=Number(raw);if(Number.isFinite(n))setBpm(n)}} onBlur={()=>{const nextTempo=clampTempoBpm(bpmInput,{fallback:bpm});if(nextTempo==null){setBpmInput(bpm==null?'':String(bpm));return}setBpm(nextTempo);setBpmInput(String(nextTempo))}}/><button type="button" className={cajonOn?'active':''} onClick={async ()=>{if(cajonOn){setCajonOn(false);return}playCajonHtmlHit({strong:true});await unlockCajonAudio();await preloadCajonSample();playCajonHit({strong:true});setCajonOn(true)}} title={t('songs.startCajon')} aria-pressed={cajonOn}>{cajonOn?<Pause size={18}/>:<Play size={18}/>}</button></div><button className="icon-button" onClick={onClose} aria-label={t('common.close')}><X size={22}/></button></div></header>
+  return <div className="run-mode"><header><div className="run-meta"><p className="eyebrow">{t('sets.runMode')}</p><strong>{set.title}</strong><span>{index + 1}/{songs.length} · {song.title}{metaBits.length ? ` · ${metaBits.join(' · ')}` : ''}</span></div><div className="run-tools"><div className="tool-group scroll-tool"><span>{t('songs.autoScroll')}</span><button type="button" className={autoScroll?'active':''} onClick={()=>setAutoScroll((value)=>!value)} aria-pressed={autoScroll}>{autoScroll?<Pause size={18}/>:<Play size={18}/>}</button></div><RehearsalAufnahme band={set.band} setTitle={set.title}/><div className="tool-group cajon-tool"><span>{t('songs.cajon')}</span><input aria-label={t('songs.tempoAria')} type="number" min="40" max="240" inputMode="numeric" value={bpmInput} onChange={(event)=>{const raw=event.target.value;setBpmInput(raw);if(raw==='')return;const n=Number(raw);if(Number.isFinite(n))setBpm(n)}} onBlur={()=>{const nextTempo=clampTempoBpm(bpmInput,{fallback:bpm});if(nextTempo==null){setBpmInput(bpm==null?'':String(bpm));return}setBpm(nextTempo);setBpmInput(String(nextTempo))}}/><button type="button" className={cajonOn?'active':''} onClick={async ()=>{if(cajonOn){setCajonOn(false);return}playCajonHtmlHit({strong:true});await unlockCajonAudio();await preloadCajonSample();playCajonHit({strong:true});setCajonOn(true)}} title={t('songs.startCajon')} aria-pressed={cajonOn}>{cajonOn?<Pause size={18}/>:<Play size={18}/>}</button></div><button className="icon-button" onClick={onClose} aria-label={t('common.close')}><X size={22}/></button></div>{wakeHint?<p className="wake-lock-hint" role="status">{wakeHint}</p>:null}</header>
     <main className="pdf-stage">
       <div className="pdf-stage-scroll" ref={stageScrollRef} onTouchStart={onStageTouchStart} onTouchEnd={onStageTouchEnd}>
         {hasSongPdf(song) ? <AuthorizedFrame key={song.id} title={song.title} path={songPdfUrl(song)} hash="#toolbar=0&navpanes=0&scrollbar=0&view=Fit" className="stage-fill" songId={song.id} preferPageImages/> : <div className="no-pdf"><FileText size={42}/><strong>{song.title}</strong><span>{t('sets.noPdf')}</span></div>}
@@ -1433,6 +1416,10 @@ function SongViewer({song,onClose,onKeysResolved,embedded=false,homeEmbedded=fal
   const [youtubeUrl,setYoutubeUrl]=useState(song.youtubeUrl||'')
   const [youtubeResolving,setYoutubeResolving]=useState(false)
   const [tunerOpen,setTunerOpen]=useState(false)
+  const sheetRef=useRef(null)
+  const wakeBlocked=useScreenWakeLock(true)
+  const wakeHint=wakeBlocked?t('sets.wakeLockHint'):''
+  useSheetAutoscroll(autoScroll, sheetRef, { onReachEnd: () => setAutoScroll(false) })
   useEffect(()=>{
     setYoutubeUrl(song.youtubeUrl||'')
     const n=clampTempoBpm(song.bpm,{fallback:null})
@@ -1467,7 +1454,6 @@ function SongViewer({song,onClose,onKeysResolved,embedded=false,homeEmbedded=fal
     const url=youtubeUrl || `https://www.youtube.com/results?search_query=${encodeURIComponent(song.title||'')}`
     openExternal(url)
   }
-  useEffect(()=>{if(!autoScroll)return;const timer=window.setInterval(()=>{const pages=document.querySelector('.original-pdf-sheet .original-pages.is-multi');if(pages)pages.scrollTop+=1},70);return()=>window.clearInterval(timer)},[autoScroll])
   useCajon(cajonOn, bpm)
   const close=()=>embedded?onClose():dismissModal(onClose)
   useEffect(()=>{
@@ -1512,7 +1498,7 @@ function SongViewer({song,onClose,onKeysResolved,embedded=false,homeEmbedded=fal
     }
   }
   const metaBits=[song.key && song.key !== '–' ? `${t('songs.key')} ${song.key}` : null, bpm ? `${bpm} BPM` : null].filter(Boolean)
-  return <div className={`${embedded?'song-editor-page':'modal-backdrop'}${homeEmbedded?' home-song-editor':''}`} onMouseDown={(event)=>!embedded&&event.target===event.currentTarget&&close()}>{embedded&&<button className="back-button editor-back" onClick={close}><ChevronLeft size={18}/>{t('songs.toLibrary')}</button>}<section className={embedded?'song-editor-surface':'modal modal-wide transpose-modal'}>{loading?<div className="analysis-loading"><Music2 size={30}/><strong>{t('songs.preparing')}</strong></div>:error?<div className="form-error analysis-error">{error}</div>:<><div className="editor-view-switch"><button type="button" className="active" disabled={!hasSongPdf(song)}>{t('songs.originalPdf')}</button><button type="button" className="youtube-rehearsal" onClick={openYoutubeRehearsal} disabled={isProbablyOffline()||(youtubeResolving&&!youtubeUrl)} title={t('songs.youtubeRehearsalHint')}>{youtubeResolving&&!youtubeUrl?t('songs.youtubeResolving'):t('songs.youtubeRehearsal')}</button><button type="button" className="guitar-tuner-btn" onClick={()=>setTunerOpen(true)} title={t('songs.tunerHint')}>{t('songs.tuner')}</button><span>{t('songs.originalHint')}</span></div><div className="sheet-toolbar"><div className="tool-group scroll-tool"><span>{t('songs.autoScroll')}</span><button className={autoScroll?'active':''} onClick={()=>setAutoScroll((value)=>!value)}>{autoScroll?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group cajon-tool"><span>{t('songs.cajon')}</span><input aria-label={t('songs.tempoAria')} type="number" min="40" max="240" inputMode="numeric" value={bpmInput} onChange={(event)=>{const raw=event.target.value;setBpmInput(raw);if(raw==='')return;const n=Number(raw);if(Number.isFinite(n))setBpm(n)}} onBlur={()=>{const next=clampTempoBpm(bpmInput,{fallback:null});if(next==null){setBpm(null);setBpmInput('');return}setBpm(next);setBpmInput(String(next))}}/><button className={cajonOn?'active':''} onClick={async ()=>{if(cajonOn){setCajonOn(false);return}playCajonHtmlHit({strong:true});await unlockCajonAudio();await preloadCajonSample();playCajonHit({strong:true});setCajonOn(true)}} title={t('songs.startCajon')}>{cajonOn?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group sheet-actions"><span>{t('songs.sheetOriginal')}</span><button onClick={printSheet} title={t('songs.print')}><Printer size={18}/></button><button onClick={download} title={t('songs.download')}><Download size={18}/></button><button onClick={share} title={t('songs.share')}><Share2 size={18}/></button><button onClick={()=>document.documentElement.requestFullscreen?.()} title={t('songs.fullscreen')}><Maximize2 size={18}/></button></div>{metaBits.length>0&&<div className="tool-group original-meta"><span>{metaBits.join(' · ')}</span>{saved&&<span className="editor-saved"><CheckCircle2 size={16}/>{saved}</span>}</div>}</div>{hasSongPdf(song)?<div className="original-pdf-sheet"><AuthorizedFrame title={`${song.title} – ${t('songs.originalPdf')}`} path={originalUrl} hash="#toolbar=0&navpanes=0&scrollbar=0&view=Fit" songId={song.id} preferPageImages/></div>:<div className="no-pdf"><FileText size={42}/><strong>{song.title}</strong><span>{t('sets.noPdf')}</span></div>}</>}</section>{tunerOpen&&<GuitarTunerModal onClose={()=>setTunerOpen(false)}/>}</div>
+  return <div className={`${embedded?'song-editor-page':'modal-backdrop'}${homeEmbedded?' home-song-editor':''}`} onMouseDown={(event)=>!embedded&&event.target===event.currentTarget&&close()}>{embedded&&<button className="back-button editor-back" onClick={close}><ChevronLeft size={18}/>{t('songs.toLibrary')}</button>}<section className={embedded?'song-editor-surface':'modal modal-wide transpose-modal'}>{loading?<div className="analysis-loading"><Music2 size={30}/><strong>{t('songs.preparing')}</strong></div>:error?<div className="form-error analysis-error">{error}</div>:<><div className="editor-view-switch"><button type="button" className="active" disabled={!hasSongPdf(song)}>{t('songs.originalPdf')}</button><button type="button" className="youtube-rehearsal" onClick={openYoutubeRehearsal} disabled={isProbablyOffline()||(youtubeResolving&&!youtubeUrl)} title={t('songs.youtubeRehearsalHint')}>{youtubeResolving&&!youtubeUrl?t('songs.youtubeResolving'):t('songs.youtubeRehearsal')}</button><button type="button" className="guitar-tuner-btn" onClick={()=>setTunerOpen(true)} title={t('songs.tunerHint')}>{t('songs.tuner')}</button><span>{t('songs.originalHint')}</span></div><div className="sheet-toolbar"><div className="tool-group scroll-tool"><span>{t('songs.autoScroll')}</span><button className={autoScroll?'active':''} onClick={()=>setAutoScroll((value)=>!value)}>{autoScroll?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group cajon-tool"><span>{t('songs.cajon')}</span><input aria-label={t('songs.tempoAria')} type="number" min="40" max="240" inputMode="numeric" value={bpmInput} onChange={(event)=>{const raw=event.target.value;setBpmInput(raw);if(raw==='')return;const n=Number(raw);if(Number.isFinite(n))setBpm(n)}} onBlur={()=>{const next=clampTempoBpm(bpmInput,{fallback:null});if(next==null){setBpm(null);setBpmInput('');return}setBpm(next);setBpmInput(String(next))}}/><button className={cajonOn?'active':''} onClick={async ()=>{if(cajonOn){setCajonOn(false);return}playCajonHtmlHit({strong:true});await unlockCajonAudio();await preloadCajonSample();playCajonHit({strong:true});setCajonOn(true)}} title={t('songs.startCajon')}>{cajonOn?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group sheet-actions"><span>{t('songs.sheetOriginal')}</span><button onClick={printSheet} title={t('songs.print')}><Printer size={18}/></button><button onClick={download} title={t('songs.download')}><Download size={18}/></button><button onClick={share} title={t('songs.share')}><Share2 size={18}/></button><button onClick={()=>document.documentElement.requestFullscreen?.()} title={t('songs.fullscreen')}><Maximize2 size={18}/></button></div>{metaBits.length>0&&<div className="tool-group original-meta"><span>{metaBits.join(' · ')}</span>{saved&&<span className="editor-saved"><CheckCircle2 size={16}/>{saved}</span>}</div>}</div>{wakeHint?<p className="wake-lock-hint" role="status">{wakeHint}</p>:null}{hasSongPdf(song)?<div className="original-pdf-sheet" ref={sheetRef}><AuthorizedFrame title={`${song.title} – ${t('songs.originalPdf')}`} path={originalUrl} hash="#toolbar=0&navpanes=0&scrollbar=0&view=Fit" songId={song.id} preferPageImages/></div>:<div className="no-pdf"><FileText size={42}/><strong>{song.title}</strong><span>{t('sets.noPdf')}</span></div>}</>}</section>{tunerOpen&&<GuitarTunerModal onClose={()=>setTunerOpen(false)}/>}</div>
 }
 
 function ScanDialog({onClose,onSave}) {
