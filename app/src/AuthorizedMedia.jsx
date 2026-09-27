@@ -16,6 +16,7 @@ import {
   mediaKeyForApiPath,
   pdfCacheKey,
 } from './offlineCache'
+import { useScreenWakeLock } from './screenWakeLock'
 
 /**
  * <img> that loads protected API media with Bearer on native (blob URL).
@@ -172,7 +173,10 @@ export function OriginalPagesViewer({ songId, title, className, onViewChange }) 
   useEffect(() => {
     const el = rootRef.current
     if (!el || multi) return undefined
-    const block = (event) => { event.preventDefault() }
+    const block = (event) => {
+      if (el.classList.contains('is-autoscrolling')) return
+      event.preventDefault()
+    }
     el.addEventListener('wheel', block, { passive: false })
     el.addEventListener('touchmove', block, { passive: false })
     el.addEventListener('gesturestart', block)
@@ -674,6 +678,7 @@ export function OriginalViewerOverlay({ song, onClose }) {
     if (dy > 72 && Math.abs(dx) < 80) requestClose()
   }
 
+  const wakeBlocked = useScreenWakeLock(true)
   const pageLabel = view.count > 1
     ? t('songs.pageOf', { current: view.index + 1, total: view.count })
     : ''
@@ -709,6 +714,7 @@ export function OriginalViewerOverlay({ song, onClose }) {
           <X size={22}/>
         </button>
       </div>
+      {wakeBlocked ? <p className="wake-lock-hint original-viewer-wake" role="status">{t('sets.wakeLockHint')}</p> : null}
       <OriginalPagesViewer
         songId={song?.id}
         title={song?.title || t('songs.originalPdf')}
