@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Home, Music2, ListMusic, Users, CalendarDays, Plus, Settings, Search,
@@ -69,6 +69,36 @@ function useOfflineFlag() {
     }
   }, [])
   return { offlineMode, offlineHint, setOfflineHint, prep }
+}
+
+function OfflineStatusBanner({ text, prep }) {
+  const ref = useRef(null)
+  useLayoutEffect(() => {
+    const root = document.documentElement
+    const el = ref.current
+    if (!text || !el) {
+      root.style.removeProperty('--offline-banner-h')
+      return undefined
+    }
+    const apply = () => {
+      const height = Math.ceil(el.getBoundingClientRect().height)
+      if (height > 0) root.style.setProperty('--offline-banner-h', `${height}px`)
+    }
+    apply()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(apply)
+    observer?.observe(el)
+    window.addEventListener('resize', apply)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', apply)
+      root.style.removeProperty('--offline-banner-h')
+    }
+  }, [text, prep])
+  if (!text) return null
+  return <>
+    <div ref={ref} className={`offline-banner${prep ? ' is-prep' : ''}`} role="status">{text}</div>
+    <div className="offline-banner-spacer" aria-hidden="true" />
+  </>
 }
 
 function App() {
@@ -288,7 +318,8 @@ function App() {
       : !offlineMode && prep?.status === 'ready'
         ? t('offline.ready', { count: prep.cached || 0 })
         : ''
-  return <div className="app-shell">{offlineMode || prepLine ? <div className={`offline-banner${offlineMode ? '' : ' is-prep'}`} role="status">{offlineMode ? (offlineHint ? t('offline.needsNetwork') : t('offline.banner')) : prepLine}</div> : null}
+  const offlineBannerText = offlineMode ? (offlineHint ? t('offline.needsNetwork') : t('offline.banner')) : prepLine
+  return <div className="app-shell"><OfflineStatusBanner text={offlineBannerText} prep={!offlineMode && Boolean(prepLine)} />
     <aside className="sidebar">
       <NavLink className="brand" to="/" end aria-label={t('brand.songbook')}><BrandMark /><div><strong>{t('brand.songbook')}</strong></div></NavLink>
       <nav className="nav">{navItems.map(([to, label, Icon]) =>
