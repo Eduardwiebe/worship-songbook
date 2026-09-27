@@ -8,13 +8,13 @@ import './App.css'
 import './extra.css'
 import { deleteSong, getImportedSongs, hasSongPdf, openSongPdf, previewScanPdf, saveImportedSongs, saveScanImport, songPdfUrl, updateSong, resolveSongCover, resolveSongYoutube, songCoverPath } from './songStore'
 import { createSet, deleteSet, getSets, saveSet } from './setStore'
-import { isProbablyOffline, prefetchSetCharts } from './offlineCache'
+import { cacheGetMediaObjectUrl, isProbablyOffline, noteBrowserOnline, pdfCacheKey, prefetchSongOriginals } from './offlineCache'
 import { deleteMember, getTeam, memberPhoto, saveMember } from './teamStore'
 import { createAppointment, deleteAppointment, getAppointments } from './scheduleStore'
 import { changePassword, deleteProfilePhoto, getCurrentUser, login, logout, onNativeAuthFailure, profilePhotoUrl, register, updateProfile, uploadProfilePhoto } from './authStore'
 import { AuthorizedFrame, AuthorizedImg, OriginalViewerOverlay } from './AuthorizedMedia'
 import { installNativeExternalLinkHandler, openExternal } from './openExternal'
-import { authorizedObjectUrl, apiFetch, apiUrl } from './apiConfig'
+import { authorizedObjectUrl, apiFetch } from './apiConfig'
 import { approveBandJoinRequest, bandLogoUrl, createBand, createBandInvite, deleteBand, deleteBandLogo, getBands, getBandInvites, getBandJoinRequests, getBandMembers, getMyJoinRequests, joinBandByCode, rejectBandJoinRequest, requestBandJoin, searchBands, selectBand, selectPersonal, updateBand, uploadBandLogo } from './bandStore'
 import Onboarding from './onboarding/Onboarding'
 import { getOnboarding, resetOnboarding, dismissOnboarding } from './onboardingStore'
@@ -38,6 +38,35 @@ import { URL_APP, URL_EDUARD_WIEBE, URL_LYRUMA_STUDIO, APP_VERSION } from './app
 
 const initialSongs = []
 
+function useOfflineFlag() {
+  const [offlineMode, setOfflineMode] = useState(() => isProbablyOffline())
+  const [offlineHint, setOfflineHint] = useState(false)
+  const [prep, setPrep] = useState(null)
+  useEffect(() => {
+    const sync = () => {
+      if (typeof navigator !== 'undefined' && navigator.onLine) noteBrowserOnline()
+      setOfflineMode(isProbablyOffline())
+    }
+    const onOff = () => setOfflineMode(true)
+    const onOn = () => setOfflineMode(isProbablyOffline())
+    const onPrep = (event) => setPrep(event.detail || null)
+    window.addEventListener('online', sync)
+    window.addEventListener('offline', sync)
+    window.addEventListener('songbook-offline', onOff)
+    window.addEventListener('songbook-online', onOn)
+    window.addEventListener('songbook-offline-prep', onPrep)
+    sync()
+    return () => {
+      window.removeEventListener('online', sync)
+      window.removeEventListener('offline', sync)
+      window.removeEventListener('songbook-offline', onOff)
+      window.removeEventListener('songbook-online', onOn)
+      window.removeEventListener('songbook-offline-prep', onPrep)
+    }
+  }, [])
+  return { offlineMode, offlineHint, setOfflineHint, prep }
+}
+
 function App() {
   const { t, locale } = useI18n()
   const { theme } = useTheme()
@@ -49,7 +78,7 @@ function App() {
     ['/termine', t('nav.appointments'), CalendarDays],
   ]
   const [authLoading,setAuthLoading]=useState(true)
-  const [offlineMode,setOfflineMode]=useState(()=>isProbablyOffline())
+  const { offlineMode, offlineHint, setOfflineHint, prep } = useOfflineFlag()
   const [user,setUser]=useState(null)
   const [songs, setSongs] = useState(initialSongs)
   const [sets, setSets] = useState([])
@@ -70,16 +99,6 @@ function App() {
   const navigate = useNavigate()
 
   useEffect(()=>{getCurrentUser().then(({user})=>setUser(user)).catch(()=>setUser(null)).finally(()=>setAuthLoading(false))},[])
-  useEffect(()=>{
-    const sync=()=>setOfflineMode(isProbablyOffline())
-    window.addEventListener('online', sync)
-    window.addEventListener('offline', sync)
-    sync()
-    return ()=>{
-      window.removeEventListener('online', sync)
-      window.removeEventListener('offline', sync)
-    }
-  },[])
   useEffect(()=>{onNativeAuthFailure(()=>setUser(null))},[])
   useEffect(()=>installNativeExternalLinkHandler(),[])
   useEffect(() => {
@@ -130,6 +149,14 @@ function App() {
 
     return ()=>{active=false}
   },[user,onboarding?.completed,onboarding?.manualRestart])
+  const offlinePrepKey = `${user?.id || ''}|${songs.map((song) => `${song.id}:${song.fileSize || 0}:${song.hasPdf ? 1 : 0}:${song.hasCover ? 1 : 0}`).join(',')}|${sets.map((set) => `${set.id}:${(set.songIds || []).join('.')}`).join(',')}|${team.map((member) => `${member.id}:${member.hasPhoto ? 1 : 0}`).join(',')}`
+  useEffect(() => {
+    if (!user || user.mustChangePassword || !songs.length || isProbablyOffline()) return undefined
+    prefetchSongOriginals(songs, { apiFetch, sets, team }).catch((error) => {
+      console.warn('[offline] prefetch failed', error)
+    })
+    return undefined
+  }, [offlinePrepKey]) // songs/sets/team read from the render that changed the key
   useEffect(() => {
     if(!user || user.mustChangePassword){
       setOnboarding(null)
@@ -152,7 +179,7 @@ function App() {
       })
   }, [user?.id, user?.mustChangePassword])
   useEffect(() => {
-    if (!user || !songs.length) return
+    if (!user || !songs.length || isProbablyOffline()) return
     let cancelled = false
     const missing = songs.filter((song) => song.id && !song.hasCover).slice(0, 8)
     ;(async () => {
@@ -231,10 +258,29 @@ function App() {
   </>
   const handleLogout=async()=>{await logout();setUser(null);setOnboarding(null);setSongs([]);setSets([]);setTeam([]);setAppointments([])}
   const activeBand=bands.find(item=>item.active)
-  const openImport = () => setDialogOpen(true)
+  const blockIfOffline = () => {
+    if (!isProbablyOffline()) return false
+    setOfflineHint(true)
+    return true
+  }
+  const openImport = () => { if (blockIfOffline()) return; setDialogOpen(true) }
+  const openSetDialog = () => { if (blockIfOffline()) return; setCreateSetOpen(true) }
+  const openTeamDialog = () => { if (blockIfOffline()) return; setTeamDialogOpen(true) }
+  const openAppointment = (setId = '') => { if (blockIfOffline()) return; setAppointmentSetId(setId || sets[0]?.id || '') }
+  const prepareOffline = () => {
+    if (blockIfOffline()) return
+    prefetchSongOriginals(songs, { apiFetch, sets, team }).catch((error) => console.warn('[offline] prefetch failed', error))
+  }
   void theme
   void APP_VERSION
-  return <div className="app-shell">{offlineMode?<div className="offline-banner" role="status">{t('offline.banner')}</div>:null}
+  const prepLine = !offlineMode && prep?.status === 'running'
+    ? t('offline.preparing', { done: prep.done || 0, total: prep.total || 0 })
+    : !offlineMode && prep?.status === 'partial'
+      ? t('offline.partial', { done: prep.cached || 0, total: prep.total || 0 })
+      : !offlineMode && prep?.status === 'ready'
+        ? t('offline.ready', { count: prep.cached || 0 })
+        : ''
+  return <div className="app-shell">{offlineMode || prepLine ? <div className={`offline-banner${offlineMode ? '' : ' is-prep'}`} role="status">{offlineMode ? (offlineHint ? t('offline.needsNetwork') : t('offline.banner')) : prepLine}</div> : null}
     <aside className="sidebar">
       <NavLink className="brand" to="/" end aria-label={t('brand.songbook')}><BrandMark /><div><strong>{t('brand.songbook')}</strong></div></NavLink>
       <nav className="nav">{navItems.map(([to, label, Icon]) =>
@@ -325,14 +371,14 @@ function App() {
 
     <main className="content">
       <Routes>
-        <Route path="/" element={<HomePage songs={songs} setSongs={setSongs} sets={sets} openImport={openImport} openSetDialog={() => setCreateSetOpen(true)} navigate={navigate}/>}/>
-        <Route path="/songs" element={<SongsPage songs={songs} openImport={openImport} onTranspose={(song)=>navigate(`/songs/${song.id}/editor`)} onEdit={setEditingSong} onDelete={async (song) => { if (!window.confirm(t('songs.confirmDelete', { title: song.title }))) return; await deleteSong(song.id); setSongs((current) => current.filter((item) => item.id !== song.id)); setSets((current) => current.map((set) => ({...set, songIds: set.songIds.filter((id) => id !== song.id)}))) }}/>}/>
+        <Route path="/" element={<HomePage songs={songs} setSongs={setSongs} sets={sets} openImport={openImport} openSetDialog={openSetDialog} navigate={navigate}/>}/>
+        <Route path="/songs" element={<SongsPage songs={songs} openImport={openImport} onPrepareOffline={prepareOffline} prep={prep} onTranspose={(song)=>navigate(`/songs/${song.id}/editor`)} onEdit={setEditingSong} onDelete={async (song) => { if (!window.confirm(t('songs.confirmDelete', { title: song.title }))) return; await deleteSong(song.id); setSongs((current) => current.filter((item) => item.id !== song.id)); setSets((current) => current.map((set) => ({...set, songIds: set.songIds.filter((id) => id !== song.id)}))) }}/>}/>
         <Route path="/songs/:songId/editor" element={<SongEditorRoute songs={songs} setSongs={setSongs} navigate={navigate}/>}/>
         <Route path="/bands" element={<BandsPage bands={bands} onRefresh={setBands}/>}/>
-        <Route path="/sets" element={<SetsPage sets={sets} onCreate={() => setCreateSetOpen(true)} navigate={navigate}/>}/>
+        <Route path="/sets" element={<SetsPage sets={sets} onCreate={openSetDialog} navigate={navigate}/>}/>
         <Route path="/sets/:setId" element={<SetDetailPage sets={sets} songs={songs} team={team} updateSets={setSets} navigate={navigate}/>}/>
-        <Route path="/team" element={<TeamPage team={team} onAdd={() => setTeamDialogOpen(true)} onDelete={async (member) => { if(!window.confirm(t('team.confirmRemove', { name: member.name })))return;await deleteMember(member.id);setTeam((current)=>current.filter((item)=>item.id!==member.id)) }}/>}/>
-        <Route path="/termine" element={<AppointmentsPage sets={sets} appointments={appointments} onAdd={(setId='') => setAppointmentSetId(setId||sets[0]?.id||'')} onDelete={async (item)=>{if(!window.confirm(t('appointments.confirmDelete', { title: item.title })))return;await deleteAppointment(item.id);setAppointments((current)=>current.filter((entry)=>entry.id!==item.id))}} navigate={navigate}/>}/>
+        <Route path="/team" element={<TeamPage team={team} onAdd={openTeamDialog} onDelete={async (member) => { if(!window.confirm(t('team.confirmRemove', { name: member.name })))return;await deleteMember(member.id);setTeam((current)=>current.filter((item)=>item.id!==member.id)) }}/>}/>
+        <Route path="/termine" element={<AppointmentsPage sets={sets} appointments={appointments} onAdd={openAppointment} onDelete={async (item)=>{if(!window.confirm(t('appointments.confirmDelete', { title: item.title })))return;await deleteAppointment(item.id);setAppointments((current)=>current.filter((entry)=>entry.id!==item.id))}} navigate={navigate}/>}/>
         <Route path="/einstellungen" element={<SettingsPage Header={Header} user={user} onUser={setUser} onLogout={handleLogout} onRestartOnboarding={async()=>setOnboarding(await resetOnboarding())}/>}/>
         <Route path="*" element={<SimplePage eyebrow="404" title={t('pages.notFound')} text={t('pages.notFoundText')}/>}/>
       </Routes>
@@ -411,9 +457,10 @@ function HomePage({songs, setSongs, sets, openImport, openSetDialog, navigate}) 
   </>
 }
 
-function SongsPage({songs, openImport, onTranspose, onEdit, onDelete}) {
+function SongsPage({songs, openImport, onPrepareOffline, prep, onTranspose, onEdit, onDelete}) {
   const { t } = useI18n()
-  return <><Header title={t('pages.songs')} subtitle={t('pages.songsSubtitle')}/><div className="page-actions"><button className="add-button compact" onClick={openImport}><Plus size={18}/>{t('songs.add')}</button></div><SongPanel songs={songs} onTranspose={onTranspose} onEdit={onEdit} onDelete={onDelete}/></>
+  const preparing = prep?.status === 'running'
+  return <><Header title={t('pages.songs')} subtitle={t('pages.songsSubtitle')}/><div className="page-actions"><button className="text-button offline-prepare" type="button" onClick={onPrepareOffline} disabled={preparing}>{preparing ? t('offline.preparing', { done: prep.done || 0, total: prep.total || 0 }) : t('offline.prepare')}</button><button className="add-button compact" onClick={openImport}><Plus size={18}/>{t('songs.add')}</button></div><SongPanel songs={songs} onTranspose={onTranspose} onEdit={onEdit} onDelete={onDelete}/></>
 }
 
 function SongPanel({songs, onAll, onTranspose, onEdit, onDelete}) {
@@ -1234,13 +1281,13 @@ function SetDetailPage({sets, songs, team, updateSets, navigate}) {
   const set = sets.find((item) => item.id === setId)
   const [running, setRunning] = useState(false)
   useEffect(()=>{
-    if(!set||isProbablyOffline())return
+    if(!set||isProbablyOffline())return undefined
     let cancelled=false
-    prefetchSetCharts(set, songs, { apiFetch, apiUrl }).then((result)=>{
-      if(!cancelled) console.info('[offline] set charts cached', result?.cached)
+    prefetchSongOriginals(set.songIds.map((id)=>songs.find((song)=>song.id===id)).filter(Boolean), { apiFetch, sets: [set] }).then((result)=>{
+      if(!cancelled) console.info('[offline] set originals cached', result?.cached)
     }).catch(()=>{})
     return ()=>{cancelled=true}
-  },[set?.id, set?.songIds?.join('|'), JSON.stringify(set?.songKeys||{}), songs.map((s)=>s.id).join('|')])
+  },[set?.id, set?.songIds?.join('|'), songs.map((s)=>s.id).join('|')])
   if (!set) return <SimplePage eyebrow={t('sets.planning')} title={t('sets.notFound')} text={t('sets.notFoundText')}/>
   const setSongs = set.songIds.map((id) => songs.find((song) => song.id === id)).filter(Boolean)
   const available = songs.filter((song) => !set.songIds.includes(song.id))
@@ -1253,7 +1300,7 @@ function SetDetailPage({sets, songs, team, updateSets, navigate}) {
   return <><button className="back-button" onClick={() => navigate('/sets')}><ChevronLeft size={18}/>{t('sets.allSets')}</button><Header title={set.title} subtitle={`${formatDate(set.date)} · ${t('common.nSongs', { count: setSongs.length })}`}/>
     <div className="set-toolbar"><button className="run-button" disabled={!setSongs.length} onClick={() => {
       setRunning(true)
-      if(!isProbablyOffline()) prefetchSetCharts(set, setSongs, { apiFetch, apiUrl }).catch(()=>{})
+      if(!isProbablyOffline()) prefetchSongOriginals(setSongs, { apiFetch, sets: [set] }).catch(()=>{})
     }}><Play size={19}/>{t('sets.start')}</button><span>{t('sets.autoSave')}</span>{!set.isProtected&&<button className="delete-set-button" onClick={async () => { if (!window.confirm(t('sets.confirmDelete', { title: set.title }))) return; await deleteSet(set.id); updateSets((current) => current.filter((item) => item.id !== set.id)); navigate('/sets') }}><Trash2 size={17}/>{t('sets.delete')}</button>}</div>
     <section className="panel event-details"><div className="panel-header"><div><p className="eyebrow">{t('sets.event')}</p><h2>{t('sets.eventMeta')}</h2></div></div><div className="briefing-grid"><label className="field"><span>{t('sets.bandProject')}</span><div><Users size={18}/><input value={set.band||''} onChange={(event)=>update({band:event.target.value})} placeholder={t('sets.bandPlaceholder')}/></div></label><label className="field"><span>{t('sets.theme')}</span><div><FileText size={18}/><input value={set.theme||''} onChange={(event)=>update({theme:event.target.value})} placeholder={t('sets.themePlaceholder')}/></div></label><label className="field"><span>{t('appointments.location')}</span><div><Home size={18}/><input value={set.venue||''} onChange={(event)=>update({venue:event.target.value})} placeholder={t('sets.venuePlaceholder')}/></div></label><label className="field"><span>{t('sets.date')}</span><div><CalendarDays size={18}/><input type="date" value={set.date||''} onChange={(event)=>update({date:event.target.value})}/></div></label><label className="field"><span>{t('sets.meetFrom')}</span><div><Clock3 size={18}/><input type="time" value={set.arrivalTime||''} onChange={(event)=>update({arrivalTime:event.target.value})}/></div></label><label className="field"><span>{t('sets.concertStart')}</span><div><Clock3 size={18}/><input type="time" value={set.eventTime||''} onChange={(event)=>update({eventTime:event.target.value})}/></div></label></div></section>
     <div className="planner-grid"><section className="panel planner-panel"><div className="panel-header"><div><p className="eyebrow">{t('sets.flow')}</p><h2>{t('sets.order')}</h2></div></div>
@@ -1393,7 +1440,7 @@ function SongViewer({song,onClose,onKeysResolved,embedded=false,homeEmbedded=fal
     setBpmInput(n==null?'':String(n))
   },[song.id,song.youtubeUrl,song.bpm])
   useEffect(()=>{
-    if(!song?.id || youtubeUrl) return
+    if(!song?.id || youtubeUrl || isProbablyOffline()) return
     let cancelled=false
     ;(async()=>{
       try{
@@ -1437,12 +1484,16 @@ function SongViewer({song,onClose,onKeysResolved,embedded=false,homeEmbedded=fal
   const download=async()=>{
     const link=document.createElement('a')
     try{
-      const href=await authorizedObjectUrl(originalUrl)
+      let href=''
+      if(isProbablyOffline()) href=await cacheGetMediaObjectUrl(pdfCacheKey(song.id))
+      if(!href) href=await authorizedObjectUrl(originalUrl)
+      if(!href){setSaved(t('offline.notCached'));return}
       link.href=href
       link.download=song.fileName||`${song.title}.pdf`
       link.click()
       if(href.startsWith('blob:'))setTimeout(()=>URL.revokeObjectURL(href),30000)
     }catch{
+      if(isProbablyOffline()){setSaved(t('offline.notCached'));return}
       link.href=originalUrl
       link.download=song.fileName||`${song.title}.pdf`
       link.click()
@@ -1450,14 +1501,18 @@ function SongViewer({song,onClose,onKeysResolved,embedded=false,homeEmbedded=fal
   }
   const printSheet=async()=>{
     try{
-      const href=await authorizedObjectUrl(originalUrl)
+      let href=''
+      if(isProbablyOffline()) href=await cacheGetMediaObjectUrl(pdfCacheKey(song.id))
+      if(!href) href=await authorizedObjectUrl(originalUrl)
+      if(!href){setSaved(t('offline.notCached'));return}
       window.open(`${href}#toolbar=1`,'_blank','noopener')
     }catch{
+      if(isProbablyOffline()){setSaved(t('offline.notCached'));return}
       window.open(`${originalUrl}#toolbar=1`,'_blank','noopener')
     }
   }
   const metaBits=[song.key && song.key !== '–' ? `${t('songs.key')} ${song.key}` : null, bpm ? `${bpm} BPM` : null].filter(Boolean)
-  return <div className={`${embedded?'song-editor-page':'modal-backdrop'}${homeEmbedded?' home-song-editor':''}`} onMouseDown={(event)=>!embedded&&event.target===event.currentTarget&&close()}>{embedded&&<button className="back-button editor-back" onClick={close}><ChevronLeft size={18}/>{t('songs.toLibrary')}</button>}<section className={embedded?'song-editor-surface':'modal modal-wide transpose-modal'}>{loading?<div className="analysis-loading"><Music2 size={30}/><strong>{t('songs.preparing')}</strong></div>:error?<div className="form-error analysis-error">{error}</div>:<><div className="editor-view-switch"><button type="button" className="active" disabled={!hasSongPdf(song)}>{t('songs.originalPdf')}</button><button type="button" className="youtube-rehearsal" onClick={openYoutubeRehearsal} disabled={youtubeResolving&&!youtubeUrl} title={t('songs.youtubeRehearsalHint')}>{youtubeResolving&&!youtubeUrl?t('songs.youtubeResolving'):t('songs.youtubeRehearsal')}</button><button type="button" className="guitar-tuner-btn" onClick={()=>setTunerOpen(true)} title={t('songs.tunerHint')}>{t('songs.tuner')}</button><span>{t('songs.originalHint')}</span></div><div className="sheet-toolbar"><div className="tool-group scroll-tool"><span>{t('songs.autoScroll')}</span><button className={autoScroll?'active':''} onClick={()=>setAutoScroll((value)=>!value)}>{autoScroll?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group cajon-tool"><span>{t('songs.cajon')}</span><input aria-label={t('songs.tempoAria')} type="number" min="40" max="240" inputMode="numeric" value={bpmInput} onChange={(event)=>{const raw=event.target.value;setBpmInput(raw);if(raw==='')return;const n=Number(raw);if(Number.isFinite(n))setBpm(n)}} onBlur={()=>{const next=clampTempoBpm(bpmInput,{fallback:null});if(next==null){setBpm(null);setBpmInput('');return}setBpm(next);setBpmInput(String(next))}}/><button className={cajonOn?'active':''} onClick={async ()=>{if(cajonOn){setCajonOn(false);return}playCajonHtmlHit({strong:true});await unlockCajonAudio();await preloadCajonSample();playCajonHit({strong:true});setCajonOn(true)}} title={t('songs.startCajon')}>{cajonOn?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group sheet-actions"><span>{t('songs.sheetOriginal')}</span><button onClick={printSheet} title={t('songs.print')}><Printer size={18}/></button><button onClick={download} title={t('songs.download')}><Download size={18}/></button><button onClick={share} title={t('songs.share')}><Share2 size={18}/></button><button onClick={()=>document.documentElement.requestFullscreen?.()} title={t('songs.fullscreen')}><Maximize2 size={18}/></button></div>{metaBits.length>0&&<div className="tool-group original-meta"><span>{metaBits.join(' · ')}</span>{saved&&<span className="editor-saved"><CheckCircle2 size={16}/>{saved}</span>}</div>}</div>{hasSongPdf(song)?<div className="original-pdf-sheet"><AuthorizedFrame title={`${song.title} – ${t('songs.originalPdf')}`} path={originalUrl} hash="#toolbar=0&navpanes=0&scrollbar=0&view=Fit" songId={song.id} preferPageImages/></div>:<div className="no-pdf"><FileText size={42}/><strong>{song.title}</strong><span>{t('sets.noPdf')}</span></div>}</>}</section>{tunerOpen&&<GuitarTunerModal onClose={()=>setTunerOpen(false)}/>}</div>
+  return <div className={`${embedded?'song-editor-page':'modal-backdrop'}${homeEmbedded?' home-song-editor':''}`} onMouseDown={(event)=>!embedded&&event.target===event.currentTarget&&close()}>{embedded&&<button className="back-button editor-back" onClick={close}><ChevronLeft size={18}/>{t('songs.toLibrary')}</button>}<section className={embedded?'song-editor-surface':'modal modal-wide transpose-modal'}>{loading?<div className="analysis-loading"><Music2 size={30}/><strong>{t('songs.preparing')}</strong></div>:error?<div className="form-error analysis-error">{error}</div>:<><div className="editor-view-switch"><button type="button" className="active" disabled={!hasSongPdf(song)}>{t('songs.originalPdf')}</button><button type="button" className="youtube-rehearsal" onClick={openYoutubeRehearsal} disabled={isProbablyOffline()||(youtubeResolving&&!youtubeUrl)} title={t('songs.youtubeRehearsalHint')}>{youtubeResolving&&!youtubeUrl?t('songs.youtubeResolving'):t('songs.youtubeRehearsal')}</button><button type="button" className="guitar-tuner-btn" onClick={()=>setTunerOpen(true)} title={t('songs.tunerHint')}>{t('songs.tuner')}</button><span>{t('songs.originalHint')}</span></div><div className="sheet-toolbar"><div className="tool-group scroll-tool"><span>{t('songs.autoScroll')}</span><button className={autoScroll?'active':''} onClick={()=>setAutoScroll((value)=>!value)}>{autoScroll?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group cajon-tool"><span>{t('songs.cajon')}</span><input aria-label={t('songs.tempoAria')} type="number" min="40" max="240" inputMode="numeric" value={bpmInput} onChange={(event)=>{const raw=event.target.value;setBpmInput(raw);if(raw==='')return;const n=Number(raw);if(Number.isFinite(n))setBpm(n)}} onBlur={()=>{const next=clampTempoBpm(bpmInput,{fallback:null});if(next==null){setBpm(null);setBpmInput('');return}setBpm(next);setBpmInput(String(next))}}/><button className={cajonOn?'active':''} onClick={async ()=>{if(cajonOn){setCajonOn(false);return}playCajonHtmlHit({strong:true});await unlockCajonAudio();await preloadCajonSample();playCajonHit({strong:true});setCajonOn(true)}} title={t('songs.startCajon')}>{cajonOn?<Pause size={18}/>:<Play size={18}/>}</button></div><div className="tool-group sheet-actions"><span>{t('songs.sheetOriginal')}</span><button onClick={printSheet} title={t('songs.print')}><Printer size={18}/></button><button onClick={download} title={t('songs.download')}><Download size={18}/></button><button onClick={share} title={t('songs.share')}><Share2 size={18}/></button><button onClick={()=>document.documentElement.requestFullscreen?.()} title={t('songs.fullscreen')}><Maximize2 size={18}/></button></div>{metaBits.length>0&&<div className="tool-group original-meta"><span>{metaBits.join(' · ')}</span>{saved&&<span className="editor-saved"><CheckCircle2 size={16}/>{saved}</span>}</div>}</div>{hasSongPdf(song)?<div className="original-pdf-sheet"><AuthorizedFrame title={`${song.title} – ${t('songs.originalPdf')}`} path={originalUrl} hash="#toolbar=0&navpanes=0&scrollbar=0&view=Fit" songId={song.id} preferPageImages/></div>:<div className="no-pdf"><FileText size={42}/><strong>{song.title}</strong><span>{t('sets.noPdf')}</span></div>}</>}</section>{tunerOpen&&<GuitarTunerModal onClose={()=>setTunerOpen(false)}/>}</div>
 }
 
 function ScanDialog({onClose,onSave}) {

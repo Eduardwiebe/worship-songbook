@@ -5,6 +5,14 @@
 export const STRINGS = {
   // shell
   'loading': { de: 'Songbook wird geladen …', en: 'Loading Songbook …' },
+  'offline.banner': { de: 'Offline — gespeicherte Songs und Sets sind verfügbar', en: 'Offline — saved songs and sets are available' },
+  'offline.needsNetwork': { de: 'Hochladen, Team bearbeiten und neue Sets brauchen Internet.', en: 'Uploading, editing the team, and new sets need internet.' },
+  'offline.notCached': { de: 'Noch nicht offline verfügbar — einmal online öffnen', en: 'Not available offline yet — open it once while online' },
+  'offline.pagesFailed': { de: 'Seiten konnten nicht geladen werden.', en: 'Pages could not be loaded.' },
+  'offline.prepare': { de: 'Für Offline vorbereiten', en: 'Prepare for offline' },
+  'offline.preparing': { de: 'Offline-Kopie {done}/{total} …', en: 'Offline copy {done}/{total} …' },
+  'offline.ready': { de: 'Offline bereit ({count} Songs)', en: 'Ready offline ({count} songs)' },
+  'offline.partial': { de: '{done} von {total} Songs offline gespeichert', en: '{done} of {total} songs saved offline' },
   'onboardingLoading': { de: 'Einrichtung wird geladen …', en: 'Loading setup …' },
   'backToSongbook': { de: 'Zurück zum Songbook', en: 'Back to Songbook' },
   'setupLabel': { de: 'Einrichtung', en: 'Setup' },
@@ -274,7 +282,7 @@ export const STRINGS = {
   'songs.editKey': { de: 'AKKORDE', en: 'CHORDS' },
   'songs.viewLeadsheet': { de: 'LEADSHEET', en: 'LEADSHEET' },
   'songs.youtubeRehearsal': { de: 'YouTube Probe', en: 'YouTube rehearsal' },
-  'songs.youtubeRehearsalHint': { de: 'Zum Anhören / Proben auf YouTube öffnen', en: 'Open on YouTube for listening / rehearsal' },
+  'songs.youtubeRehearsalHint': { de: 'YouTube Probe braucht Internet', en: 'YouTube rehearsal needs internet' },
   'songs.youtubeResolving': { de: 'YouTube…', en: 'YouTube…' },
   'songs.tuner': { de: 'Stimmgerät', en: 'Tuner' },
   'songs.tunerTitle': { de: 'Gitarren-Stimmgerät', en: 'Guitar tuner' },

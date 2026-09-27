@@ -5,6 +5,7 @@
  */
 
 import { URL_APP } from './appMeta'
+import { markTransportOffline, markTransportOnline } from './offlineCache'
 import {
   applyNativeLoginTokens,
   clearAccessToken,
@@ -113,30 +114,59 @@ async function ensureFreshNativeToken() {
   return refreshPromise
 }
 
+function networkFailure(error) {
+  markTransportOffline()
+  const wrapped = error instanceof Error ? error : new Error(String(error || 'Failed to fetch'))
+  wrapped.network = true
+  return wrapped
+}
+
 export async function apiFetch(path, options = {}) {
   const native = isNativeRuntime()
   const skipAuth = Boolean(options.skipAuth)
+  const method = String(options.method || 'GET').toUpperCase()
+  const timeoutMs = Number(options.timeoutMs) || (method === 'GET' || method === 'HEAD' ? 45000 : 120000)
   const opts = {
     ...options,
     credentials: options.credentials || (native ? 'omit' : 'include'),
     headers: buildHeaders(options, { withBearer: native && !skipAuth }),
   }
   delete opts.skipAuth
+  delete opts.timeoutMs
+
+  // Airplane Mode / DevTools offline: fail immediately so cached reads are used.
+  // A dead route with navigator.onLine still true is bounded by timeoutMs below.
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    throw networkFailure(new TypeError('Failed to fetch'))
+  }
 
   if (native && !skipAuth) await ensureFreshNativeToken()
 
-  let response = await transportFetch(apiUrl(path), {
-    ...opts,
-    headers: buildHeaders(opts, { withBearer: native && !skipAuth }),
-  })
+  const send = async (headers) => {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    const outer = opts.signal
+    if (outer) {
+      if (outer.aborted) controller.abort()
+      else outer.addEventListener('abort', () => controller.abort(), { once: true })
+    }
+    try {
+      const response = await transportFetch(apiUrl(path), { ...opts, headers, signal: controller.signal })
+      markTransportOnline()
+      return response
+    } catch (error) {
+      throw networkFailure(error)
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  let response = await send(buildHeaders(opts, { withBearer: native && !skipAuth }))
 
   if (native && !skipAuth && response.status === 401) {
     const refreshed = await (refreshPromise || refreshNativeAccessToken())
     if (refreshed) {
-      response = await transportFetch(apiUrl(path), {
-        ...opts,
-        headers: buildHeaders(opts, { withBearer: true }),
-      })
+      response = await send(buildHeaders(opts, { withBearer: true }))
     }
   }
 

@@ -32,10 +32,15 @@ export default defineConfig({
       ],
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest,json,woff2,mp3}'],
-        navigateFallback: null,
+        // Hash routes and `/?source=pwa` (iPad home screen) must open the
+        // precached shell when the network is gone. API stays NetworkOnly;
+        // song bytes live in IndexedDB so iOS Cache Storage keeps the shell.
+        navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/^\/api\//],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/api/'),

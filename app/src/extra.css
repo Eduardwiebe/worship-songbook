@@ -1,5 +1,9 @@
-.offline-banner{position:sticky;top:0;z-index:50;padding:10px 16px;text-align:center;color:#5c4312;background:linear-gradient(90deg,#f7e3a1,#f0d27a);border-bottom:1px solid #e0c36a;font-size:13px;font-weight:800}
+.offline-banner{grid-column:1 / -1;position:sticky;top:0;z-index:50;padding:10px 16px;text-align:center;color:#5c4312;background:linear-gradient(90deg,#f7e3a1,#f0d27a);border-bottom:1px solid #e0c36a;font-size:13px;font-weight:800}
+.offline-banner.is-prep{color:#16324a;background:linear-gradient(90deg,#d7e7f6,#e7f0f8);border-bottom-color:#b7cfe4}
 html[data-theme="dark"] .offline-banner{color:#f8e7b0;background:linear-gradient(90deg,#4a3a14,#3a2e10);border-bottom-color:#6a5520}
+html[data-theme="dark"] .offline-banner.is-prep{color:#d6e6f5;background:linear-gradient(90deg,#1a3148,#14283a);border-bottom-color:#2c4a66}
+.page-actions{gap:10px;align-items:center;flex-wrap:wrap}
+.offline-prepare{width:auto;padding:11px 16px}
 
 a { color: inherit; text-decoration: none; }
 .app-header { align-items:center;padding:4px 0 20px;border-bottom:1px solid #dfe5eb; }
@@ -539,9 +543,16 @@ html[data-theme="light"] .briefing-grid select option:checked,html[data-theme="l
 .original-pdf-sheet { width:min(100%,1120px);max-width:100%;height:min(82dvh,calc(100dvh - 190px));min-height:280px;margin:0 auto;background:#20252b;overflow:hidden;touch-action:none;overscroll-behavior:none;display:flex;flex-direction:column;box-sizing:border-box; }.original-pdf-sheet iframe,.original-pdf-sheet embed { width:100%;height:100%;min-height:0;border:0;background:#fff;pointer-events:none;overflow:hidden;touch-action:none; }.original-pages { display:flex;align-items:center;justify-content:center;gap:0;width:100%;height:100%;min-height:0;margin:0;padding:0;background:#20252b;overflow:hidden;box-sizing:border-box; }.original-pages.is-multi { display:block;overflow-x:hidden;overflow-y:auto;touch-action:pan-y;overscroll-behavior:contain;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch; }.original-page-image { display:block;width:100%;height:100%;max-width:100%;max-height:100%;margin:0 auto;object-fit:contain;object-position:center;background:#fff;user-select:none;-webkit-user-drag:none;pointer-events:none;touch-action:none; }.original-pages.is-multi .original-page-image { scroll-snap-align:start;scroll-snap-stop:always; }
 /* Library editor: one screen, sheet fills what is left under the toolbars. */
 body:has(.song-editor-page:not(.home-song-editor) .original-pdf-sheet) .app-footer { display:none; }
-body:has(.song-editor-page:not(.home-song-editor) .original-pdf-sheet) .content {
+body:has(.song-editor-page:not(.home-song-editor) .original-pdf-sheet) .app-shell {
   height:100dvh;
   max-height:100dvh;
+  overflow:hidden;
+  grid-template-rows:auto minmax(0,1fr);
+}
+body:has(.song-editor-page:not(.home-song-editor) .original-pdf-sheet) .content {
+  height:100%;
+  max-height:100%;
+  min-height:0;
   overflow:hidden;
   display:flex;
   flex-direction:column;
