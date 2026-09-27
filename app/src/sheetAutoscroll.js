@@ -9,10 +9,13 @@ import { useEffect, useRef } from 'react'
  * than the stage, turn snap off, and advance scrollTop. Fit-lock returns
  * when autoscroll stops.
  *
- * Previous pace was 1px every 70ms. Sub-pixel scrollTop is truncated to 0
- * on several engines, so the same pace is applied in whole pixels.
+ * Sub-pixel scrollTop is truncated to 0 on several engines, so the pace is
+ * applied in whole pixels. The previous default was 1px every 70ms
+ * (~14.3px/s). A one-page chart then finishes in well under a minute, which
+ * is too fast to sing. 1px every 280ms (~3.6px/s) is four times slower:
+ * about three to four minutes per screenful, slow enough to follow a chart.
  */
-export const AUTOSCROLL_PX_PER_SEC = 1000 / 70
+export const AUTOSCROLL_PX_PER_SEC = 1000 / 280
 
 /**
  * Scale a fitted sheet only when it has almost no vertical travel.

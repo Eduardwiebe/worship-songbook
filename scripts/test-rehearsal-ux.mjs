@@ -9,6 +9,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, extname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
+  AUTOSCROLL_PX_PER_SEC,
   advanceSheetScroll,
   autoscrollScale,
   measureAutoscrollLayout,
@@ -62,6 +63,11 @@ function assertScrollMath() {
   const wide = measureAutoscrollLayout(390, 500, [1100 / 800, 1100 / 800])
   assert.equal(wide.scale, 1)
   assert.ok(wide.heights[0] + wide.heights[1] > 500)
+
+  // Singing pace: 1px/280ms, four times slower than the old 1px/70ms default.
+  const previousPxPerSec = 1000 / 70
+  assert.equal(AUTOSCROLL_PX_PER_SEC, 1000 / 280)
+  assert.ok(AUTOSCROLL_PX_PER_SEC < previousPxPerSec / 2)
 }
 
 function assertRecordingNames() {
@@ -302,6 +308,23 @@ async function main() {
     assert.ok(after.top > before.top + 8, `sheet did not move: ${before.top} -> ${after.top}`)
     assert.equal(after.autoscrolling, true)
     assert.match(after.overflowY, /auto|scroll/)
+    assert.equal(after.snap, 'none')
+
+    const paceStart = await page.evaluate(() => ({
+      top: document.querySelector('.run-mode .original-pages').scrollTop,
+      t: performance.now(),
+    }))
+    await page.waitForTimeout(2000)
+    const paceEnd = await page.evaluate(() => ({
+      top: document.querySelector('.run-mode .original-pages').scrollTop,
+      t: performance.now(),
+    }))
+    const paceDt = (paceEnd.t - paceStart.t) / 1000
+    const pxPerSec = (paceEnd.top - paceStart.top) / paceDt
+    console.log('autoscroll pace', { pxPerSec, paceDt, delta: paceEnd.top - paceStart.top })
+    // Default is ~3.6px/s (1px/280ms). The old 1px/70ms pace is ~14.3px/s.
+    assert.ok(pxPerSec < 8, `autoscroll still too fast: ${pxPerSec.toFixed(2)} px/s`)
+    assert.ok(pxPerSec > 1.5, `autoscroll stalled: ${pxPerSec.toFixed(2)} px/s`)
 
     const still = await page.evaluate(() => window.__wake.includes('screen'))
     assert.equal(still, true, 'recording setup must not drop the wake lock')
