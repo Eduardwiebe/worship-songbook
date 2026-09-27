@@ -769,4 +769,12 @@ export default {
     comingSoon: "{title} wird als Nächstes ausgebaut",
     comingSoonBody: "Die Navigation funktioniert bereits. Die Inhalte folgen im nächsten Schritt.",
   },
+  standaloneTip: {
+    body: "Die obere Safari-Leiste und die Menüs bleiben im Tab. Sie verschwinden nur, wenn du Songbook vom Home-Bildschirm öffnest.",
+    guide: "Anleitung",
+    later: "Später",
+    steps: "Teilen → Zum Home-Bildschirm → Icon öffnen",
+    title: "Safari-Leiste ausblenden",
+    otherBrowser: "Bitte in Safari öffnen. Dort: Teilen → Zum Home-Bildschirm → Icon öffnen.",
+  },
 }

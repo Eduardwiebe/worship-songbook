@@ -146,6 +146,12 @@ export const STRINGS = {
   'about.close': { de: 'Schließen', en: 'Close' },
   'about.installPwa': { de: 'Als App installieren', en: 'Install as app' },
   'settings.installPwa': { de: 'Songbook installieren (PWA)', en: 'Install Songbook (PWA)' },
+  'standaloneTip.title': { de: 'Safari-Leiste ausblenden', en: 'Hide the Safari bar' },
+  'standaloneTip.body': { de: 'Die obere Safari-Leiste und die Menüs bleiben im Tab. Sie verschwinden nur, wenn du Songbook vom Home-Bildschirm öffnest.', en: 'Safari’s top bar and menus stay in a tab. They disappear only when you open Songbook from the Home Screen.' },
+  'standaloneTip.steps': { de: 'Teilen → Zum Home-Bildschirm → Icon öffnen', en: 'Share → Add to Home Screen → Open the icon' },
+  'standaloneTip.otherBrowser': { de: 'Bitte in Safari öffnen. Dort: Teilen → Zum Home-Bildschirm → Icon öffnen.', en: 'Open this page in Safari. Then: Share → Add to Home Screen → Open the icon.' },
+  'standaloneTip.guide': { de: 'Anleitung', en: 'Guide' },
+  'standaloneTip.later': { de: 'Später', en: 'Later' },
   'footer.install': { de: 'Songbook installieren', en: 'Install Songbook' },
 
   'updates.title': { de: 'Nach Aktualisierungen suchen', en: 'Check for Updates' },

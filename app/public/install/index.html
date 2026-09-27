@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0c192a" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Songbook Band" />
@@ -235,14 +236,14 @@
           linux: 'Gerät: Desktop',
           unknown: 'Gerät: Browser',
         },
-        iosHint: 'Apple erlaubt keinen Install-Button. Nutze die drei Schritte unten in Safari:',
+        iosHint: 'Apple erlaubt keinen Install-Button. Im Safari-Tab bleibt die obere Leiste. Sie geht erst weg, wenn du das Home-Bildschirm-Icon öffnest:',
         iosCta: 'Zu den Installationsschritten',
-        iosCallout: 'Auf dem iPhone/iPad: kein Direkt-Install — bitte Safari → Teilen → Zum Home-Bildschirm.',
-        iosSafariOnly: 'Öffne diese Seite bitte in Safari (nicht in Chrome oder Instagram). Dann: Teilen → Zum Home-Bildschirm.',
+        iosCallout: 'Die Safari-Leiste lässt sich im Tab nicht ausblenden. Teilen → Zum Home-Bildschirm → Icon öffnen.',
+        iosSafariOnly: 'Öffne diese Seite bitte in Safari (nicht in Chrome oder Instagram). Dann: Teilen → Zum Home-Bildschirm → Icon öffnen.',
         iosSteps: [
-          ['Teilen', 'Tippe unten in Safari auf das Teilen-Symbol □↑.'],
-          ['Zum Home-Bildschirm', 'Scrolle in der Liste und wähle „Zum Home-Bildschirm“.'],
-          ['Hinzufügen', 'Bestätige mit „Hinzufügen“. Songbook Band liegt dann auf dem Home-Bildschirm.'],
+          ['Teilen', 'Tippe in Safari auf das Teilen-Symbol □↑. Auf dem iPad sitzt es oben in der Leiste, auf dem iPhone unten.'],
+          ['Zum Home-Bildschirm', 'Wähle „Zum Home-Bildschirm“ und bestätige mit „Hinzufügen“.'],
+          ['Icon öffnen', 'Starte Songbook über das neue Icon. Erst dann sind Safari-Leiste und Menüs weg — nicht, solange der Tab offen ist.'],
         ],
         chromiumHint: 'Tippe auf den Button — dein Browser bietet die Installation an.',
         chromiumFallback: 'Im Chrome-/Edge-Menü: „App installieren“ bzw. das Install-Symbol in der Adressleiste.',
@@ -272,14 +273,14 @@
           linux: 'Device: Desktop',
           unknown: 'Device: Browser',
         },
-        iosHint: 'Apple does not allow a one-tap install button. Follow the three Safari steps below:',
+        iosHint: 'Apple does not allow a one-tap install button. The top bar stays in a Safari tab. It goes away only after you open the Home Screen icon:',
         iosCta: 'Jump to install steps',
-        iosCallout: 'On iPhone/iPad: no direct install button — use Safari → Share → Add to Home Screen.',
-        iosSafariOnly: 'Please open this page in Safari (not Chrome or in-app browsers). Then: Share → Add to Home Screen.',
+        iosCallout: 'The Safari bar cannot be hidden in a tab. Share → Add to Home Screen → Open the icon.',
+        iosSafariOnly: 'Please open this page in Safari (not Chrome or in-app browsers). Then: Share → Add to Home Screen → Open the icon.',
         iosSteps: [
-          ['Share', 'In Safari, tap the Share icon □↑ at the bottom.'],
-          ['Add to Home Screen', 'Scroll the list and choose “Add to Home Screen”.'],
-          ['Add', 'Confirm with “Add”. Songbook Band appears on your Home Screen.'],
+          ['Share', 'In Safari, tap the Share icon □↑. On iPad it is in the top bar; on iPhone it is at the bottom.'],
+          ['Add to Home Screen', 'Choose “Add to Home Screen” and confirm with “Add”.'],
+          ['Open the icon', 'Launch Songbook from the new icon. The Safari bar and menus disappear only then — not while the tab is open.'],
         ],
         chromiumHint: 'Tap the button — your browser will offer the install prompt.',
         chromiumFallback: 'In Chrome/Edge menu: “Install app” or use the install icon in the address bar.',
