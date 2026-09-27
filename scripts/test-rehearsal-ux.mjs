@@ -308,6 +308,23 @@ async function main() {
     assert.ok(after.top > before.top + 8, `sheet did not move: ${before.top} -> ${after.top}`)
     assert.equal(after.autoscrolling, true)
     assert.match(after.overflowY, /auto|scroll/)
+    assert.equal(after.snap, 'none')
+
+    const paceStart = await page.evaluate(() => ({
+      top: document.querySelector('.run-mode .original-pages').scrollTop,
+      t: performance.now(),
+    }))
+    await page.waitForTimeout(2000)
+    const paceEnd = await page.evaluate(() => ({
+      top: document.querySelector('.run-mode .original-pages').scrollTop,
+      t: performance.now(),
+    }))
+    const paceDt = (paceEnd.t - paceStart.t) / 1000
+    const pxPerSec = (paceEnd.top - paceStart.top) / paceDt
+    console.log('autoscroll pace', { pxPerSec, paceDt, delta: paceEnd.top - paceStart.top })
+    // Default is ~3.6px/s (1px/280ms). The old 1px/70ms pace is ~14.3px/s.
+    assert.ok(pxPerSec < 8, `autoscroll still too fast: ${pxPerSec.toFixed(2)} px/s`)
+    assert.ok(pxPerSec > 1.5, `autoscroll stalled: ${pxPerSec.toFixed(2)} px/s`)
 
     const still = await page.evaluate(() => window.__wake.includes('screen'))
     assert.equal(still, true, 'recording setup must not drop the wake lock')
