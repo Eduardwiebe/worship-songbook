@@ -9,6 +9,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, extname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
+  AUTOSCROLL_PX_PER_SEC,
   advanceSheetScroll,
   autoscrollScale,
   measureAutoscrollLayout,
@@ -62,6 +63,11 @@ function assertScrollMath() {
   const wide = measureAutoscrollLayout(390, 500, [1100 / 800, 1100 / 800])
   assert.equal(wide.scale, 1)
   assert.ok(wide.heights[0] + wide.heights[1] > 500)
+
+  // Singing pace: 1px/280ms, four times slower than the old 1px/70ms default.
+  const previousPxPerSec = 1000 / 70
+  assert.equal(AUTOSCROLL_PX_PER_SEC, 1000 / 280)
+  assert.ok(AUTOSCROLL_PX_PER_SEC < previousPxPerSec / 2)
 }
 
 function assertRecordingNames() {
