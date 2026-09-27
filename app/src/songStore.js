@@ -84,14 +84,14 @@ export async function saveScanImport(title, { pages, pdfFile, selectedPages, tex
   return data
 }
 
-export async function openSongPdf(song) {
-  if (!song.hasPdf) return
-  if (isNativeRuntime()) {
-    const url = await authorizedObjectUrl(`/api/songs/${song.id}/pdf`)
-    window.open(url, '_blank', 'noopener,noreferrer')
-    return
-  }
-  window.open(apiUrl(`/api/songs/${song.id}/pdf`), '_blank', 'noopener,noreferrer')
+/**
+ * Open the original scan inside the app.
+ * A raw window.open of the PDF replaces the standalone PWA (especially iOS)
+ * with the browser PDF viewer, which has no way back to the songbook.
+ */
+export function openSongPdf(song) {
+  if (!hasSongPdf(song) || typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent('songbook:open-original', { detail: song }))
 }
 
 export function hasSongPdf(song) {

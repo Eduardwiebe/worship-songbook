@@ -289,11 +289,27 @@ h1 {
 
 .song-row {
   display: grid;
-  grid-template-columns: 34px 42px minmax(230px, 1fr) auto 38px 38px;
+  grid-template-columns: 34px 42px minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 13px;
+  gap: 10px 12px;
   min-height: 72px;
+  min-width: 0;
   border-top: 1px solid rgba(255,255,255,.055);
+}
+
+.song-main,
+.song-actions,
+.song-list,
+.swipe-row {
+  min-width: 0;
+}
+
+.song-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 .song-row:first-child {
@@ -623,11 +639,11 @@ body:has(.onboarding-dismiss-bar) .onboarding-shell {
   }
 
   .song-row {
-    grid-template-columns: 30px 42px minmax(0,1fr) 38px;
+    grid-template-columns: 30px 42px minmax(0, 1fr) auto;
+    gap: 10px;
   }
 
-  .song-meta,
-  .song-row .icon-button:last-child {
+  .song-meta {
     display: none;
   }
 }
@@ -661,8 +677,8 @@ body:has(.onboarding-dismiss-bar) .onboarding-shell {
   }
 
   .song-row {
-    grid-template-columns: 30px 38px minmax(0,1fr) 34px;
-    gap: 9px;
+    grid-template-columns: 28px 44px minmax(0, 1fr) auto;
+    gap: 8px;
   }
 
   .set-grid {
