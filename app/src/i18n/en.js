@@ -769,4 +769,12 @@ export default {
     comingSoon: "{title} is coming next",
     comingSoonBody: "Navigation already works. Content will follow in the next step.",
   },
+  standaloneTip: {
+    body: "Safari’s top bar and menus stay in a tab. They disappear only when you open Songbook from the Home Screen.",
+    guide: "Guide",
+    later: "Later",
+    steps: "Share → Add to Home Screen → Open the icon",
+    title: "Hide the Safari bar",
+    otherBrowser: "Open this page in Safari. Then: Share → Add to Home Screen → Open the icon.",
+  },
 }

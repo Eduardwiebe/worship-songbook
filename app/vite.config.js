@@ -36,7 +36,9 @@ export default defineConfig({
         // precached shell when the network is gone. API stays NetworkOnly;
         // song bytes live in IndexedDB so iOS Cache Storage keeps the shell.
         navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/api\//],
+        // Directory pages (/install/, /join/) are real HTML, not app routes.
+        // Without this, a same-tab visit is replaced by the app shell.
+        navigateFallbackDenylist: [/^\/api\//, /^\/install(?:\/|$)/, /^\/join(?:\/|$)/],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,

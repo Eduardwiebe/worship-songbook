@@ -38,6 +38,7 @@ import { RehearsalAufnahme } from './RehearsalAufnahme'
 import { blurActiveElement, dismissModal, lockBodyScroll, scheduleViewportRestore, unlockBodyScroll } from './modalLock'
 import { useAvoidMobileAutoFocus } from './useMobileFormFocus'
 import { URL_APP, URL_EDUARD_WIEBE, URL_LYRUMA_STUDIO, APP_VERSION } from './appMeta'
+import { StandaloneTip } from './StandaloneTip'
 
 const initialSongs = []
 
@@ -236,11 +237,15 @@ function App() {
 
   if(authLoading)return <div className="auth-loading"><BrandMark /><p>{t('loading')}</p></div>
   if(!user)return <>
+    <StandaloneTip />
     <AuthScreen onAuthenticated={setUser}/>
     {aboutOpen&&<AboutDialog onClose={()=>setAboutOpen(false)}/>}
     {updateOpen&&<UpdateDialog result={updateResult} onClose={()=>{setUpdateOpen(false);setUpdateResult(undefined)}}/>}
   </>
-  if(user.mustChangePassword)return <PasswordRequired user={user} onChanged={setUser} onLogout={async()=>{await logout();setUser(null)}}/>
+  if(user.mustChangePassword)return <>
+    <StandaloneTip />
+    <PasswordRequired user={user} onChanged={setUser} onLogout={async()=>{await logout();setUser(null)}}/>
+  </>
   if(onboarding===null)return <div className="auth-loading"><BrandMark /><p>{t('onboardingLoading')}</p></div>
   if(!onboarding.completed||onboarding.manualRestart)return <>
     {onboarding.manualRestart&&
@@ -373,6 +378,7 @@ function App() {
     }
 
     <main className="content">
+      <StandaloneTip inFlow />
       <Routes>
         <Route path="/" element={<HomePage songs={songs} setSongs={setSongs} sets={sets} openImport={openImport} openSetDialog={openSetDialog} navigate={navigate}/>}/>
         <Route path="/songs" element={<SongsPage songs={songs} openImport={openImport} onPrepareOffline={prepareOffline} prep={prep} onTranspose={(song)=>navigate(`/songs/${song.id}/editor`)} onEdit={setEditingSong} onDelete={async (song) => { if (!window.confirm(t('songs.confirmDelete', { title: song.title }))) return; await deleteSong(song.id); setSongs((current) => current.filter((item) => item.id !== song.id)); setSets((current) => current.map((set) => ({...set, songIds: set.songIds.filter((id) => id !== song.id)}))) }}/>}/>

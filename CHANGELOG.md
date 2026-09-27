@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — Safari Home Screen tip
+
+Displayed app version stays **1.1.4**. No production deploy from this change.
+
+- In iPhone/iPad Safari (a normal tab, not the Home Screen icon), a compact card explains that the top bar and menus stay until **Teilen → Zum Home-Bildschirm → Icon öffnen**. It links to `/install/`. **Später** hides it for 7 days. Standalone and fullscreen show nothing. The install page says the same, and that the iPad Share button is in the top bar.
+- The service worker no longer replaces `/install/` or `/join/` with the app shell, so that guide opens as its own page.
+
 ## Unreleased — offline rehearsals
 
 Displayed app version stays **1.1.4**. No production deploy from this change.
