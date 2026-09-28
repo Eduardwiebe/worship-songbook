@@ -1,53 +1,45 @@
-:root { --offline-banner-fallback: calc(3.5rem + env(safe-area-inset-top, 0px)); }
-/* Pinned to the viewport top. A spacer keeps the first grid row (and phone flow)
-   the same height so the strip is not a short sticky cell and does not sit on the tab bar. */
+:root { --offline-banner-h-fallback: 3.25rem; }
+/* Snackbar directly above the bottom tab bar. The bar is ~62px tall and
+   already sits max(10px, safe-area) off the screen edge; 70px adds a small gap.
+   z-index stays under .mobile-nav (20) so the tabs stay tappable. */
 .offline-banner {
   position: fixed;
-  z-index: 36;
-  top: 0;
+  z-index: 18;
+  top: auto;
   right: 0;
   left: 0;
+  bottom: env(safe-area-inset-bottom, 0px);
   box-sizing: border-box;
   margin: 0;
   padding: 10px 16px;
-  padding-top: max(10px, env(safe-area-inset-top, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   text-align: center;
   color: #5c4312;
   background: linear-gradient(90deg, #f7e3a1, #f0d27a);
   border-bottom: 1px solid #e0c36a;
+  border-top: 1px solid #e0c36a;
   font-size: 13px;
   font-weight: 800;
   line-height: 1.35;
 }
-.offline-banner-spacer {
-  grid-column: 1 / -1;
-  height: var(--offline-banner-h, var(--offline-banner-fallback));
-  pointer-events: none;
-}
-body:has(.offline-banner) .sidebar {
-  top: var(--offline-banner-h, var(--offline-banner-fallback));
-  min-height: calc(100vh - var(--offline-banner-h, var(--offline-banner-fallback)));
-}
-@media (max-width: 1000px) {
-  body:has(.offline-banner) .mobile-topbar {
-    top: var(--offline-banner-h, var(--offline-banner-fallback));
-    padding-top: 8px;
-  }
-  body:has(.offline-banner) .content {
-    padding-top: 72px;
-  }
+body:has(.offline-banner) .app-shell {
+  padding-bottom: calc(var(--offline-banner-h, var(--offline-banner-h-fallback)) + 12px);
 }
 @media (max-width: 700px) {
+  .offline-banner {
+    bottom: calc(max(10px, env(safe-area-inset-bottom, 0px)) + 70px);
+  }
+  body:has(.offline-banner) .app-shell {
+    padding-bottom: calc(70px + max(10px, env(safe-area-inset-bottom, 0px)) + var(--offline-banner-h, var(--offline-banner-h-fallback)));
+  }
   body:has(.offline-banner):has(.song-editor-page:not(.home-song-editor) .original-pdf-sheet) .content {
-    height: calc(100dvh - var(--offline-banner-h, var(--offline-banner-fallback)));
-    max-height: calc(100dvh - var(--offline-banner-h, var(--offline-banner-fallback)));
+    padding-bottom: calc(70px + max(10px, env(safe-area-inset-bottom, 0px)) + var(--offline-banner-h, var(--offline-banner-h-fallback)));
   }
 }
-.offline-banner.is-prep{color:#16324a;background:linear-gradient(90deg,#d7e7f6,#e7f0f8);border-bottom-color:#b7cfe4}
-html[data-theme="dark"] .offline-banner{color:#f8e7b0;background:linear-gradient(90deg,#4a3a14,#3a2e10);border-bottom-color:#6a5520}
-html[data-theme="dark"] .offline-banner.is-prep{color:#d6e6f5;background:linear-gradient(90deg,#1a3148,#14283a);border-bottom-color:#2c4a66}
+.offline-banner.is-prep{color:#16324a;background:linear-gradient(90deg,#d7e7f6,#e7f0f8);border-bottom-color:#b7cfe4;border-top-color:#b7cfe4}
+html[data-theme="dark"] .offline-banner{color:#f8e7b0;background:linear-gradient(90deg,#4a3a14,#3a2e10);border-bottom-color:#6a5520;border-top-color:#6a5520}
+html[data-theme="dark"] .offline-banner.is-prep{color:#d6e6f5;background:linear-gradient(90deg,#1a3148,#14283a);border-bottom-color:#2c4a66;border-top-color:#2c4a66}
 .page-actions{gap:10px;align-items:center;flex-wrap:wrap}
 .offline-prepare{width:auto;padding:11px 16px}
 

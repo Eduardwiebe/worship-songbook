@@ -95,10 +95,7 @@ function OfflineStatusBanner({ text, prep }) {
     }
   }, [text, prep])
   if (!text) return null
-  return <>
-    <div ref={ref} className={`offline-banner${prep ? ' is-prep' : ''}`} role="status">{text}</div>
-    <div className="offline-banner-spacer" aria-hidden="true" />
-  </>
+  return <div ref={ref} className={`offline-banner${prep ? ' is-prep' : ''}`} role="status">{text}</div>
 }
 
 function App() {
@@ -319,7 +316,7 @@ function App() {
         ? t('offline.ready', { count: prep.cached || 0 })
         : ''
   const offlineBannerText = offlineMode ? (offlineHint ? t('offline.needsNetwork') : t('offline.banner')) : prepLine
-  return <div className="app-shell"><OfflineStatusBanner text={offlineBannerText} prep={!offlineMode && Boolean(prepLine)} />
+  return <div className="app-shell">
     <aside className="sidebar">
       <NavLink className="brand" to="/" end aria-label={t('brand.songbook')}><BrandMark /><div><strong>{t('brand.songbook')}</strong></div></NavLink>
       <nav className="nav">{navItems.map(([to, label, Icon]) =>
@@ -425,6 +422,7 @@ function App() {
       <Footer/>
     </main>
 
+    <OfflineStatusBanner text={offlineBannerText} prep={!offlineMode && Boolean(prepLine)} />
     <nav className="mobile-nav">
       <NavLink to="/" onClick={closeMenu}><Home size={20}/><span>{t('nav.home')}</span></NavLink>
       <NavLink to="/bands" onClick={closeMenu}><Users size={20}/><span>{t('nav.bands')}</span></NavLink>
