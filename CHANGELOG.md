@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — offline banner above the tab bar
+
+Displayed app version stays **1.1.4**. No production deploy from this change.
+
+- The offline status strip, including „Offline bereit …“, sits directly above the bottom tab bar (snackbar), not under the status bar. The Songbook header stays at the top. Copy, colors, and the Safari Home Screen tip are unchanged.
+
 ## Unreleased — Safari Home Screen tip
 
 Displayed app version stays **1.1.4**. No production deploy from this change.
