@@ -228,9 +228,9 @@ async function evictUntil(maxBytes, { spareKey, aggressive = false } = {}) {
 }
 
 export async function cachePutMedia(key, { mime, buffer, pages, meta } = {}) {
-  if (!key) return
+  if (!key) return false
   const recordPages = Array.isArray(pages) ? pages.filter((page) => page?.buffer) : null
-  if (!buffer && !recordPages?.length) return
+  if (!buffer && !recordPages?.length) return false
   const bytes = recordPages ? bytesOf({ pages: recordPages }) : (buffer.byteLength || 0)
   const kind = meta?.kind || (recordPages ? 'pages' : 'blob')
   const priority = Number.isFinite(meta?.priority) ? meta.priority : (kind === 'pages' ? 1 : 2)
@@ -242,26 +242,27 @@ export async function cachePutMedia(key, { mime, buffer, pages, meta } = {}) {
     savedAt: Date.now(),
   }
   const write = () => withStore(MEDIA, 'readwrite', (store) => idbReq(store.put(record, key)))
-  await enqueueMedia(async () => {
+  return enqueueMedia(async () => {
     try {
       await evictUntil(Math.max(0, MEDIA_SOFT_CAP_BYTES - bytes), { spareKey: key })
       await write()
     } catch (error) {
       if (!isQuotaError(error)) {
         console.warn('[offlineCache] putMedia failed', key, error)
-        return
+        return false
       }
       try {
         await evictUntil(Math.floor(MEDIA_SOFT_CAP_BYTES / 2), { spareKey: key, aggressive: true })
         await write()
       } catch (retryError) {
         console.warn('[offlineCache] putMedia quota', key, retryError)
-        return
+        return false
       }
     }
     const index = await readMediaIndex()
     index[key] = { bytes, priority, kind, savedAt: record.savedAt }
     await writeMediaIndex(index)
+    return true
   })
 }
 
@@ -374,6 +375,8 @@ export function orderSongsForOffline(songs, sets = []) {
 
 export async function cachePagesPayload(songId, pages, meta = {}) {
   if (!songId) return false
+  // An incomplete sheet must never replace a complete cached original.
+  if (!Array.isArray(pages) || !pages.length) return false
   const decoded = []
   for (const page of pages || []) {
     if (page?.buffer) {
@@ -382,11 +385,11 @@ export async function cachePagesPayload(songId, pages, meta = {}) {
     }
     if (page?.dataUrl) {
       const part = decodeDataUrl(page.dataUrl)
-      if (part) decoded.push(part)
+      if (part?.buffer?.byteLength) decoded.push(part)
     }
   }
-  if (!decoded.length) return false
-  await cachePutMedia(pagesCacheKey(songId), {
+  if (decoded.length !== pages.length || decoded.some((page) => !page.buffer?.byteLength)) return false
+  return cachePutMedia(pagesCacheKey(songId), {
     mime: 'application/x-songbook-pages',
     pages: decoded,
     meta: {
@@ -396,7 +399,6 @@ export async function cachePagesPayload(songId, pages, meta = {}) {
       title: meta.title || '',
     },
   })
-  return true
 }
 
 export async function loadCachedPageUrls(songId) {
@@ -427,8 +429,7 @@ async function cacheBinaryFromResponse(key, response, meta) {
   if (mime.includes('text/html') || mime.includes('application/json')) return false
   const buffer = await response.arrayBuffer()
   if (!buffer?.byteLength) return false
-  await cachePutMedia(key, { mime: mime.split(';')[0], buffer, meta })
-  return true
+  return cachePutMedia(key, { mime: mime.split(';')[0], buffer, meta })
 }
 
 /**

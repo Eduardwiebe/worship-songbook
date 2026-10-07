@@ -3,6 +3,21 @@
  * Keys use dot paths. Run: node scripts/generate-i18n.mjs
  */
 export const STRINGS = {
+  'readiness.eyebrow': { de: "Vor der Probe und dem Auftritt", en: "Before rehearsal and performance" },
+  'readiness.title': { de: "Set-Check", en: "Set check" },
+  'readiness.prepare': { de: "Dieses Set offline speichern", en: "Save this set offline" },
+  'readiness.preparing': { de: "Speichert …", en: "Saving …" },
+  'readiness.checking': { de: "Prüft gespeicherte Notenblätter …", en: "Checking stored sheets …" },
+  'readiness.stored': { de: "Alle Notenblätter auf diesem Gerät gespeichert ({total})", en: "All sheets stored on this device ({total})" },
+  'readiness.count': { de: "{count} von {total} Notenblättern auf diesem Gerät gespeichert", en: "{count} of {total} sheets stored on this device" },
+  'readiness.hint': { de: "Der Check gilt für dieses Gerät. Öffne die Blätter vor dem Auftritt einmal im Flugmodus. Browser können gespeicherte Daten entfernen.", en: "This check applies to this device. Open the sheets in airplane mode before performing. Browsers may remove stored data." },
+  'readiness.unknown': { de: "Song nicht verfügbar", en: "Song unavailable" },
+  'readiness.missingSong': { de: "Song fehlt in der Bibliothek", en: "Song missing from library" },
+  'readiness.missingSheet': { de: "Original-Notenblatt fehlt", en: "Original sheet missing" },
+  'readiness.notStored': { de: "Noch nicht offline gespeichert", en: "Not stored offline yet" },
+  'readiness.outdated': { de: "Offline-Kopie muss aktualisiert werden", en: "Offline copy needs updating" },
+  'readiness.missingLead': { de: "Songleitung noch offen", en: "Song lead still unassigned" },
+  'readiness.failed': { de: "Speichern fehlgeschlagen. Bitte erneut versuchen.", en: "Saving failed. Please try again." },
   // shell
   'loading': { de: 'Songbook wird geladen …', en: 'Loading Songbook …' },
   'offline.banner': { de: 'Offline — gespeicherte Songs und Sets sind verfügbar', en: 'Offline — saved songs and sets are available' },

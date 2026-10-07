@@ -19,6 +19,7 @@ _Screenshots can be added later._
 - Song library (PDF/scan import as **Original** digital songbook; YouTube Probe, tuner, auto-scroll, BPM)
 - No in-app chord/LeadSheet reconstruction or key transpose (analysis belongs in lyruma.de)
 - Sets and set planning
+- Per-device set check for stored offline sheets, missing songs, and unassigned song leads
 - Bands, invites, and join requests
 - Team members
 - Appointments / schedule

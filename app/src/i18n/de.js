@@ -729,6 +729,23 @@ export default {
   header: {
     eyebrow: "",
   },
+  readiness: {
+    hint: "Der Check gilt für dieses Gerät. Öffne die Blätter vor dem Auftritt einmal im Flugmodus. Browser können gespeicherte Daten entfernen.",
+    count: "{count} von {total} Notenblättern auf diesem Gerät gespeichert",
+    title: "Set-Check",
+    failed: "Speichern fehlgeschlagen. Bitte erneut versuchen.",
+    stored: "Alle Notenblätter auf diesem Gerät gespeichert ({total})",
+    eyebrow: "Vor der Probe und dem Auftritt",
+    prepare: "Dieses Set offline speichern",
+    unknown: "Song nicht verfügbar",
+    checking: "Prüft gespeicherte Notenblätter …",
+    outdated: "Offline-Kopie muss aktualisiert werden",
+    notStored: "Noch nicht offline gespeichert",
+    preparing: "Speichert …",
+    missingLead: "Songleitung noch offen",
+    missingSong: "Song fehlt in der Bibliothek",
+    missingSheet: "Original-Notenblatt fehlt",
+  },
   appointments: {
     date: "Datum",
     prep: "Vorbereitung",

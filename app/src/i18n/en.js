@@ -729,6 +729,23 @@ export default {
   header: {
     eyebrow: "",
   },
+  readiness: {
+    hint: "This check applies to this device. Open the sheets in airplane mode before performing. Browsers may remove stored data.",
+    count: "{count} of {total} sheets stored on this device",
+    title: "Set check",
+    failed: "Saving failed. Please try again.",
+    stored: "All sheets stored on this device ({total})",
+    eyebrow: "Before rehearsal and performance",
+    prepare: "Save this set offline",
+    unknown: "Song unavailable",
+    checking: "Checking stored sheets …",
+    outdated: "Offline copy needs updating",
+    notStored: "Not stored offline yet",
+    preparing: "Saving …",
+    missingLead: "Song lead still unassigned",
+    missingSong: "Song missing from library",
+    missingSheet: "Original sheet missing",
+  },
   appointments: {
     date: "Date",
     prep: "Preparation",

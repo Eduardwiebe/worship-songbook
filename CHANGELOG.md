@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased - set readiness and truthful offline storage
+
+- Set details now check every planned song for available original sheets, locally stored page images, outdated cache revisions, and unassigned song leads. Missing library references are reported rather than hidden.
+- Save one set offline from its check panel. The status describes this device only and recommends an airplane-mode check before performing.
+- Failed IndexedDB writes no longer count as successful offline preparation. Incomplete page payloads cannot overwrite a complete cached sheet.
+- Added storage-failure and readiness regression checks plus tablet/phone offline coverage in web CI.
+
+No production deployment or schema migration is included.
+
 ## Unreleased — offline banner above the tab bar
 
 Displayed app version stays **1.1.4**. No production deploy from this change.

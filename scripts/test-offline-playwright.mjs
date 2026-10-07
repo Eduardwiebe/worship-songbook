@@ -139,6 +139,11 @@ function startStaticServer() {
   return new Promise((resolve) => {
     const server = createServer((req, res) => {
       const url = new URL(req.url || '/', 'http://127.0.0.1')
+      if (url.pathname === '/__test__/offlineCache.js') {
+        res.writeHead(200, { 'content-type': 'text/javascript' })
+        res.end(readFileSync(join(root, 'app/src/offlineCache.js')))
+        return
+      }
       if (url.pathname.startsWith('/api/')) {
         res.writeHead(404, { 'content-type': 'application/json' })
         res.end('{"error":"api is not served by the static host"}')
@@ -294,6 +299,26 @@ async function main() {
     if (!(await hasCachedPdf(page, 'song-a'))) throw new Error('set song PDF was not cached')
     if (await hasCachedPdf(page, 'song-c')) throw new Error('non-set raw PDF should stay uncached')
 
+    const cacheFailures = await page.evaluate(async (origin) => {
+      const cache = await import(`${origin}/__test__/offlineCache.js`)
+      const before = await cache.cacheGetMedia('pages:song-a')
+      const incomplete = await cache.cachePagesPayload('song-a', [
+        { dataUrl: 'data:image/png;base64,AQ==' }, { dataUrl: 'invalid' },
+      ])
+      const originalPut = IDBObjectStore.prototype.put
+      IDBObjectStore.prototype.put = function (...args) {
+        if (this.name === 'media') throw new DOMException('Test quota', 'QuotaExceededError')
+        return originalPut.apply(this, args)
+      }
+      let failedWrite
+      try {
+        failedWrite = await cache.cachePagesPayload('song-a', [{ dataUrl: 'data:image/png;base64,AQ==' }])
+      } finally { IDBObjectStore.prototype.put = originalPut }
+      const after = await cache.cacheGetMedia('pages:song-a')
+      return { incomplete, failedWrite, preserved: before.pages[0].buffer.byteLength === after.pages[0].buffer.byteLength }
+    }, base)
+    if (cacheFailures.incomplete !== false || cacheFailures.failedWrite !== false || !cacheFailures.preserved) throw new Error(`failed cache writes were not handled safely: ${JSON.stringify(cacheFailures)}`)
+
     await page.goto(`${base}/#/songs`, { waitUntil: 'networkidle' })
     await openEye(page, 'Stilles Gebet')
     await assertSheet(page)
@@ -330,6 +355,12 @@ async function main() {
     await page.getByText('Sonntag Gottesdienst').waitFor()
     await page.goto(`${base}/#/sets/set-sunday`, { waitUntil: 'domcontentloaded' })
     await page.locator('.leader-select b', { hasText: 'EW' }).waitFor()
+    await page.getByText('Alle Notenblätter auf diesem Gerät gespeichert (1)').waitFor()
+    if (await page.getByRole('button', { name: 'Dieses Set offline speichern' }).isEnabled()) throw new Error('offline preparation button must be disabled')
+    await page.screenshot({ path: join(root, 'stage-readiness-ipad.png'), fullPage: true })
+    await page.setViewportSize({ width: 390, height: 844 })
+    if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)) throw new Error('mobile set check overflows')
+    await page.screenshot({ path: join(root, 'stage-readiness-phone.png'), fullPage: true })
 
     await page.goto(`${base}/#/team`, { waitUntil: 'domcontentloaded' })
     await page.getByRole('heading', { name: /Eduard Wiebe/ }).waitFor()
