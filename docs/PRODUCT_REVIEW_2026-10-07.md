@@ -10,7 +10,7 @@ Der Vorsprung sollte aus einem zuverlässig verbundenen Ablauf entstehen: Quelle
 
 ## Reichweite der Prüfung
 
-Repository geklont; Kernkomponenten, Stores, Authentifizierung, Server-Routen, Offline-Cache, Original-Modus, CI und vorhandene Tests untersucht. Öffentliche Live-Seite erreichbar, HTTP 200, Anmeldeoberfläche im Browser angesehen. Keine authentifizierte Prüfung mit echten Banddaten. Kein SSH-Zugang: `srv1` ist hier nicht auflösbar. Serverdateien, Datenbank, Backup-Inhalte, Restorefähigkeit, Ressourcen und exakte deployed Revision bleiben ungeprüft. Der sichtbare Build-Zeitpunkt entspricht dem 28. September; das beweist keine vollständige Gleichheit mit GitHub.
+Repository geklont; Kernkomponenten, Stores, Authentifizierung, Server-Routen, Offline-Cache, Original-Modus, CI und vorhandene Tests untersucht. Öffentliche Live-Seite erreichbar, HTTP 200, Anmeldeoberfläche im Browser angesehen. Keine authentifizierte Prüfung mit echten Banddaten. Kein SSH-Zugang: Der Alias `srv1` ist hier nicht auflösbar; auch die dokumentierte direkte Serveradresse wurde geprüft. Port 22 ist aus dieser Umgebung nicht erreichbar. Serverdateien, Datenbank, Backup-Inhalte, Restorefähigkeit, Ressourcen und exakte deployed Revision bleiben ungeprüft. Der sichtbare Build-Zeitpunkt entspricht dem 28. September; das beweist keine vollständige Gleichheit mit GitHub.
 
 ## Marktvergleich: dokumentierte Angebote
 
@@ -92,7 +92,7 @@ Pilotziele: fünf Teams schließen Import und erstes Set ab; mindestens vier spi
 
 ## Validierung und Auslieferung dieser Änderung
 
-Die Änderung betrifft Frontend und Cache, keine Datenbankmigration. Produktionsbuild, Node-Regressionsprüfungen sowie Offline-, Listen-/Viewer- und Bühnen-Safe-Area-Browsertests liefen erfolgreich. Lint meldet bestehende Warnungen, keine neuen Warnungen in den hinzugefügten Modulen. Der vorhandene allgemeine Übersetzungstest scheitert schon in der Basis an dem bewusst leeren Schlüssel header.eyebrow; die neuen deutschen und englischen Schlüssel sind vollständig vorhanden. Node-Tests prüfen Cache-Schreibfehler, unvollständige Seiten, fehlende Referenzen, Versionsabweichung und Leitung. Das bestehende Offline-Browsertestskript wurde um Set-Check und Telefonbreite ergänzt. Web-CI führt diese Tests künftig aus.
+Die Änderung betrifft Frontend und Cache, keine Datenbankmigration. Produktionsbuild, Node-Regressionsprüfungen sowie Offline-, Listen-/Viewer- und Bühnen-Safe-Area-Browsertests liefen erfolgreich. Lint meldet bestehende Warnungen, keine neuen Warnungen in den hinzugefügten Modulen. Der vorhandene allgemeine Übersetzungstest scheitert schon in der Basis an dem bewusst leeren Schlüssel header.eyebrow; die neuen deutschen und englischen Schlüssel sind vollständig vorhanden. Node-Tests prüfen Cache-Schreibfehler, unvollständige Seiten, fehlende Referenzen, Versionsabweichung und Leitung. Das bestehende Offline-Browsertestskript wurde um Set-Check und Telefonbreite ergänzt. Auch der GitHub-Web-CI-Lauf für die Codeänderung wurde erfolgreich abgeschlossen.
 
 Vor Deployment auf srv1: aktuelle Serverrevision und lokale Änderungen vergleichen; exakte verwendete Dienste und Build-Schritte ermitteln; konsistente SQLite-Sicherung und Mediensicherung außerhalb eines öffentlichen Downloads erstellen; Änderung isoliert bauen und testen; danach bewusst deployen und Live-Browser prüfen. Das vorhandene Verzeichnis `/var/www/songbook/backups/` wurde nicht untersucht und ist kein belegtes Restore-Konzept.
 
