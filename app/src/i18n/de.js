@@ -800,6 +800,12 @@ export default {
     missingSong: "Song fehlt in der Bibliothek",
     missingSheet: "Original-Notenblatt fehlt",
   },
+  stageZoom: {
+    size: "Blattgröße",
+    larger: "Blatt um 5 Prozent vergrößern",
+    smaller: "Blatt um 5 Prozent verkleinern",
+    widthHint: "100 % entspricht der Bildschirmbreite. Die Größe bleibt auch bei Pause und am Scrollende erhalten.",
+  },
   performance: {
     hint: "Freigeben hält Reihenfolge, Originalblätter, Songleitung, Einsatzhinweise und Bandnotizen fest. Weitere Änderungen bleiben im Entwurf.",
     lead: "Songleitung: {name}",

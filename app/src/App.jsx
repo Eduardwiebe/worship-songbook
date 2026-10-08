@@ -34,6 +34,8 @@ import { LiveDocumentCamera } from './liveDocumentCamera'
 import { openEnvironmentCamera } from './openEnvironmentCamera'
 import { GuitarTunerModal } from './GuitarTunerModal'
 import { useScreenWakeLock } from './screenWakeLock'
+import { SheetZoomControls } from './SheetZoomControls'
+import { readSheetZoom, saveSheetZoom } from './sheetZoom'
 import { useSheetAutoscroll } from './sheetAutoscroll'
 import { RehearsalAufnahme } from './RehearsalAufnahme'
 import { blurActiveElement, dismissModal, lockBodyScroll, scheduleViewportRestore, unlockBodyScroll } from './modalLock'
@@ -1374,6 +1376,8 @@ function RunSet({set, songs, onClose, performance = null}) {
   const { t } = useI18n()
   const [index, setIndex] = useState(0)
   const [autoScroll, setAutoScroll] = useState(false)
+  const [sheetZoom, setSheetZoom] = useState(readSheetZoom)
+  const changeSheetZoom = (value) => setSheetZoom(saveSheetZoom(value))
   const [bpm, setBpm] = useState(null)
   const [bpmInput, setBpmInput] = useState('')
   const [cajonOn, setCajonOn] = useState(false)
@@ -1420,6 +1424,8 @@ function RunSet({set, songs, onClose, performance = null}) {
     touchStart.current = null
   }
   const onStageTouchStart = (event) => {
+    // Panning an enlarged sheet must not accidentally change the song.
+    if (sheetZoom > 100 && event.currentTarget.classList.contains('pdf-stage-scroll')) { touchStart.current = null; return }
     const touch = event.touches[0]
     touchStart.current = { x: touch.clientX, y: touch.clientY }
   }
@@ -1428,11 +1434,11 @@ function RunSet({set, songs, onClose, performance = null}) {
     finishSwipe(touch.clientX, touch.clientY)
   }
   const metaBits = [song.key && song.key !== '–' ? t('home.key', { key: song.key }) : null, bpm ? `${bpm} BPM` : null].filter(Boolean)
-  return <div className={`run-mode${set.songBriefings?.[song.id]?.cue ? ' has-cue' : ''}`}><header><div className="run-meta"><p className="eyebrow">{t('sets.runMode')}</p><strong>{set.title}</strong><span>{index + 1}/{songs.length} · {song.title}{metaBits.length ? ` · ${metaBits.join(' · ')}` : ''}{song.leader ? ` · ${t('performance.lead',{name:song.leaderId==='group'?t('sets.allTogether'):song.leader})}` : ''}</span></div><div className="run-tools"><div className="tool-group scroll-tool"><span>{t('songs.autoScroll')}</span><button type="button" className={autoScroll?'active':''} onClick={()=>setAutoScroll((value)=>!value)} aria-pressed={autoScroll}>{autoScroll?<Pause size={18}/>:<Play size={18}/>}</button></div><RehearsalAufnahme band={set.band} setTitle={set.title}/><div className="tool-group cajon-tool"><span>{t('songs.cajon')}</span><input aria-label={t('songs.tempoAria')} type="number" min="40" max="240" inputMode="numeric" value={bpmInput} onChange={(event)=>{const raw=event.target.value;setBpmInput(raw);if(raw==='')return;const n=Number(raw);if(Number.isFinite(n))setBpm(n)}} onBlur={()=>{const nextTempo=clampTempoBpm(bpmInput,{fallback:bpm});if(nextTempo==null){setBpmInput(bpm==null?'':String(bpm));return}setBpm(nextTempo);setBpmInput(String(nextTempo))}}/><button type="button" className={cajonOn?'active':''} onClick={async ()=>{if(cajonOn){setCajonOn(false);return}playCajonHtmlHit({strong:true});await unlockCajonAudio();await preloadCajonSample();playCajonHit({strong:true});setCajonOn(true)}} title={t('songs.startCajon')} aria-pressed={cajonOn}>{cajonOn?<Pause size={18}/>:<Play size={18}/>}</button></div><button className="icon-button" onClick={onClose} aria-label={t('common.close')}><X size={22}/></button></div>{wakeHint?<p className="wake-lock-hint" role="status">{wakeHint}</p>:null}</header>
+  return <div className={`run-mode${set.songBriefings?.[song.id]?.cue ? ' has-cue' : ''}`}><header><div className="run-meta"><p className="eyebrow">{t('sets.runMode')}</p><strong>{set.title}</strong><span>{index + 1}/{songs.length} · {song.title}{metaBits.length ? ` · ${metaBits.join(' · ')}` : ''}{song.leader ? ` · ${t('performance.lead',{name:song.leaderId==='group'?t('sets.allTogether'):song.leader})}` : ''}</span></div><div className="run-tools"><SheetZoomControls value={sheetZoom} onChange={changeSheetZoom}/><div className="tool-group scroll-tool"><span>{t('songs.autoScroll')}</span><button type="button" className={autoScroll?'active':''} onClick={()=>setAutoScroll((value)=>!value)} aria-pressed={autoScroll}>{autoScroll?<Pause size={18}/>:<Play size={18}/>}</button></div><RehearsalAufnahme band={set.band} setTitle={set.title}/><div className="tool-group cajon-tool"><span>{t('songs.cajon')}</span><input aria-label={t('songs.tempoAria')} type="number" min="40" max="240" inputMode="numeric" value={bpmInput} onChange={(event)=>{const raw=event.target.value;setBpmInput(raw);if(raw==='')return;const n=Number(raw);if(Number.isFinite(n))setBpm(n)}} onBlur={()=>{const nextTempo=clampTempoBpm(bpmInput,{fallback:bpm});if(nextTempo==null){setBpmInput(bpm==null?'':String(bpm));return}setBpm(nextTempo);setBpmInput(String(nextTempo))}}/><button type="button" className={cajonOn?'active':''} onClick={async ()=>{if(cajonOn){setCajonOn(false);return}playCajonHtmlHit({strong:true});await unlockCajonAudio();await preloadCajonSample();playCajonHit({strong:true});setCajonOn(true)}} title={t('songs.startCajon')} aria-pressed={cajonOn}>{cajonOn?<Pause size={18}/>:<Play size={18}/>}</button></div><button className="icon-button" onClick={onClose} aria-label={t('common.close')}><X size={22}/></button></div>{wakeHint?<p className="wake-lock-hint" role="status">{wakeHint}</p>:null}</header>
     {set.songBriefings?.[song.id]?.cue && <aside className="stage-cue" aria-label={t('briefing.cue')}><strong>{t('briefing.cue')}</strong><span>{set.songBriefings[song.id].cue}</span></aside>}
     <main className="pdf-stage">
       <div className="pdf-stage-scroll" ref={stageScrollRef} onTouchStart={onStageTouchStart} onTouchEnd={onStageTouchEnd}>
-        {hasSongPdf(song) ? <AuthorizedFrame key={song.id} title={song.title} path={performance ? song.pdfUrl : songPdfUrl(song)} hash="#toolbar=0&navpanes=0&scrollbar=0&view=Fit" className="stage-fill" songId={song.id} preferPageImages performance={performance}/> : <div className="no-pdf"><FileText size={42}/><strong>{song.title}</strong><span>{t('sets.noPdf')}</span></div>}
+        {hasSongPdf(song) ? <AuthorizedFrame key={song.id} title={song.title} path={performance ? song.pdfUrl : songPdfUrl(song)} hash="#toolbar=0&navpanes=0&scrollbar=0&view=Fit" className="stage-fill" songId={song.id} preferPageImages performance={performance} sheetZoom={sheetZoom}/> : <div className="no-pdf"><FileText size={42}/><strong>{song.title}</strong><span>{t('sets.noPdf')}</span></div>}
       </div>
       {hasSongPdf(song) ? <><div className="stage-swipe-strip left" aria-hidden="true" onTouchStart={onStageTouchStart} onTouchEnd={onStageTouchEnd}/><div className="stage-swipe-strip right" aria-hidden="true" onTouchStart={onStageTouchStart} onTouchEnd={onStageTouchEnd}/></> : null}
       <button className="stage-arrow left" disabled={index === 0} onClick={previous} aria-label={t('sets.prevSong')}><ChevronLeft size={32}/></button><button className="stage-arrow right" disabled={index === songs.length - 1} onClick={next} aria-label={t('sets.nextSong')}><ChevronRight size={32}/></button>

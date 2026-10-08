@@ -3,6 +3,10 @@
  * Keys use dot paths. Run: node scripts/generate-i18n.mjs
  */
 export const STRINGS = {
+  'stageZoom.size': {de:'Blattgröße',en:'Sheet size'},
+  'stageZoom.smaller': {de:'Blatt um 5 Prozent verkleinern',en:'Decrease sheet size by 5 percent'},
+  'stageZoom.larger': {de:'Blatt um 5 Prozent vergrößern',en:'Increase sheet size by 5 percent'},
+  'stageZoom.widthHint': {de:'100 % entspricht der Bildschirmbreite. Die Größe bleibt auch bei Pause und am Scrollende erhalten.',en:'100% equals screen width. Size stays unchanged when paused or at the end of scrolling.'},
   "notes.edit": {"de": "Notizen bearbeiten", "en": "Edit notes"},
   "notes.read": {"de": "Lesemodus", "en": "Read mode"},
   "notes.tool": {"de": "Notizwerkzeug", "en": "Annotation tool"},

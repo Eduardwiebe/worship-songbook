@@ -66,17 +66,17 @@ export function AnnotationToolbar({state}) {
     {status&&<p role="status">{status}</p>}
   </div>
 }
-export function AnnotatedPage({page,index,title,document,editing=false,tool='pen',color='#d32f2f',onChange,onBeforeChange}) {
+export function AnnotatedPage({page,index,title,document,editing=false,tool='pen',color='#d32f2f',onChange,onBeforeChange,zoom=null}) {
   const {t}=useI18n()
   const [size,setSize]=useState({width:300,height:420}),[fit,setFit]=useState(null),[stroke,setStroke]=useState(null)
   const pageRef=useRef(null)
   useEffect(()=>{
     const container=pageRef.current?.parentElement
     if(!container)return
-    const resize=()=>{const ratio=size.width/size.height;const width=Math.min(container.clientWidth,container.clientHeight*ratio);setFit({width:Math.max(1,width),height:Math.max(1,width/ratio)})}
+    const resize=()=>{const ratio=size.width/size.height;const width=zoom===null?Math.min(container.clientWidth,container.clientHeight*ratio):container.clientWidth*zoom/100;setFit({width:Math.max(1,width),height:Math.max(1,width/ratio)})}
     const observer=new ResizeObserver(resize);observer.observe(container);resize()
     return()=>observer.disconnect()
-  },[size.width,size.height])
+  },[size.width,size.height,zoom])
   const svg=useRef(null),pending=useRef(null),pointer=useRef(null)
   const marks=document?.pages?.[index]||[]
   const position=(e)=>{const rect=svg.current.getBoundingClientRect();return[Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width)),Math.max(0,Math.min(1,(e.clientY-rect.top)/rect.height))]}

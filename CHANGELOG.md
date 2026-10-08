@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased - persistent stage sheet size
+
+- Stage sheet size is selectable from 50–200% in 1% steps; 100% uses the available screen width. Plus/minus adjust by 5%, and the setting is remembered on the device.
+- Autoscroll moves the selected sheet layout without enlarging it on Play or shrinking it on Pause/end. At the bottom it stops and retains the reading position. Original sheets and note overlays scale together.
+- Enlarged sheets remain horizontally accessible; panning the sheet does not change songs. Browser checks cover pause/end, tablet rotation, saved zoom after offline reload and existing stage safe areas.
+
 ## Unreleased - shared sheet notes and published performance versions
 
 - Band members can draw with a pen/finger, add text to individual original pages, undo marks and save shared song notes without modifying the PDF. Revision checks retain conflicting drafts; local drafts can be restored after reload.

@@ -36,6 +36,21 @@ eine weltweite Alleinstellung wird damit nicht behauptet.
    Konto/Gerät. Dies ist kein Echtzeitnachweis des Gerätespeichers. Das Gerät prüft
    seine Dateien beim Laden und vor einem Offline-Start selbst.
 
+## Blattgröße im Bühnenmodus
+
+**Blattgröße** lässt sich von 50 bis 200 % in Ein-Prozent-Schritten einstellen.
+100 % entspricht der verfügbaren Bildschirmbreite, unabhängig davon, ob
+Autoscroll läuft. Plus/Minus verändert die Größe um fünf Prozentpunkte;
+**100%** setzt sie bewusst zurück. Die Einstellung bleibt auf diesem Gerät
+auch nach Schließen und Wiederöffnen erhalten und gilt für Entwürfe und
+freigegebene Auftrittsfassungen.
+
+Pause und Scrollende behalten Größe und Leseposition bei. Am unteren Rand
+stoppt der Autoscroll. Originalblätter und Notizebene werden zusammen skaliert.
+Überbreite Blätter lassen sich seitlich verschieben; dadurch wird im Blattbereich
+kein anderes Lied gestartet. Die seitlichen Navigationsflächen, Pfeile und der
+Fußpedal-/Tastaturablauf bleiben für den Liedwechsel verfügbar.
+
 ## Technische Grenzen und Aufbewahrung
 
 - Die Original-PDFs bleiben unverändert. Notizen sind eine separate SVG-/Textebene;

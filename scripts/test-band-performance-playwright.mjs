@@ -80,12 +80,56 @@ try{
   await page.getByRole('button',{name:'Auftrittsfassung starten',exact:true}).click()
   await page.locator('.run-mode .annotation-shared-text').getByText('Owner newer note',{exact:true}).waitFor()
   assert.equal(await page.locator('.run-mode .annotation-layer polyline').count(),2)
+  const zoom=page.locator('.run-mode').getByRole('slider',{name:'Blattgröße',exact:true})
+  const scrollButton=page.locator('.run-mode .scroll-tool button')
+  const stageLayout=()=>page.locator('.run-mode .original-pages').evaluate(el=>({
+    zoom:el.dataset.sheetZoom,width:el.clientWidth,height:el.clientHeight,
+    pageWidth:el.querySelector('.annotated-page').getBoundingClientRect().width,
+    pageHeight:el.querySelector('.annotated-page').getBoundingClientRect().height,
+    scrollTop:el.scrollTop,max:el.scrollHeight-el.clientHeight,
+    imageWidth:el.querySelector('img').getBoundingClientRect().width,
+    layerWidth:el.querySelector('svg').getBoundingClientRect().width,
+    overflowX:getComputedStyle(el).overflowX
+  }))
+  // Width and readability are selected before Play, with single-percent steps.
+  await zoom.focus();await zoom.press('ArrowRight');assert.equal(await zoom.inputValue(),'101')
+  const setZoom=value=>zoom.evaluate((el,value)=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,String(value));el.dispatchEvent(new Event('input',{bubbles:true}))},value)
+  await setZoom(125)
+  await page.waitForFunction(()=>{const el=document.querySelector('.run-mode .original-pages');return el?.dataset.sheetZoom==='125'&&Math.abs(el.querySelector('.annotated-page').getBoundingClientRect().width/el.clientWidth-1.25)<.01})
+  const before=await stageLayout()
+  assert.ok(before.max>0);assert.equal(before.imageWidth,before.layerWidth)
+  await scrollButton.click()
+  await page.waitForFunction(()=>document.querySelector('.run-mode .original-pages')?.scrollTop>3)
+  await scrollButton.click()
+  const paused=await stageLayout()
+  assert.equal(paused.pageWidth,before.pageWidth);assert.equal(paused.pageHeight,before.pageHeight)
+  await page.waitForTimeout(350)
+  assert.equal((await stageLayout()).scrollTop,paused.scrollTop,'pause must preserve position')
+  await page.locator('.run-mode .original-pages').evaluate(el=>{el.scrollTop=el.scrollHeight-el.clientHeight-2})
+  await scrollButton.click()
+  await page.waitForFunction(()=>document.querySelector('.run-mode .scroll-tool button')?.getAttribute('aria-pressed')==='false')
+  const ended=await stageLayout()
+  assert.equal(ended.pageWidth,before.pageWidth);assert.equal(ended.pageHeight,before.pageHeight)
+  assert.ok(Math.abs(ended.scrollTop-ended.max)<1,'end must stay at the bottom')
+  assert.equal(ended.overflowX,'auto','enlarged sheets remain horizontally accessible')
+  await page.waitForTimeout(350)
+  assert.equal((await stageLayout()).scrollTop,ended.scrollTop,'scroll end must not shrink or jump to top')
+  await setZoom(126);assert.equal(await zoom.inputValue(),'126')
+  await page.locator('.run-mode').getByRole('button',{name:'Blatt um 5 Prozent verkleinern',exact:true}).click()
+  assert.equal(await zoom.inputValue(),'121')
+  await page.locator('.run-mode').getByRole('button',{name:'Blatt um 5 Prozent vergrößern',exact:true}).click()
+  assert.equal(await zoom.inputValue(),'126')
+  await page.setViewportSize({width:768,height:1024})
+  await page.waitForFunction(()=>{const el=document.querySelector('.run-mode .original-pages');return Math.abs(el.querySelector('.annotated-page').getBoundingClientRect().width/el.clientWidth-1.26)<.01})
+  assert.equal(await zoom.inputValue(),'126','tablet rotation must preserve selected percentage')
+
   await page.locator('.run-mode').getByRole('button',{name:'Schließen',exact:true}).click()
   await page.evaluate(async()=>{await navigator.serviceWorker.ready})
   await context.setOffline(true)
   await page.reload({waitUntil:'domcontentloaded'})
   await page.getByRole('button',{name:'Auftrittsfassung starten',exact:true}).click()
   await page.locator('.run-mode .original-page-image').waitFor()
+  assert.equal(await page.locator('.run-mode').getByRole('slider',{name:'Blattgröße',exact:true}).inputValue(),'126','stage size persists after close and offline reload')
   await page.locator('.run-mode .annotation-shared-text').getByText('Owner newer note',{exact:true}).waitFor()
   assert.equal(await page.locator('.run-mode .annotation-layer text').textContent(),'Anna leitet · Bridge 2x')
   // Narrow phone rendering must preserve the original's aspect ratio and drawing alignment.
@@ -100,5 +144,5 @@ try{
   await page.getByText('Diese Fassung ist auf diesem Gerät nicht vollständig gespeichert.',{exact:true}).waitFor()
   assert.equal(await page.locator('.run-mode').count(),0,'missing offline bytes must prevent a performance start')
   assert.deepEqual(errors,[])
-  console.log('ok: production UI, mouse/touch/text/undo, shared persistence, conflict draft recovery, published notes and sheet, offline reload and phone alignment')
+  console.log('ok: production UI, mouse/touch/text/undo, shared persistence, conflict draft recovery, published notes and sheet, offline reload, persistent stage zoom/pause/end/tablet rotation and phone alignment')
 }finally{await browser.close();server.close();server.closeAllConnections();await f.close()}

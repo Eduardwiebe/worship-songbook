@@ -102,7 +102,7 @@ export function AuthorizedImg({ path, alt = '', className, ...rest }) {
  * The browser PDF plugin (iPad / desktop) lets the player drag the sheet
  * inside the frame. Images scale to the frame and stay fixed.
  */
-export function OriginalPagesViewer({ songId, title, className, onViewChange, editable = false, performance = null }) {
+export function OriginalPagesViewer({ songId, title, className, onViewChange, editable = false, performance = null, sheetZoom = null }) {
   const frozenSong = performance?.songs.find((song) => song.id === songId)
   const annotations = useSheetAnnotations(songId, editable, frozenSong?.annotations)
   const [noteTool, setNoteTool] = useState('pen')
@@ -190,7 +190,7 @@ export function OriginalPagesViewer({ songId, title, className, onViewChange, ed
 
   useEffect(() => {
     const el = rootRef.current
-    if (!el || multi) return undefined
+    if (!el || multi || sheetZoom !== null) return undefined
     const block = (event) => {
       if (el.classList.contains('is-autoscrolling')) return
       event.preventDefault()
@@ -203,7 +203,7 @@ export function OriginalPagesViewer({ songId, title, className, onViewChange, ed
       el.removeEventListener('touchmove', block)
       el.removeEventListener('gesturestart', block)
     }
-  }, [multi, loading, error, pages.length])
+  }, [multi, loading, error, pages.length, sheetZoom])
 
   useEffect(() => {
     onViewChangeRef.current?.({ index: 0, count: pages.length })
@@ -249,8 +249,8 @@ export function OriginalPagesViewer({ songId, title, className, onViewChange, ed
     <div className="annotated-viewer">
       {editable && <AnnotationToolbar state={{ ...annotations, change: changeNotes, setTool: setNoteTool, setColor: setNoteColor, undo, canUndo: undoCount > 0 }}/>}
       {!annotations.editing && annotations.visible?.notes && <aside className="annotation-shared-text" aria-label={tStatic('notes.bandNotes')}>{annotations.visible.notes}</aside>}
-      <div ref={rootRef} className={frameClass}>
-        {pages.map((page, index) => <AnnotatedPage key={`${songId}-${index}`} page={page} index={index} title={title} document={annotations.visible} editing={annotations.editing && !annotations.stale} tool={noteTool} color={noteColor} onChange={annotations.change} onBeforeChange={remember}/>)}
+      <div ref={rootRef} className={`${frameClass}${sheetZoom !== null ? ' is-manual-zoom' : ''}`} data-sheet-zoom={sheetZoom ?? undefined}>
+        {pages.map((page, index) => <AnnotatedPage key={`${songId}-${index}`} page={page} index={index} title={title} document={annotations.visible} zoom={sheetZoom} editing={annotations.editing && !annotations.stale} tool={noteTool} color={noteColor} onChange={annotations.change} onBeforeChange={remember}/>)}
       </div>
     </div>
   )
@@ -365,7 +365,7 @@ function PdfNativeViewer({ src, title, className, fitContent = false }) {
  * fitContent: size HTML chart iframes to document height so the stage can scroll
  * while keeping pointer-events none (song swipe stays on the stage).
  */
-export function AuthorizedFrame({ path, title, className, hash = '', songId = '', preferPageImages = false, fitContent = false, editable = false, performance = null }) {
+export function AuthorizedFrame({ path, title, className, hash = '', songId = '', preferPageImages = false, fitContent = false, editable = false, performance = null, sheetZoom = null }) {
   const usePages = Boolean(preferPageImages && songId)
   const [frameClassName, setFrameClassName] = useState(className || '')
   const [src, setSrc] = useState('')
@@ -562,7 +562,7 @@ export function AuthorizedFrame({ path, title, className, hash = '', songId = ''
   }
 
   if (usePages) {
-    return <OriginalPagesViewer songId={songId} title={title} className={className} editable={editable} performance={performance} />
+    return <OriginalPagesViewer songId={songId} title={title} className={className} editable={editable} performance={performance} sheetZoom={sheetZoom} />
   }
 
   if (loading) {

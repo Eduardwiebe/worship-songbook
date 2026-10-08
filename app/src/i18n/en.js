@@ -800,6 +800,12 @@ export default {
     missingSong: "Song missing from library",
     missingSheet: "Original sheet missing",
   },
+  stageZoom: {
+    size: "Sheet size",
+    larger: "Increase sheet size by 5 percent",
+    smaller: "Decrease sheet size by 5 percent",
+    widthHint: "100% equals screen width. Size stays unchanged when paused or at the end of scrolling.",
+  },
   performance: {
     hint: "Publishing freezes the order, original sheets, song leads, cues and shared notes. Further changes remain in the draft.",
     lead: "Song lead: {name}",
