@@ -25,6 +25,7 @@ import { createServer } from 'node:http'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, extname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { setTimeout as pause } from 'node:timers/promises'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const dist = join(root, 'app/dist')
@@ -115,6 +116,11 @@ function fulfillJson(route, data, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) })
 }
 
+// Exercise real asynchronous preparation in CI, even on a fast runner.
+const libraryPagesDelayMs = 1200
+const setPdfDelayMs = 600
+let libraryPagesDelivered = false
+
 function routeApi(url, route) {
   if (url.includes('/api/sets/set-sunday') && route.request().method() === 'PUT') {
     const draft = route.request().postDataJSON()
@@ -124,14 +130,20 @@ function routeApi(url, route) {
   }
   if (url.includes('/api/auth/me') || url.includes('/api/auth/native/me')) return fulfillJson(route, { user: mockUser })
   if (url.includes('/api/onboarding')) return fulfillJson(route, mockOnboarding)
-  if (url.includes('/api/songs/song-a/pages') || url.includes('/api/songs/song-c/pages')) {
+  if (url.includes('/api/songs/song-c/pages')) {
+    return pause(libraryPagesDelayMs).then(async () => {
+      await fulfillJson(route, { pages: [{ mime: 'image/svg+xml', dataUrl: pageDataUrl() }] })
+      libraryPagesDelivered = true
+    })
+  }
+  if (url.includes('/api/songs/song-a/pages')) {
     return fulfillJson(route, { pages: [{ mime: 'image/svg+xml', dataUrl: pageDataUrl() }] })
   }
   if (url.includes('/api/songs/song-b/pages')) {
     return fulfillJson(route, { error: 'Seiten nicht da' }, 500)
   }
   if (url.includes('/api/songs/song-a/pdf')) {
-    return route.fulfill({ status: 200, contentType: 'application/pdf', body: Buffer.from('%PDF-1.1\n') })
+    return pause(setPdfDelayMs).then(() => route.fulfill({ status: 200, contentType: 'application/pdf', body: Buffer.from('%PDF-1.1\n') }))
   }
   if (url.includes('/resolve-youtube')) return fulfillJson(route, { youtubeUrl: '' })
   if (url.includes('/resolve-cover')) return fulfillJson(route, { hasCover: false })
@@ -145,7 +157,7 @@ function routeApi(url, route) {
 
 function startStaticServer() {
   return new Promise((resolve) => {
-    const server = createServer((req, res) => {
+    const server = createServer(async (req, res) => {
       const url = new URL(req.url || '/', 'http://127.0.0.1')
       if (url.pathname === '/__test__/offlineCache.js') {
         res.writeHead(200, { 'content-type': 'text/javascript' })
@@ -153,8 +165,18 @@ function startStaticServer() {
         return
       }
       if (url.pathname.startsWith('/api/')) {
-        res.writeHead(404, { 'content-type': 'application/json' })
-        res.end('{"error":"api is not served by the static host"}')
+        // A service worker's fetch can bypass Playwright routing. Serve the
+        // mock API at the origin so both page and worker requests see it.
+        const chunks = []
+        for await (const chunk of req) chunks.push(chunk)
+        const payload = Buffer.concat(chunks).toString()
+        await routeApi(url.href, {
+          request: () => ({ method: () => req.method, postDataJSON: () => JSON.parse(payload) }),
+          fulfill: ({ status = 200, contentType, body }) => {
+            res.writeHead(status, { 'content-type': contentType })
+            res.end(body)
+          },
+        })
         return
       }
       let path = join(dist, decodeURIComponent(url.pathname === '/' ? 'index.html' : url.pathname))
@@ -185,6 +207,7 @@ function startStaticServer() {
 }
 
 async function readMedia(page, key) {
+  const scopedKey = `scope:${JSON.stringify([mockUser.id, 'band-1'])}:${key}`
   return page.evaluate(async (mediaKey) => {
     const db = await new Promise((resolve, reject) => {
       const req = indexedDB.open('songbook-offline-v1')
@@ -192,17 +215,32 @@ async function readMedia(page, key) {
       req.onerror = () => reject(req.error)
     })
     const row = await new Promise((resolve) => {
-      const get = db.transaction('media', 'readonly').objectStore('media').get(`scope:[\"offline-user\",\"band-1\"]:${mediaKey}`)
+      const get = db.transaction('media', 'readonly').objectStore('media').get(mediaKey)
       get.onsuccess = () => resolve(get.result || null)
       get.onerror = () => resolve(null)
     })
     db.close()
     if (!row) return null
     return {
-      pages: row.pages?.length || 0,
+      pages: row.pages?.length && row.pages.every((item) => item.buffer?.byteLength > 0) ? row.pages.length : 0,
       bytes: row.buffer?.byteLength || 0,
     }
-  }, key)
+  }, scopedKey)
+}
+
+async function waitForPreparedMedia(page, timeoutMs = 30000) {
+  const deadline = Date.now() + timeoutMs
+  let stored
+  do {
+    // Await the IndexedDB reads in Node: waitForFunction treats an async
+    // predicate's Promise as truthy in our Playwright version.
+    stored = await Promise.all([
+      hasCachedPages(page, 'song-a'), hasCachedPages(page, 'song-c'), hasCachedPdf(page, 'song-a'),
+    ])
+    if (stored.every(Boolean)) return
+    await pause(100)
+  } while (Date.now() < deadline)
+  throw new Error(`Offline preparation timed out: ${JSON.stringify({ setPages: stored[0], libraryPages: stored[1], setPdf: stored[2] })}`)
 }
 
 async function hasCachedPages(page, songId) {
@@ -265,42 +303,26 @@ async function main() {
   await context.addInitScript(() => {
     try { localStorage.setItem('songbook-locale', 'de') } catch { /* ignore */ }
   })
-  await context.route('**/api/**', async (route) => routeApi(route.request().url(), route))
   const page = await context.newPage()
+  page.on('console', (message) => { if (process.env.SONGBOOK_TEST_DEBUG) console.log('[browser]', message.text()) })
+  page.on('request', (request) => { if (process.env.SONGBOOK_TEST_DEBUG && request.url().includes('/api/')) console.log('[request]', new URL(request.url()).pathname) })
   const popups = []
   page.on('popup', (popup) => popups.push(popup.url()))
 
   try {
-    await page.goto(`${base}/#/`, { waitUntil: 'networkidle' })
+    await page.goto(`${base}/#/`, { waitUntil: 'domcontentloaded' })
     await page.evaluate(async () => {
       if (!('serviceWorker' in navigator)) throw new Error('no service worker')
       await navigator.serviceWorker.ready
     })
     const controlled = await page.evaluate(() => Boolean(navigator.serviceWorker.controller))
     if (!controlled) {
-      await page.reload({ waitUntil: 'networkidle' })
+      await page.reload({ waitUntil: 'domcontentloaded' })
     }
     await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller), null, { timeout: 15000 })
     await page.getByText('Großer Gott').first().waitFor({ timeout: 15000 })
-    await page.waitForFunction(async () => {
-      const open = indexedDB.open('songbook-offline-v1')
-      const db = await new Promise((resolve, reject) => {
-        open.onsuccess = () => resolve(open.result)
-        open.onerror = () => reject(open.error)
-      })
-      const read = (key) => new Promise((resolve) => {
-        const get = db.transaction('media', 'readonly').objectStore('media').get(key)
-        get.onsuccess = () => resolve(get.result || null)
-        get.onerror = () => resolve(null)
-      })
-      const [setSong, librarySong, missed] = await Promise.all([
-        read('pages:song-a'),
-        read('pages:song-c'),
-        read('pages:song-b'),
-      ])
-      db.close()
-      return Boolean(setSong?.pages?.length && librarySong?.pages?.length && !missed?.pages?.length)
-    }, null, { timeout: 30000 })
+    await waitForPreparedMedia(page)
+    if (!libraryPagesDelivered) throw new Error('offline wait returned before the delayed library pages arrived')
     if (!(await hasCachedPages(page, 'song-a'))) throw new Error('set song pages were not cached while online')
     if (!(await hasCachedPages(page, 'song-c'))) throw new Error('library song outside every set was not cached while online')
     if (await hasCachedPages(page, 'song-b')) throw new Error('song-b pages must stay uncached')

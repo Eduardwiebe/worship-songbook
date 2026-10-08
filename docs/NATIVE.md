@@ -78,10 +78,16 @@ If keyring is unavailable at runtime, refresh tokens fall back to **process memo
 ## Automated tests
 
 ```bash
-node scripts/test-native-auth.mjs
+node scripts/test-set-api.mjs
 ```
 
-Creates a temporary user, exercises login/refresh/logout/expiry/Bearer API access, then deletes the user.
+Starts an isolated API with a temporary SQLite database, runs the set API checks
+and the native login/refresh/logout/expiry/Bearer suite, then removes the test data.
+
+For a standalone native-auth run, explicitly set `SONGBOOK_API` to a local HTTP
+test API on a port other than 8791 and `SONGBOOK_DB` to an existing isolated
+SQLite copy inside the system temporary directory. Production defaults and
+symlinks pointing outside that directory are rejected before opening SQLite.
 
 ## Desktop / mobile readiness
 
