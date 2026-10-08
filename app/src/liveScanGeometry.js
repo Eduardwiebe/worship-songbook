@@ -35,7 +35,7 @@ export function pushQuadSample(history, quad, width, height, maxFraction = 0.02)
   if (!quad) return []
   const limit = maxFraction * Math.hypot(width || 1, height || 1)
   const previous = history?.[history.length - 1]
-  if (!previous || quadDrift(previous, quad) > limit) return [quad]
+  if (!previous || quadDrift(previous, quad) > limit || quadDrift(history[0], quad) > limit) return [quad]
   return [...history, quad].slice(-8)
 }
 

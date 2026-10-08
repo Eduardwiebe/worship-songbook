@@ -30,6 +30,7 @@ import { playCajonHit, playCajonHtmlHit, preloadCajonSample, unlockCajonAudio, u
 import { installNativeDesktopChrome } from './nativeDesktop'
 import { ModalBackdrop } from './ModalBackdrop'
 import { straightenScanFile } from './documentDetect'
+import { ScanCropEditor } from './ScanCropEditor'
 import { LiveDocumentCamera } from './liveDocumentCamera'
 import { openEnvironmentCamera } from './openEnvironmentCamera'
 import { GuitarTunerModal } from './GuitarTunerModal'
@@ -1574,6 +1575,8 @@ function ScanDialog({onClose,onSave}) {
   const straightenStarted=useRef(new Set())
   const [title,setTitle]=useState('')
   const [pages,setPages]=useState([])
+  const pagesRef=useRef([])
+  pagesRef.current=pages
   const [pdfFile,setPdfFile]=useState(null)
   const [pdfPages,setPdfPages]=useState([])
   const [selectedPdfPages,setSelectedPdfPages]=useState([])
@@ -1585,10 +1588,11 @@ function ScanDialog({onClose,onSave}) {
   const [nativeScanner,setNativeScanner]=useState(false)
   const [scanningNative,setScanningNative]=useState(false)
   const [liveStream,setLiveStream]=useState(null)
+  const [cropPage,setCropPage]=useState(null)
   const liveStreamRef=useRef(null)
 
   useEffect(()=>{let alive=true;import('./documentScanner').then(m=>m.isNativeDocumentScannerAvailable()).then(ok=>{if(alive)setNativeScanner(ok)}).catch(()=>{});return()=>{alive=false}},[])
-  useEffect(()=>()=>{pages.forEach((page)=>URL.revokeObjectURL(page.url))},[])
+  useEffect(()=>()=>{pagesRef.current.forEach((page)=>URL.revokeObjectURL(page.url))},[])
   useEffect(()=>()=>{liveStreamRef.current?.getTracks()?.forEach((track)=>track.stop())},[])
 
   const clearImagePages=()=>setPages((current)=>{current.forEach((page)=>URL.revokeObjectURL(page.url));return []})
@@ -1627,7 +1631,7 @@ function ScanDialog({onClose,onSave}) {
     setMode('images')
     resetPdf()
     setPasteText('')
-    const slice=next.slice(0,Math.max(0,8-pages.length)).map(file=>({id:crypto.randomUUID(),file,url:URL.createObjectURL(file),detect:'pending'}))
+    const slice=next.slice(0,Math.max(0,8-pages.length)).map(file=>({id:crypto.randomUUID(),file,sourceFile:file,url:URL.createObjectURL(file),detect:'pending'}))
     if(!slice.length)return
     setPages((current)=>{
       const ids=new Set(current.map((page)=>page.id))
@@ -1636,13 +1640,13 @@ function ScanDialog({onClose,onSave}) {
     })
     slice.forEach(straightenPage)
   }
-  const addReady=(file,detected)=>{
+  const addReady=(file,detected,sourceFile=file)=>{
     setMode('images')
     resetPdf()
     setPasteText('')
     setPages((current)=>{
       if(current.length>=8)return current
-      const page={id:crypto.randomUUID(),file,url:URL.createObjectURL(file),detect:detected?'straightened':'original'}
+      const page={id:crypto.randomUUID(),file,sourceFile,url:URL.createObjectURL(file),detect:detected?'straightened':'original'}
       return [...current,page]
     })
   }
@@ -1735,7 +1739,7 @@ function ScanDialog({onClose,onSave}) {
   }
 
   const detecting=pages.some((page)=>page.detect==='pending')
-  const canSubmit=Boolean(title.trim()) && !detecting && (
+  const canSubmit=Boolean(title.trim()) && !detecting && !cropPage && !liveStream && (
     (mode==='images' && pages.length>0) ||
     (mode==='pdf' && pdfFile && selectedPdfPages.length>0) ||
     (mode==='text' && pasteText.trim())
@@ -1761,7 +1765,7 @@ function ScanDialog({onClose,onSave}) {
       <button type="button" className="scan-gallery-button" onClick={()=>galleryRef.current?.click()}><Upload size={21}/>{t('scan.pickImages')}</button>
       <button type="button" className="scan-gallery-button" onClick={()=>fileRef.current?.click()} disabled={previewing}>{previewing?t('scan.previewing'):t('scan.pickFile')}</button>
       <button type="button" className={`scan-gallery-button${mode==='text'?' selected':''}`} onClick={()=>{setMode('text');clearImagePages();resetPdf()}}>{t('scan.pasteText')}</button>
-      {nativeScanner&&<button type="button" className="scan-gallery-button" onClick={()=>cameraRef.current?.click()}>{t('scan.fallbackCamera')}</button>}
+      <button type="button" className="scan-gallery-button" disabled={pages.length>=8} onClick={()=>cameraRef.current?.click()}>{t('scan.photoCapture')}</button>
     </div>
 
     <label className="field scan-title"><span>{t('scan.songTitle')}</span><div><Music2 size={18}/><input value={title} onChange={event=>setTitle(event.target.value)} placeholder={t('scan.titlePlaceholder')} autoFocus={!avoidAutoFocus}/></div></label>
@@ -1781,14 +1785,18 @@ function ScanDialog({onClose,onSave}) {
     {mode==='images'&&pages.length>0&&<div className="scan-pages">{pages.map((page,index)=>{
       const detectClass=page.detect==='pending'?'is-detecting':page.detect==='straightened'?'is-straightened':'is-plain'
       const detectLabel=page.detect==='pending'?t('scan.detectingShort'):page.detect==='straightened'?t('scan.straightened'):t('scan.keptPhoto')
-      return <article key={page.id} className={detectClass}><img src={page.url} alt={t('scan.pageAlt', { n: index+1 })}/><span>{t('scan.pageN', { n: index+1 })}</span><em className="scan-detect-badge">{detectLabel}</em><div><button disabled={index===0} onClick={()=>move(index,-1)}><ArrowUp size={16}/></button><button disabled={index===pages.length-1} onClick={()=>move(index,1)}><ArrowDown size={16}/></button><button onClick={()=>remove(page.id)}><Trash2 size={16}/></button></div></article>
+      return <article key={page.id} className={detectClass}><img src={page.url} alt={t('scan.pageAlt', { n: index+1 })}/><span>{t('scan.pageN', { n: index+1 })}</span><em className="scan-detect-badge">{detectLabel}</em><button type="button" className="scan-review-button" disabled={page.detect==='pending'||saving} onClick={()=>setCropPage(page)}>{t('scan.cropTitle')}</button><div><button disabled={index===0} onClick={()=>move(index,-1)}><ArrowUp size={16}/></button><button disabled={index===pages.length-1} onClick={()=>move(index,1)}><ArrowDown size={16}/></button><button onClick={()=>remove(page.id)}><Trash2 size={16}/></button></div></article>
     })}</div>}
 
     {error&&<p className="form-error">{error}</p>}
     <div className="scan-processing-note"><CheckCircle2 size={18}/><span><strong>{detecting?t('scan.detecting'):t('scan.autoProcess')}</strong><small>{detecting?t('scan.detectingHint'):t('scan.processHintExtended')}</small></span></div>
     <div className="modal-actions"><button className="cancel-button" onClick={close} disabled={saving}>{t('common.back')}</button><button className="add-button compact" disabled={!canSubmit||saving||previewing} onClick={submit}><Upload size={18}/>{saving?t('scan.processing'):detecting?t('scan.detecting'):t('scan.create')}</button></div>
   </section>
-  {liveStream&&<LiveDocumentCamera stream={liveStream} canTakeAnother={pages.length<7} onAccept={(file,detected,keepOpen)=>{addReady(file,detected);if(!keepOpen)closeLive()}} onClose={closeLive}/>}
+  {liveStream&&<LiveDocumentCamera stream={liveStream} canTakeAnother={pages.length<7} onAccept={(file,detected,keepOpen,sourceFile)=>{addReady(file,detected,sourceFile);if(!keepOpen)closeLive()}} onClose={closeLive}/>}
+  {cropPage&&<ScanCropEditor sourceFile={cropPage.sourceFile||cropPage.file} onCancel={()=>setCropPage(null)} onConfirm={(file,detected)=>{
+    setPages(current=>current.map(page=>{if(page.id!==cropPage.id)return page;URL.revokeObjectURL(page.url);return {...page,file,url:URL.createObjectURL(file),detect:detected?'straightened':'original'}}))
+    setCropPage(null)
+  }}/>}
   </ModalBackdrop>
 }
 

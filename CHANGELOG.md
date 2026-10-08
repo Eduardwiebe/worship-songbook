@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.1 — 2026-10-08
+
+- Scanner: Seitengrenzen aus der gesamten Kontur und zwei Helligkeitsschwellen; unplausible Flächen werden nicht automatisch übernommen.
+- Live-Aufnahme mit Schärfeprüfung, höher angefragter Kameraauflösung und unverändertem Ausgangsfoto für Korrekturen.
+- Vier verschiebbare Ecken mit Lupe, Vorschau, Drehen, Ganzbild und Auswahl einer Buchseite; Galerie- und Kamerazuschnitte bleiben bis zum Speichern korrigierbar.
+- Bestätigte Bilder werden ohne weiteren Zuschnitt, Kontrastwechsel oder Hochskalieren gespeichert. JPEGs bleiben im PDF bytegleich; PNGs werden verlustfrei eingebettet.
+- Isolierte Tests für Bildtreue, Scan-API und Tablet-/Handy-Bedienung sind in CI enthalten.
+
 ## Unreleased - persistent stage sheet size
 
 - Stage sheet size is selectable from 50–200% in 1% steps; 100% uses the available screen width. Plus/minus adjust by 5%, and the setting is remembered on the device.

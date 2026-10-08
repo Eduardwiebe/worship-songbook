@@ -35,6 +35,8 @@ export async function saveScannedSong(title, pages) {
   const prepared = await prepareScanPages(pages.map((page) => page.file))
   const form = new FormData()
   form.set('title', title)
+  // The preview is final; never run a second geometry/contrast pass on the server.
+  form.set('pageProcessing', 'preserve')
   prepared.forEach((file, index) => form.append('pages', file, `scan-${index + 1}.jpg`))
   const response = await apiFetch('/api/scans', { method: 'POST', body: form })
   const data = await response.json().catch(() => ({}))
@@ -61,6 +63,8 @@ export async function previewScanPdf(file) {
 export async function saveScanImport(title, { pages, pdfFile, selectedPages, text } = {}) {
   const form = new FormData()
   form.set('title', title)
+  // The preview is final; never run a second geometry/contrast pass on the server.
+  form.set('pageProcessing', 'preserve')
 
   if (typeof text === 'string' && text.trim()) {
     form.set('text', text)

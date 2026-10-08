@@ -5,6 +5,7 @@ export async function openEnvironmentCamera() {
     throw error
   }
   const attempts = [
+    { audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 } } },
     { audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
     { audio: false, video: { facingMode: { ideal: 'environment' } } },
     { audio: false, video: true },
