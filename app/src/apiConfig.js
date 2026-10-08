@@ -5,7 +5,7 @@
  */
 
 import { URL_APP } from './appMeta'
-import { markTransportOffline, markTransportOnline } from './offlineCache'
+import { cacheContextToken, getCacheBand, getCacheUser, hasCacheIdentity, markTransportOffline, markTransportOnline } from './offlineCache'
 import {
   applyNativeLoginTokens,
   clearAccessToken,
@@ -122,6 +122,10 @@ function networkFailure(error) {
 }
 
 export async function apiFetch(path, options = {}) {
+  const context = cacheContextToken()
+  const checkContext = () => {
+    if (context !== cacheContextToken()) throw Object.assign(new Error('Songbook session changed'), { cancelled: true })
+  }
   const native = isNativeRuntime()
   const skipAuth = Boolean(options.skipAuth)
   const method = String(options.method || 'GET').toUpperCase()
@@ -131,6 +135,12 @@ export async function apiFetch(path, options = {}) {
     credentials: options.credentials || (native ? 'omit' : 'include'),
     headers: buildHeaders(options, { withBearer: native && !skipAuth }),
   }
+  // Cookies are shared between tabs. Pin data reads/writes to this tab's band;
+  // the initial band discovery deliberately reads the server selection cookie.
+  if (!native && hasCacheIdentity() && !path.startsWith('/api/auth/') && path !== '/api/bands') {
+    opts.headers.set('X-Songbook-Band', getCacheBand() || 'personal')
+  }
+  if (hasCacheIdentity() && !path.startsWith('/api/auth/')) opts.headers.set('X-Songbook-User', getCacheUser())
   delete opts.skipAuth
   delete opts.timeoutMs
 
@@ -170,6 +180,16 @@ export async function apiFetch(path, options = {}) {
     }
   }
 
+  checkContext()
+  // A response body can finish after logout or a band switch, too.
+  for (const method of ['json', 'blob', 'text', 'arrayBuffer']) {
+    const read = response[method].bind(response)
+    response[method] = async (...args) => {
+      const data = await read(...args)
+      checkContext()
+      return data
+    }
+  }
   return response
 }
 

@@ -1,6 +1,6 @@
 # Songbook Band: Produktprüfung und nächster Ausbau
 
-Stand: 7. Oktober 2026. Geprüfte Basis: `b8be27e910ef8b5aa0169f50a713e04813df29f8` aus Eduardwiebe/worship-songbook.
+Stand: 8. Oktober 2026. Geprüfte Basis: `b8be27e910ef8b5aa0169f50a713e04813df29f8` aus Eduardwiebe/worship-songbook.
 
 ## Ergebnis
 
@@ -32,9 +32,9 @@ Anbieterangaben, keine eigenen Dauertests; Preise ohne Währungsumrechnung und o
 
 1. **Offline-Erfolg wurde zu früh gemeldet.** `cachePutMedia` fing Schreibfehler ab und gab keinen belastbaren Erfolg zurück. `cachePagesPayload` meldete anschließend trotzdem `true`. In dieser Änderung behoben; unvollständige Seitensätze werden außerdem verworfen.
 2. **Fehlende Set-Songs verschwanden aus der Ansicht.** `SetDetailPage` filtert nicht gefundene Referenzen aus. Der neue Set-Check hält sämtliche Set-Einträge sichtbar und nennt fehlende Songs. Die bestehende Wiedergabe wird dadurch nicht automatisch umgebaut.
-3. **Speichern ist optimistisch und unbestätigt.** `SetDetailPage.update` aktualisiert lokal und ruft für jede Änderung `saveSet` auf; Fehler landen nur in der Konsole. Keine Versionsprüfung im PUT-Endpunkt. Risiko: alte Requests oder mehrere Nutzer überschreiben neuere Daten. Noch zu beheben.
-4. **Web-Cache und Band-Kontext passen nicht sauber zusammen.** Stores verwenden `getSelectedBandId` aus `nativeSession`; Web-Auswahl setzt ihn in `bandStore` nicht. Cache-Schlüssel enthalten keine Nutzer-ID. Web-Logout räumt den Offline-Cache im gezeigten Client nicht auf. Kontowechsel und zwei Bands auf einem Gerät müssen gezielt auf Vermischung getestet und abgesichert werden. Dies ist ein Codebefund, kein Nachweis eines öffentlich ausnutzbaren Lecks.
-5. **Cache-Fallback ist zu breit.** Listen-Stores greifen nach beliebigen API-Fehlern auf Cache zurück. Rechteverlust und Serverfehler sollten getrennt von echten Netzwerkausfällen behandelt werden.
+3. **Speichern ist optimistisch und unbestätigt.** `SetDetailPage.update` aktualisiert lokal und ruft für jede Änderung `saveSet` auf; Fehler landen nur in der Konsole. Keine Versionsprüfung im PUT-Endpunkt. Risiko: alte Requests oder mehrere Nutzer überschreiben neuere Daten. Am 08.10. umgesetzt: serialisierte/coalesced Warteschlange, sichtbarer Status/Retry und serverseitige Revisionen mit 409. Alte Clients ohne Revision bleiben im Übergang kompatibel und genießen keinen Konfliktschutz.
+4. **Web-Cache und Band-Kontext passen nicht sauber zusammen.** Stores verwenden `getSelectedBandId` aus `nativeSession`; Web-Auswahl setzt ihn in `bandStore` nicht. Cache-Schlüssel enthalten keine Nutzer-ID. Web-Logout räumt den Offline-Cache im gezeigten Client nicht auf. Kontowechsel und zwei Bands auf einem Gerät müssen gezielt auf Vermischung getestet und abgesichert werden. Am 08.10. umgesetzt: expliziter Nutzer/Band-Kontext für Listen und Medien, Auswahl vor Datenabruf, Logout-Bereinigung und Invalidierung verspäteter Requests/Downloads. API-Prüfung schützt gegen Cookie-Wechsel in anderen Tabs; Kontoänderung/Logout invalidiert per BroadcastChannel auch andere geöffnete App-Tabs. Alte unzugeordnete Caches werden nicht wiederverwendet; nach Upgrade online neu vorbereiten.
+5. **Cache-Fallback ist zu breit.** Listen-Stores greifen nach beliebigen API-Fehlern auf Cache zurück. Am 08.10. korrigiert und in einem echten Browser mit 403, 500 und Netzabbruch geprüft: nur Netzfehler erlauben den Listen-Fallback.
 6. **Gemeinsame Bühnensteuerung fehlt im untersuchten Ablauf.** `RunSet` hat lokalen Songindex, Tastatur/Pedal-Tasten und Swipe; keine aktive Session mit Leader/Follower, Eventsequenz und Wiederverbindung in diesem Ablauf gefunden.
 7. **Band-Mitgliedschaft ist nicht gleich Bearbeitungsrecht.** Die untersuchten Set-Mutationen prüfen Band-Zugehörigkeit, nicht getrennt Leser/Editor/Leitung. Differenzierte Rechte und Tests für direkte API-Aufrufe fehlen dort.
 8. **Betrieb und Auslieferung bleiben offen.** SQLite- und OCR-Pfade sind serverbezogen; native Hüllen sind laut Dokumentation teilweise Grundlage/unsignierte Builds. Datensicherung und physische iPad-/Android-/Pedaltests wurden hier nicht nachgewiesen.
@@ -54,7 +54,7 @@ Beispiel: Eine Band importiert ein eigenes Lied. Lyruma erzeugt einen bearbeitba
 
 ### Paket 0: Verlässlichkeit vor Verkauf
 
-Erster Teil hier: Set-Check plus korrekte Speicherrückgabe. Danach Nutzer/Band-Cache-Kontext, Logout-Bereinigung und Schutz gegen verspätete Cache-Schreibvorgänge; Fallback nur bei Netzfehlern; serialisierte/coalesced Speicherung, sichtbare Fehler und Retry; serverseitige Versionsprüfung mit 409-Konflikt. Rechte owner/editor/viewer für sämtliche Mutationen. Download eigener Daten und Wiederherstellen vor Verkauf testen.
+Umgesetzt: Set-Check, korrekte Speicherrückgabe, Nutzer/Band-Cache-Kontext, Logout-Bereinigung, Schutz gegen verspätete Requests/Downloads, Fallback nur bei Netzfehlern, serialisierte/coalesced Speicherung mit Status/Retry und serverseitige Versionsprüfung mit 409-Konflikt. Offen: Rechte owner/editor/viewer für sämtliche Mutationen. Download eigener Daten und Wiederherstellen vor Verkauf testen.
 
 Abnahme: Band A/B und Nutzer A/B teilen einen Testbrowser; kein fremder Cache bei Wechsel, Logout oder Rechteentzug. Zwei Browser ändern dasselbe Set: Konflikt wird angezeigt statt still überschrieben. Künstlicher Schreibfehler zählt als Fehlschlag. Jedes Set ist nach Flugmodus-Neustart vollständig lesbar oder benennt die fehlenden Dateien.
 
@@ -69,6 +69,8 @@ Session mit Band-ID, Set-Snapshot, Leader, monotonic sequence und aktuellen Song
 Abnahme: fünf Geräte; Leaderwechsel, Abschnitt wiederholen, Netzabbruch, Wiederverbindung, verspätetes Event und unberechtigter Steuerbefehl. Messziel im Pilot: typische Abschnittswechsel unter 300 ms bei gutem Netz; kein Versprechen vor Messung.
 
 ### Paket 3: Probe und Freigabe
+
+Erster nutzbarer Teil am 08.10.: gemeinsame Einsatz-/Übergangshinweise pro Set-Song, sichtbar in Planung und Bühnenmodus sowie im bestätigten Offline-Set. Probenstand je Originalfassung; geänderte Dateiname/Dateigröße öffnet ihn wieder. Dies ist eine gemeinsame Bandmarkierung, keine persönliche Bestätigung jedes Mitglieds und keine formale Freigabe.
 
 Marker, Loop, Aufgaben, Zustimmung je Arrangement-Version. Set einfrieren; spätere Änderungen ergeben eine neue Fassung. Bereits heruntergeladene Auftrittsfassung wird nicht durch Hintergrund-Updates verändert. Erst danach kostenpflichtige KI-Probenanalyse, wenn sie im Pilot Zeit spart.
 
@@ -92,13 +94,17 @@ Pilotziele: fünf Teams schließen Import und erstes Set ab; mindestens vier spi
 
 ## Validierung und Auslieferung dieser Änderung
 
-Die Änderung betrifft Frontend und Cache, keine Datenbankmigration. Produktionsbuild, Node-Regressionsprüfungen sowie Offline-, Listen-/Viewer- und Bühnen-Safe-Area-Browsertests liefen erfolgreich. Lint meldet bestehende Warnungen, keine neuen Warnungen in den hinzugefügten Modulen. Der vorhandene allgemeine Übersetzungstest scheitert schon in der Basis an dem bewusst leeren Schlüssel header.eyebrow; die neuen deutschen und englischen Schlüssel sind vollständig vorhanden. Node-Tests prüfen Cache-Schreibfehler, unvollständige Seiten, fehlende Referenzen, Versionsabweichung und Leitung. Das bestehende Offline-Browsertestskript wurde um Set-Check und Telefonbreite ergänzt. Auch der GitHub-Web-CI-Lauf für die Codeänderung wurde erfolgreich abgeschlossen.
+Aktueller Umfang (08.10.2026): Frontend, Offline-Cache und API. Die additive SQLite-Migration ergänzt `sets.revision` und `sets.song_briefings`. Alte Clients ohne Revision bleiben kompatibel; sie können weiterhin andere Änderungen überschreiben. Voller Konfliktschutz setzt aktualisierte Clients voraus. Alte Offline-Caches werden bewusst nicht wiederverwendet. Nicht bestätigte Entwürfe liegen nur im laufenden App-Zustand; Browser-/Geräteabsturz und mobile Betriebssystembeendigung können sie verlieren.
+
+Produktionsbuild, Syntaxprüfung und die Node-Regressionsprüfungen laufen erfolgreich. Eine echte API mit separater temporärer SQLite-Datei prüft simultane Änderungen (200/409), gespeicherte Revisionen/Hinweise, Kontoeigentum, unterschiedliche Bands, widersprüchliche Band-Cookies, ungültige Revisionen sowie alte Clients. Dort läuft auch die Native-Auth-Regression. Browserprüfungen verwenden echtes IndexedDB und reale Client-Stores: Nutzer/Bandwechsel, Media-Isolation, 403/500, Netz-Fallback, verspätete Antworten/Downloads und Web-Logout. Tablet/Handy: Probenhinweis online speichern, offline neu laden, Bühnenhinweis anzeigen und Blattfläche prüfen, nicht gespeicherten Offline-Entwurf behalten. Listen-/Viewer- und Safe-Area-Prüfung bestehen ebenfalls.
+
+Lint meldet bestehende Warnungen; der allgemeine Übersetzungstest hat weiterhin den bewusst leeren Basisschlüssel `header.eyebrow`. Neue DE/EN-Schlüssel wurden gemeinsam generiert. GitHub CI wird mit dem aktualisierten PR erneut ausgeführt; die frühere Codefassung war bereits grün. Keine produktive Bereitstellung: auch der erneute SSH-Versuch am 08.10. meldet `Network is unreachable`.
 
 Vor Deployment auf srv1: aktuelle Serverrevision und lokale Änderungen vergleichen; exakte verwendete Dienste und Build-Schritte ermitteln; konsistente SQLite-Sicherung und Mediensicherung außerhalb eines öffentlichen Downloads erstellen; Änderung isoliert bauen und testen; danach bewusst deployen und Live-Browser prüfen. Das vorhandene Verzeichnis `/var/www/songbook/backups/` wurde nicht untersucht und ist kein belegtes Restore-Konzept.
 
 Die Geräteprüfung bestätigt gespeicherte Bytes und vorhandene Metadaten. Eine perfekte Wiedergabe jedes Blatts oder langfristige Browseraufbewahrung wird damit nicht bewiesen. Aktuelle Cache-Revision verwendet Dateiname/Dateigröße; für veröffentlichte Fassungen ist ein Inhalts-Hash erforderlich.
 
-## Quellen (abgerufen 07.10.2026)
+## Quellen (abgerufen 07.10.2026; SetSync erneut 08.10. geprüft)
 
 - https://www.onsongapp.com/features/
 - https://apps.onsongapp.com/pricing/

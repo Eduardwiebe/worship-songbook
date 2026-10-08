@@ -3,6 +3,19 @@
  * Keys use dot paths. Run: node scripts/generate-i18n.mjs
  */
 export const STRINGS = {
+  'briefing.cue': { de: 'Einsatz & Übergang', en: 'Entry & transition' },
+  'briefing.cueFor': { de: 'Einsatz und Übergang für {title}', en: 'Entry and transition for {title}' },
+  'briefing.placeholder': { de: 'z. B. Gitarre zählt ein · Refrain zweimal · ohne Pause weiter', en: 'e.g. Guitar counts in · chorus twice · next song without pause' },
+  'briefing.rehearsed': { de: 'Diese Originalfassung geprobt', en: 'This original version rehearsed' },
+  'briefing.count': { de: 'Probenstand: {count} von {total} Originalfassungen geprobt. Ein geändertes Notenblatt öffnet den Probenstand wieder.', en: 'Rehearsal: {count} of {total} original versions rehearsed. A changed sheet resets its rehearsal status.' },
+  'setSave.idle': { de: 'Änderungen werden automatisch gespeichert', en: 'Changes save automatically' },
+  'setSave.saving': { de: 'Änderungen werden gespeichert …', en: 'Saving changes …' },
+  'setSave.saved': { de: 'Änderungen gespeichert', en: 'Changes saved' },
+  'setSave.error': { de: 'Nicht gespeichert — deine Änderungen bleiben hier erhalten', en: 'Not saved — your changes remain here' },
+  'setSave.conflict': { de: 'Anderes Gerät hat das Set geändert. Deine Änderungen bleiben hier sichtbar.', en: 'Another device changed the set. Your changes remain visible here.' },
+  'setSave.retry': { de: 'Erneut speichern', en: 'Retry saving' },
+  'setSave.reload': { de: 'Gespeicherte Version laden', en: 'Load saved version' },
+  'setSave.confirmReload': { de: 'Gespeicherte Version laden und deine noch nicht gespeicherten Änderungen verwerfen?', en: 'Load the saved version and discard your unsaved changes?' },
   'readiness.eyebrow': { de: "Vor der Probe und dem Auftritt", en: "Before rehearsal and performance" },
   'readiness.title': { de: "Set-Check", en: "Set check" },
   'readiness.prepare': { de: "Dieses Set offline speichern", en: "Save this set offline" },

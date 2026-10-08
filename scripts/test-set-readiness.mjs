@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict'
-import { evaluateSetReadiness, sheetCacheStatus } from '../app/src/setReadiness.js'
+import { evaluateSetReadiness, sheetCacheStatus, songIsRehearsed } from '../app/src/setReadiness.js'
 import { cachePagesPayload, cachePutMedia, prefetchSongOriginals } from '../app/src/offlineCache.js'
 
 const song = { id: 'a', title: 'Own song', hasPdf: true, fileSize: 10, fileName: 'own.pdf' }
 const record = { pages: [{ buffer: new Uint8Array([1]).buffer }], meta: { revision: '10:own.pdf' } }
+assert.equal(songIsRehearsed(song, { rehearsedRevision: '10:own.pdf' }), true)
+assert.equal(songIsRehearsed({ ...song, fileSize: 11 }, { rehearsedRevision: '10:own.pdf' }), false)
+assert.equal(songIsRehearsed(song, {}), false)
 assert.equal(sheetCacheStatus(song, record), 'available')
 assert.equal(sheetCacheStatus({ ...song, fileSize: 11 }, record), 'outdated')
 assert.equal(sheetCacheStatus(song, { pages: [{ buffer: new ArrayBuffer(0) }] }), 'missing')

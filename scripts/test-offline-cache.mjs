@@ -14,6 +14,7 @@ import {
   orderSongsForOffline,
   pagesCacheKey,
   pdfCacheKey,
+  coverCacheKey,
 } from '../app/src/offlineCache.js'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -49,7 +50,7 @@ assert.equal(decodeDataUrl('not-a-data-url'), null)
 
 assert.equal(mediaKeyForApiPath('/api/songs/abc/pages'), pagesCacheKey('abc'))
 assert.equal(mediaKeyForApiPath('/api/songs/abc/pdf'), pdfCacheKey('abc'))
-assert.equal(mediaKeyForApiPath('/api/songs/abc/cover'), 'cover:abc')
+assert.equal(mediaKeyForApiPath('/api/songs/abc/cover'), coverCacheKey('abc'))
 assert.equal(mediaKeyForApiPath('/api/team/m1/photo'), 'team-photo:m1')
 assert.equal(mediaKeyForApiPath('/api/auth/photo?v=1'), 'profile-photo')
 

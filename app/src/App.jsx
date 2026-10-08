@@ -7,8 +7,9 @@ import {
 import './App.css'
 import './extra.css'
 import { deleteSong, getImportedSongs, hasSongPdf, openSongPdf, previewScanPdf, saveImportedSongs, saveScanImport, songPdfUrl, updateSong, resolveSongCover, resolveSongYoutube, songCoverPath } from './songStore'
-import { createSet, deleteSet, getSets, saveSet } from './setStore'
-import { cacheGetMediaObjectUrl, isProbablyOffline, noteBrowserOnline, pdfCacheKey, prefetchSongOriginals } from './offlineCache'
+import { createSet, deleteSet, getSets } from './setStore'
+import { useSetAutosave, useSetSaveExitWarning } from './useSetAutosave'
+import { cacheGetMediaObjectUrl, isProbablyOffline, noteBrowserOnline, songRevision, pdfCacheKey, prefetchSongOriginals } from './offlineCache'
 import { deleteMember, getTeam, memberPhoto, saveMember } from './teamStore'
 import { createAppointment, deleteAppointment, getAppointments } from './scheduleStore'
 import { changePassword, deleteProfilePhoto, getCurrentUser, login, logout, onNativeAuthFailure, profilePhotoUrl, register, updateProfile, uploadProfilePhoto } from './authStore'
@@ -40,6 +41,7 @@ import { useAvoidMobileAutoFocus } from './useMobileFormFocus'
 import { URL_APP, URL_EDUARD_WIEBE, URL_LYRUMA_STUDIO, APP_VERSION } from './appMeta'
 import { StandaloneTip } from './StandaloneTip'
 import { SetReadiness } from './SetReadiness'
+import { songIsRehearsed } from './setReadiness'
 
 const initialSongs = []
 
@@ -100,6 +102,7 @@ function OfflineStatusBanner({ text, prep }) {
 }
 
 function App() {
+  useSetSaveExitWarning()
   const { t, locale } = useI18n()
   const { theme } = useTheme()
   const navItems = [
@@ -132,6 +135,11 @@ function App() {
 
   useEffect(()=>{getCurrentUser().then(({user})=>setUser(user)).catch(()=>setUser(null)).finally(()=>setAuthLoading(false))},[])
   useEffect(()=>{onNativeAuthFailure(()=>setUser(null))},[])
+  useEffect(() => {
+    const reset = () => { setUser(null); setSongs([]); setSets([]); setTeam([]); setAppointments([]); setBands([]); setOnboarding(null) }
+    window.addEventListener('songbook-session-changed', reset)
+    return () => window.removeEventListener('songbook-session-changed', reset)
+  }, [])
   useEffect(()=>installNativeExternalLinkHandler(),[])
   useEffect(() => {
     let disposed = false
@@ -162,13 +170,13 @@ function App() {
 
     let active=true
 
-    Promise.all([
+    getBands().then((storedBands) => Promise.all([
       getImportedSongs(),
       getSets(),
       getTeam(),
       getAppointments(),
-      getBands(),
-    ]).then(([storedSongs,storedSets,storedTeam,storedAppointments,storedBands])=>{
+      storedBands,
+    ])).then(([storedSongs,storedSets,storedTeam,storedAppointments,storedBands])=>{
       if(!active)return
       setSongs([...storedSongs,...initialSongs])
       setSets(storedSets)
@@ -1319,6 +1327,7 @@ function SetDetailPage({sets, songs, team, updateSets, navigate}) {
   const {setId} = useParams()
   const set = sets.find((item) => item.id === setId)
   const [running, setRunning] = useState(false)
+  const { queue: saveQueue, status: saveStatus } = useSetAutosave(set)
   useEffect(()=>{
     if(!set||isProbablyOffline())return undefined
     let cancelled=false
@@ -1328,23 +1337,28 @@ function SetDetailPage({sets, songs, team, updateSets, navigate}) {
     return ()=>{cancelled=true}
   },[set?.id, set?.songIds?.join('|'), songs.map((s)=>s.id).join('|')])
   if (!set) return <SimplePage eyebrow={t('sets.planning')} title={t('sets.notFound')} text={t('sets.notFoundText')}/>
-  const setSongs = set.songIds.map((id) => songs.find((song) => song.id === id)).filter(Boolean)
+  const plannedSongs = set.songIds.map((id, index) => ({ song: songs.find((song) => song.id === id), index })).filter((item) => item.song)
+  const setSongs = plannedSongs.map((item) => item.song)
   const available = songs.filter((song) => !set.songIds.includes(song.id))
-  const update = (changes) => { const next={...set,...changes}; updateSets((current) => current.map((item) => item.id === set.id ? next : item)); saveSet(next).catch(console.error) }
+  const update = (changes) => { const next={...set,...changes}; updateSets((current) => current.map((item) => item.id === set.id ? next : item)); saveQueue.submit(next) }
   const addSong = (id) => { update({songIds: [...set.songIds, id]}) }
-  const removeSong = (index) => { const songId=set.songIds[index];const songKeys={...(set.songKeys||{})};delete songKeys[songId];const leaders={...(set.leaders||{})};delete leaders[songId];update({songIds: set.songIds.filter((_, itemIndex) => itemIndex !== index),songKeys,leaders}) }
+  const removeSong = (index) => { const songId=set.songIds[index];const songBriefings={...(set.songBriefings||{})};delete songBriefings[songId];const songKeys={...(set.songKeys||{})};delete songKeys[songId];const leaders={...(set.leaders||{})};delete leaders[songId];update({songIds: set.songIds.filter((_, itemIndex) => itemIndex !== index),songKeys,leaders,songBriefings}) }
   const moveSong = (index, offset) => { const next = [...set.songIds]; const target = index + offset; if (target < 0 || target >= next.length) return; [next[index], next[target]] = [next[target], next[index]]; update({songIds: next}) }
   const assignLeader = (songId, memberId) => update({leaders: {...(set.leaders || {}), [songId]: memberId}})
+  const updateBriefing = (songId, changes) => update({ songBriefings: { ...(set.songBriefings || {}), [songId]: { ...(set.songBriefings?.[songId] || {}), ...changes } } })
   const soundRole = t('team.role.sound')
   return <><button className="back-button" onClick={() => navigate('/sets')}><ChevronLeft size={18}/>{t('sets.allSets')}</button><Header title={set.title} subtitle={`${formatDate(set.date)} · ${t('common.nSongs', { count: setSongs.length })}`}/>
     <div className="set-toolbar"><button className="run-button" disabled={!setSongs.length} onClick={() => {
       setRunning(true)
       if(!isProbablyOffline()) prefetchSongOriginals(setSongs, { apiFetch, sets: [set] }).catch(()=>{})
-    }}><Play size={19}/>{t('sets.start')}</button><span>{t('sets.autoSave')}</span>{!set.isProtected&&<button className="delete-set-button" onClick={async () => { if (!window.confirm(t('sets.confirmDelete', { title: set.title }))) return; await deleteSet(set.id); updateSets((current) => current.filter((item) => item.id !== set.id)); navigate('/sets') }}><Trash2 size={17}/>{t('sets.delete')}</button>}</div>
+    }}><Play size={19}/>{t('sets.start')}</button><span role="status" aria-live="polite">{t(`setSave.${saveStatus.state}`)}</span>{saveStatus.state==='error'&&<button className="cancel-button" onClick={()=>saveQueue.retry()}>{t('setSave.retry')}</button>}{saveStatus.state==='conflict'&&<button className="cancel-button" onClick={async()=>{
+      if(!window.confirm(t('setSave.confirmReload')))return
+      try { const fresh=await getSets(); const saved=fresh.find((item)=>item.id===set.id); if(saved&&saveQueue.reset(saved.revision))updateSets(fresh) } catch(error) { console.error(error) }
+    }}>{t('setSave.reload')}</button>}{!set.isProtected&&<button className="delete-set-button" disabled={saveQueue.hasPending()} onClick={async () => { if (!window.confirm(t('sets.confirmDelete', { title: set.title }))) return; await deleteSet(set.id); updateSets((current) => current.filter((item) => item.id !== set.id)); navigate('/sets') }}><Trash2 size={17}/>{t('sets.delete')}</button>}</div>
     <SetReadiness set={set} songs={songs} team={team}/>
     <section className="panel event-details"><div className="panel-header"><div><p className="eyebrow">{t('sets.event')}</p><h2>{t('sets.eventMeta')}</h2></div></div><div className="briefing-grid"><label className="field"><span>{t('sets.bandProject')}</span><div><Users size={18}/><input value={set.band||''} onChange={(event)=>update({band:event.target.value})} placeholder={t('sets.bandPlaceholder')}/></div></label><label className="field"><span>{t('sets.theme')}</span><div><FileText size={18}/><input value={set.theme||''} onChange={(event)=>update({theme:event.target.value})} placeholder={t('sets.themePlaceholder')}/></div></label><label className="field"><span>{t('appointments.location')}</span><div><Home size={18}/><input value={set.venue||''} onChange={(event)=>update({venue:event.target.value})} placeholder={t('sets.venuePlaceholder')}/></div></label><label className="field"><span>{t('sets.date')}</span><div><CalendarDays size={18}/><input type="date" value={set.date||''} onChange={(event)=>update({date:event.target.value})}/></div></label><label className="field"><span>{t('sets.meetFrom')}</span><div><Clock3 size={18}/><input type="time" value={set.arrivalTime||''} onChange={(event)=>update({arrivalTime:event.target.value})}/></div></label><label className="field"><span>{t('sets.concertStart')}</span><div><Clock3 size={18}/><input type="time" value={set.eventTime||''} onChange={(event)=>update({eventTime:event.target.value})}/></div></label></div></section>
     <div className="planner-grid"><section className="panel planner-panel"><div className="panel-header"><div><p className="eyebrow">{t('sets.flow')}</p><h2>{t('sets.order')}</h2></div></div>
-      {setSongs.length ? <div className="planned-songs">{setSongs.map((song, index) => { const leaderId=set.leaders?.[song.id]||'';const leader=team.find((member)=>member.id===leaderId);return <div className="planned-song" key={`${song.id}-${index}`}><span className="order-number">{index + 1}</span><div className="song-main"><strong>{song.title}</strong><span>{song.artist}{hasSongPdf(song)?` · ${t('songs.originalPdf')}`:''}{song.key && song.key !== '–' ? ` · ${t('home.key', { key: song.key })}` : ''}</span></div><div className="set-song-options"><label className="leader-select"><span className="leader-select-label">{t('sets.leaderLabel')}</span>{leader&&<b title={leader.name}>{leader.initials||initials(leader.name)}</b>}{leaderId==='group'&&<b title={t('sets.allTogether')}>ALL</b>}<select aria-label={t('sets.leaderLabel')} value={leaderId} onChange={(event)=>assignLeader(song.id,event.target.value)}><option value="">{t('sets.chooseLead')}</option><option value="group">{t('sets.allTogether')}</option>{team.map((member)=><option value={member.id} key={member.id}>{member.name} ({member.initials||initials(member.name)})</option>)}</select></label>{!team.length && index===0 && <p className="leader-empty">{t('sets.noMembersForLead')} <button type="button" className="text-button" onClick={()=>navigate('/team')}>{t('pages.team')}</button></p>}</div><div className="order-actions"><button className="icon-button" disabled={index === 0} onClick={() => moveSong(index, -1)}><ArrowUp size={17}/></button><button className="icon-button" disabled={index === setSongs.length - 1} onClick={() => moveSong(index, 1)}><ArrowDown size={17}/></button>{hasSongPdf(song) && <button className="icon-button" onClick={() => openSongPdf(song)} title={t('songs.openPdf')}><Eye size={17}/></button>}<button className="icon-button danger" onClick={() => removeSong(index)}><Trash2 size={17}/></button></div></div>})}</div> : <div className="empty-state small"><Music2 size={30}/><h3>{t('sets.noSongs')}</h3><p>{t('sets.noSongsHint')}</p></div>}
+      {setSongs.length ? <div className="planned-songs">{plannedSongs.map(({ song, index }) => { const leaderId=set.leaders?.[song.id]||'';const leader=team.find((member)=>member.id===leaderId);return <div className="planned-song" key={`${song.id}-${index}`}><span className="order-number">{index + 1}</span><div className="song-main"><strong>{song.title}</strong><span>{song.artist}{hasSongPdf(song)?` · ${t('songs.originalPdf')}`:''}{song.key && song.key !== '–' ? ` · ${t('home.key', { key: song.key })}` : ''}</span></div><div className="set-song-options"><label className="leader-select"><span className="leader-select-label">{t('sets.leaderLabel')}</span>{leader&&<b title={leader.name}>{leader.initials||initials(leader.name)}</b>}{leaderId==='group'&&<b title={t('sets.allTogether')}>ALL</b>}<select aria-label={t('sets.leaderLabel')} value={leaderId} onChange={(event)=>assignLeader(song.id,event.target.value)}><option value="">{t('sets.chooseLead')}</option><option value="group">{t('sets.allTogether')}</option>{team.map((member)=><option value={member.id} key={member.id}>{member.name} ({member.initials||initials(member.name)})</option>)}</select></label>{!team.length && index===0 && <p className="leader-empty">{t('sets.noMembersForLead')} <button type="button" className="text-button" onClick={()=>navigate('/team')}>{t('pages.team')}</button></p>}</div><div className="order-actions"><button className="icon-button" disabled={index === 0} onClick={() => moveSong(index, -1)}><ArrowUp size={17}/></button><button className="icon-button" disabled={index === set.songIds.length - 1} onClick={() => moveSong(index, 1)}><ArrowDown size={17}/></button>{hasSongPdf(song) && <button className="icon-button" onClick={() => openSongPdf(song)} title={t('songs.openPdf')}><Eye size={17}/></button>}<button className="icon-button danger" onClick={() => removeSong(index)}><Trash2 size={17}/></button></div><div className="song-briefing"><label className="field"><span>{t('briefing.cue')}</span><textarea rows={2} maxLength={800} aria-label={t('briefing.cueFor', { title: song.title })} value={set.songBriefings?.[song.id]?.cue || ''} onChange={(event)=>updateBriefing(song.id,{cue:event.target.value})} placeholder={t('briefing.placeholder')}/></label><label className="rehearsal-check"><input type="checkbox" disabled={!songRevision(song)} checked={songIsRehearsed(song,set.songBriefings?.[song.id])} onChange={(event)=>updateBriefing(song.id,{rehearsedRevision:event.target.checked?songRevision(song):''})}/><span>{t('briefing.rehearsed')}</span></label></div></div>})}</div> : <div className="empty-state small"><Music2 size={30}/><h3>{t('sets.noSongs')}</h3><p>{t('sets.noSongsHint')}</p></div>}
     </section><section className="panel planner-panel"><div className="panel-header"><div><p className="eyebrow">{t('songs.library')}</p><h2>{t('sets.addSongs')}</h2></div></div>
       <div className="available-songs">{available.map((song) => <button key={song.id} onClick={() => addSong(song.id)}><div><strong>{song.title}</strong><span>{song.artist}{hasSongPdf(song) ? ' · PDF' : ''}</span></div><Plus size={18}/></button>)}{!available.length && <p className="empty">{t('sets.allAlready')}</p>}</div>
     </section></div><section className="panel tech-briefing"><div className="panel-header"><div><p className="eyebrow">{t('sets.tech')}</p><h2>{t('sets.techBrief')}</h2></div></div><div className="briefing-grid"><label className="field"><span>{t('sets.responsible')}</span><div><Users size={18}/><select value={set.technicianId||''} onChange={(event)=>update({technicianId:event.target.value})}><option value="">{t('sets.chooseTech')}</option>{team.filter((member)=>member.isTechnician||member.roles.includes(soundRole)||member.roles.includes('Tontechnik')).map((member)=><option value={member.id} key={member.id}>{member.name}</option>)}</select></div></label><label className="field"><span>{t('sets.dateAndStart')}</span><div><CalendarDays size={18}/><input value={`${formatDate(set.date)}${set.eventTime?` · ${t('common.timeSuffix', { time: set.eventTime })}`:''}`} readOnly/></div></label><label className="field briefing-notes"><span>{t('sets.techNotesLabel')}</span><textarea value={set.techNotes||''} onChange={(event)=>update({techNotes:event.target.value})} placeholder={t('sets.techNotesPlaceholder')}/></label></div></section>
@@ -1409,7 +1423,8 @@ function RunSet({set, songs, onClose}) {
     finishSwipe(touch.clientX, touch.clientY)
   }
   const metaBits = [song.key && song.key !== '–' ? t('home.key', { key: song.key }) : null, bpm ? `${bpm} BPM` : null].filter(Boolean)
-  return <div className="run-mode"><header><div className="run-meta"><p className="eyebrow">{t('sets.runMode')}</p><strong>{set.title}</strong><span>{index + 1}/{songs.length} · {song.title}{metaBits.length ? ` · ${metaBits.join(' · ')}` : ''}</span></div><div className="run-tools"><div className="tool-group scroll-tool"><span>{t('songs.autoScroll')}</span><button type="button" className={autoScroll?'active':''} onClick={()=>setAutoScroll((value)=>!value)} aria-pressed={autoScroll}>{autoScroll?<Pause size={18}/>:<Play size={18}/>}</button></div><RehearsalAufnahme band={set.band} setTitle={set.title}/><div className="tool-group cajon-tool"><span>{t('songs.cajon')}</span><input aria-label={t('songs.tempoAria')} type="number" min="40" max="240" inputMode="numeric" value={bpmInput} onChange={(event)=>{const raw=event.target.value;setBpmInput(raw);if(raw==='')return;const n=Number(raw);if(Number.isFinite(n))setBpm(n)}} onBlur={()=>{const nextTempo=clampTempoBpm(bpmInput,{fallback:bpm});if(nextTempo==null){setBpmInput(bpm==null?'':String(bpm));return}setBpm(nextTempo);setBpmInput(String(nextTempo))}}/><button type="button" className={cajonOn?'active':''} onClick={async ()=>{if(cajonOn){setCajonOn(false);return}playCajonHtmlHit({strong:true});await unlockCajonAudio();await preloadCajonSample();playCajonHit({strong:true});setCajonOn(true)}} title={t('songs.startCajon')} aria-pressed={cajonOn}>{cajonOn?<Pause size={18}/>:<Play size={18}/>}</button></div><button className="icon-button" onClick={onClose} aria-label={t('common.close')}><X size={22}/></button></div>{wakeHint?<p className="wake-lock-hint" role="status">{wakeHint}</p>:null}</header>
+  return <div className={`run-mode${set.songBriefings?.[song.id]?.cue ? ' has-cue' : ''}`}><header><div className="run-meta"><p className="eyebrow">{t('sets.runMode')}</p><strong>{set.title}</strong><span>{index + 1}/{songs.length} · {song.title}{metaBits.length ? ` · ${metaBits.join(' · ')}` : ''}</span></div><div className="run-tools"><div className="tool-group scroll-tool"><span>{t('songs.autoScroll')}</span><button type="button" className={autoScroll?'active':''} onClick={()=>setAutoScroll((value)=>!value)} aria-pressed={autoScroll}>{autoScroll?<Pause size={18}/>:<Play size={18}/>}</button></div><RehearsalAufnahme band={set.band} setTitle={set.title}/><div className="tool-group cajon-tool"><span>{t('songs.cajon')}</span><input aria-label={t('songs.tempoAria')} type="number" min="40" max="240" inputMode="numeric" value={bpmInput} onChange={(event)=>{const raw=event.target.value;setBpmInput(raw);if(raw==='')return;const n=Number(raw);if(Number.isFinite(n))setBpm(n)}} onBlur={()=>{const nextTempo=clampTempoBpm(bpmInput,{fallback:bpm});if(nextTempo==null){setBpmInput(bpm==null?'':String(bpm));return}setBpm(nextTempo);setBpmInput(String(nextTempo))}}/><button type="button" className={cajonOn?'active':''} onClick={async ()=>{if(cajonOn){setCajonOn(false);return}playCajonHtmlHit({strong:true});await unlockCajonAudio();await preloadCajonSample();playCajonHit({strong:true});setCajonOn(true)}} title={t('songs.startCajon')} aria-pressed={cajonOn}>{cajonOn?<Pause size={18}/>:<Play size={18}/>}</button></div><button className="icon-button" onClick={onClose} aria-label={t('common.close')}><X size={22}/></button></div>{wakeHint?<p className="wake-lock-hint" role="status">{wakeHint}</p>:null}</header>
+    {set.songBriefings?.[song.id]?.cue && <aside className="stage-cue" aria-label={t('briefing.cue')}><strong>{t('briefing.cue')}</strong><span>{set.songBriefings[song.id].cue}</span></aside>}
     <main className="pdf-stage">
       <div className="pdf-stage-scroll" ref={stageScrollRef} onTouchStart={onStageTouchStart} onTouchEnd={onStageTouchEnd}>
         {hasSongPdf(song) ? <AuthorizedFrame key={song.id} title={song.title} path={songPdfUrl(song)} hash="#toolbar=0&navpanes=0&scrollbar=0&view=Fit" className="stage-fill" songId={song.id} preferPageImages/> : <div className="no-pdf"><FileText size={42}/><strong>{song.title}</strong><span>{t('sets.noPdf')}</span></div>}

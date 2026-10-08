@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CheckCircle2, Download, AlertCircle } from 'lucide-react'
 import { apiFetch } from './apiConfig'
 import { isProbablyOffline, prefetchSongOriginals } from './offlineCache'
-import { evaluateSetReadiness, readSetOfflineStatus } from './setReadiness'
+import { evaluateSetReadiness, readSetOfflineStatus, songIsRehearsed } from './setReadiness'
 import { useI18n } from './i18n'
 import './setReadiness.css'
 
@@ -59,6 +59,7 @@ export function SetReadiness({ set, songs, team }) {
       {checking ? t('readiness.checking') : t(result.sheetsReady ? 'readiness.stored' : 'readiness.count', { count: result.offlineCount, total: result.entries.length })}
     </p>
     <p className="readiness-hint">{t('readiness.hint')}</p>
+    <p className="readiness-hint">{t('briefing.count', { count: result.entries.filter((entry) => songIsRehearsed(entry.song, set.songBriefings?.[entry.id])).length, total: result.entries.length })}</p>
     {!checking && result.entries.some((entry) => entry.issues.length) && <ul className="readiness-issues">
       {result.entries.filter((entry) => entry.issues.length).map((entry) => <li key={`${entry.id}-${entry.index}`}>
         <strong>{entry.index + 1}. {entry.song?.title || t('readiness.unknown')}</strong>

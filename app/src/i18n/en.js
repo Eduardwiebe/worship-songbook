@@ -620,6 +620,13 @@ export default {
     worship: "Studio",
     songbook: "Songbook Band",
   },
+  briefing: {
+    cue: "Entry & transition",
+    count: "Rehearsal: {count} of {total} original versions rehearsed. A changed sheet resets its rehearsal status.",
+    cueFor: "Entry and transition for {title}",
+    rehearsed: "This original version rehearsed",
+    placeholder: "e.g. Guitar counts in · chorus twice · next song without pause",
+  },
   err: {
     setsLoad: "Could not load sets.",
     setsSave: "Could not save set.",
@@ -655,6 +662,16 @@ export default {
     supportText: "The code stays free and open source. Voluntary support helps with hosting, development, and future updates.",
     ariaWebsites: "Websites",
     supportTitle: "Support Songbook Band",
+  },
+  setSave: {
+    idle: "Changes save automatically",
+    error: "Not saved — your changes remain here",
+    retry: "Retry saving",
+    saved: "Changes saved",
+    reload: "Load saved version",
+    saving: "Saving changes …",
+    conflict: "Another device changed the set. Your changes remain visible here.",
+    confirmReload: "Load the saved version and discard your unsaved changes?",
   },
   offline: {
     ready: "Ready offline ({count} songs)",

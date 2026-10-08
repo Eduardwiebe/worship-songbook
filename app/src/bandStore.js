@@ -1,7 +1,7 @@
 import { apiFetch, apiUrl, isNativeRuntime } from './apiConfig'
 import { persistSelectedBand } from './nativeSession'
 import { tStatic } from './i18n'
-import { cacheGetList, cachePutList, listCacheKey } from './offlineCache'
+import { cacheGetList, cachePutList, listCacheKey, isNetworkError, setCacheBand } from './offlineCache'
 
 async function request(path,options={}){
   const response=await apiFetch(path,options)
@@ -17,14 +17,16 @@ const jsonOptions=(method,values)=>({
 })
 
 export const getBands=async()=>{
-  const cacheKey = listCacheKey('bands', 'all')
+  const cacheKey = listCacheKey('bands')
   try {
     const data = await request('/api/bands')
+    setCacheBand(data.find((band) => band.active)?.id)
     await cachePutList(cacheKey, data)
     return data
   } catch (error) {
+    if (!isNetworkError(error)) throw error
     const cached = await cacheGetList(cacheKey)
-    if (cached) return cached
+    if (cached) { setCacheBand(cached.find((band) => band.active)?.id); return cached }
     throw error
   }
 }
@@ -41,12 +43,20 @@ export const deleteBand=id=>
 export const selectBand=async id=>{
   const result=await request(`/api/bands/${id}/select`,{method:'POST'})
   if(isNativeRuntime()) await persistSelectedBand(id)
+  setCacheBand(id)
+  const key = listCacheKey('bands')
+  const cached = await cacheGetList(key)
+  if (cached) await cachePutList(key, cached.map((band) => ({ ...band, active: band.id === id })))
   return result
 }
 
 export const selectPersonal=async ()=>{
   const result=await request('/api/bands/personal/select',{method:'POST'})
   if(isNativeRuntime()) await persistSelectedBand('')
+  setCacheBand('')
+  const key = listCacheKey('bands')
+  const cached = await cacheGetList(key)
+  if (cached) await cachePutList(key, cached.map((band) => ({ ...band, active: false })))
   return result
 }
 

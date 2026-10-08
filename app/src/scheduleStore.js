@@ -1,17 +1,16 @@
 import { apiFetch } from './apiConfig'
 import { tStatic } from './i18n'
-import { cacheGetList, cachePutList, listCacheKey } from './offlineCache'
-import { getSelectedBandId } from './nativeSession'
+import { cacheGetList, cachePutList, listCacheKey, isNetworkError } from './offlineCache'
 
 export async function getAppointments(){
-  const bandId = getSelectedBandId?.() || ''
-  const cacheKey = listCacheKey('appointments', bandId)
+  const cacheKey = listCacheKey('appointments')
   try {
     const r=await apiFetch('/api/appointments');if(!r.ok)throw new Error(tStatic('err.appointmentsLoad'));
     const data = await r.json()
     await cachePutList(cacheKey, data)
     return data
   } catch (error) {
+    if (!isNetworkError(error)) throw error
     const cached = await cacheGetList(cacheKey)
     if (cached) return cached
     throw error

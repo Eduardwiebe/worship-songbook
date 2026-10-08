@@ -33,6 +33,46 @@ const FRESH_MS = 12 * 60 * 60 * 1000
 let dbPromise = null
 let transportOffline = false
 let mediaChain = Promise.resolve()
+let cacheUserId = ''
+let cacheBandId = ''
+let contextGeneration = 0
+const sessionChannel = typeof window !== 'undefined' && typeof BroadcastChannel === 'function'
+  ? new BroadcastChannel('songbook-session') : null
+if (sessionChannel) sessionChannel.onmessage = (event) => {
+  if (!cacheUserId || event.data?.userId === cacheUserId) return
+  setCacheIdentity('', { broadcast: false })
+  dispatch('songbook-session-changed')
+}
+
+export function setCacheIdentity(userId, { broadcast = true } = {}) {
+  const next = String(userId || '')
+  if (next !== cacheUserId || !next) {
+    cacheUserId = next
+    cacheBandId = ''
+    contextGeneration += 1
+    if (broadcast) sessionChannel?.postMessage({ userId: next })
+  }
+}
+
+export function setCacheBand(bandId) {
+  const next = String(bandId || '')
+  if (next !== cacheBandId) {
+    cacheBandId = next
+    contextGeneration += 1
+  }
+}
+
+export const cacheContextToken = () => contextGeneration
+export const getCacheBand = () => cacheBandId
+export const getCacheUser = () => cacheUserId
+export const hasCacheIdentity = () => Boolean(cacheUserId)
+const scopePrefix = (allBands = false) => `scope:${JSON.stringify([cacheUserId, allBands ? '*' : cacheBandId])}:`
+function scopedKey(key, allBands = false) {
+  return String(key).startsWith('scope:') ? key : `${scopePrefix(allBands)}${key}`
+}
+function currentKey(key) {
+  return key.startsWith(scopePrefix()) || key.startsWith(scopePrefix(true))
+}
 
 export function isProbablyOffline() {
   if (transportOffline) return true
@@ -149,8 +189,10 @@ function enqueueMedia(fn) {
 }
 
 export async function cachePutList(key, value) {
+  key = scopedKey(key)
+  if (!currentKey(key)) return
   try {
-    await withStore(LISTS, 'readwrite', (store) => idbReq(store.put({
+    await withStore(LISTS, 'readwrite', (store) => currentKey(key) && idbReq(store.put({
       value,
       savedAt: Date.now(),
     }, key)))
@@ -160,23 +202,28 @@ export async function cachePutList(key, value) {
 }
 
 export async function cacheGetList(key) {
+  key = scopedKey(key)
+  if (!currentKey(key)) return undefined
   try {
     const row = await withStore(LISTS, 'readonly', (store) => idbReq(store.get(key)))
-    return row?.value
+    return currentKey(key) ? row?.value : undefined
   } catch {
     return undefined
   }
 }
 
 export async function cachePutMeta(key, value) {
+  const context = contextGeneration
+  if (!['user', 'mediaIndex'].includes(key)) key = scopedKey(key)
   try {
-    await withStore(META, 'readwrite', (store) => idbReq(store.put({ value, savedAt: Date.now() }, key)))
+    await withStore(META, 'readwrite', (store) => context === contextGeneration && idbReq(store.put({ value, savedAt: Date.now() }, key)))
   } catch (error) {
     console.warn('[offlineCache] putMeta failed', key, error)
   }
 }
 
 export async function cacheGetMeta(key) {
+  if (!['user', 'mediaIndex'].includes(key)) key = scopedKey(key)
   try {
     const row = await withStore(META, 'readonly', (store) => idbReq(store.get(key)))
     return row?.value
@@ -229,6 +276,8 @@ async function evictUntil(maxBytes, { spareKey, aggressive = false } = {}) {
 
 export async function cachePutMedia(key, { mime, buffer, pages, meta } = {}) {
   if (!key) return false
+  key = scopedKey(key)
+  const context = contextGeneration
   const recordPages = Array.isArray(pages) ? pages.filter((page) => page?.buffer) : null
   if (!buffer && !recordPages?.length) return false
   const bytes = recordPages ? bytesOf({ pages: recordPages }) : (buffer.byteLength || 0)
@@ -243,8 +292,10 @@ export async function cachePutMedia(key, { mime, buffer, pages, meta } = {}) {
   }
   const write = () => withStore(MEDIA, 'readwrite', (store) => idbReq(store.put(record, key)))
   return enqueueMedia(async () => {
+    if (context !== contextGeneration || !currentKey(key)) return false
     try {
       await evictUntil(Math.max(0, MEDIA_SOFT_CAP_BYTES - bytes), { spareKey: key })
+      if (context !== contextGeneration) return false
       await write()
     } catch (error) {
       if (!isQuotaError(error)) {
@@ -253,12 +304,14 @@ export async function cachePutMedia(key, { mime, buffer, pages, meta } = {}) {
       }
       try {
         await evictUntil(Math.floor(MEDIA_SOFT_CAP_BYTES / 2), { spareKey: key, aggressive: true })
+        if (context !== contextGeneration) return false
         await write()
       } catch (retryError) {
         console.warn('[offlineCache] putMedia quota', key, retryError)
         return false
       }
     }
+    if (context !== contextGeneration) return false
     const index = await readMediaIndex()
     index[key] = { bytes, priority, kind, savedAt: record.savedAt }
     await writeMediaIndex(index)
@@ -267,8 +320,11 @@ export async function cachePutMedia(key, { mime, buffer, pages, meta } = {}) {
 }
 
 export async function cacheGetMedia(key) {
+  key = scopedKey(key)
+  if (!currentKey(key)) return undefined
   try {
-    return await withStore(MEDIA, 'readonly', (store) => idbReq(store.get(key)))
+    const row = await withStore(MEDIA, 'readonly', (store) => idbReq(store.get(key)))
+    return currentKey(key) ? row : undefined
   } catch {
     return undefined
   }
@@ -282,23 +338,23 @@ export async function cacheGetMediaObjectUrl(key) {
 }
 
 export function chartCacheKey(songId, key) {
-  return `chart:${songId}:${key || ''}`
+  return scopedKey(`chart:${songId}:${key || ''}`)
 }
 
 export function pdfCacheKey(songId) {
-  return `pdf:${songId}`
+  return scopedKey(`pdf:${songId}`)
 }
 
 export function pagesCacheKey(songId) {
-  return `pages:${songId}`
+  return scopedKey(`pages:${songId}`)
 }
 
 export function coverCacheKey(songId) {
-  return `cover:${songId}`
+  return scopedKey(`cover:${songId}`)
 }
 
-export function listCacheKey(kind, bandId = '') {
-  return `${kind}:${bandId || 'personal'}`
+export function listCacheKey(kind) {
+  return scopedKey(kind, kind === 'bands')
 }
 
 export function mediaKeyForApiPath(path) {
@@ -439,7 +495,7 @@ async function cacheBinaryFromResponse(key, response, meta) {
  */
 let prefetchChain = Promise.resolve()
 
-async function prefetchSongOriginalsNow(songs, { apiFetch, sets = [], team = [], onProgress } = {}) {
+async function prefetchSongOriginalsNow(songs, { apiFetch, sets = [], team = [], onProgress, context = contextGeneration } = {}) {
   if (isProbablyOffline() || typeof apiFetch !== 'function') {
     return { cached: 0, failed: 0, total: 0, offline: true }
   }
@@ -459,6 +515,7 @@ async function prefetchSongOriginalsNow(songs, { apiFetch, sets = [], team = [],
   }
   report('running')
   for (const song of ordered) {
+    if (context !== contextGeneration) return { cached, failed, total, cancelled: true }
     if (isProbablyOffline()) break
     const priority = priorityIds.has(song.id) ? 0 : 1
     try {
@@ -470,6 +527,7 @@ async function prefetchSongOriginalsNow(songs, { apiFetch, sets = [], team = [],
           failed += 1
         } else {
           const data = await response.json().catch(() => ({}))
+          if (context !== contextGeneration) return { cached, failed, total, cancelled: true }
           const stored = await cachePagesPayload(song.id, data.pages, {
             priority,
             revision: songRevision(song),
@@ -526,6 +584,7 @@ async function prefetchSongOriginalsNow(songs, { apiFetch, sets = [], team = [],
   }
   if (Array.isArray(team) && team.length && !isProbablyOffline()) {
     for (const member of team) {
+      if (context !== contextGeneration) return { cached, failed, total, cancelled: true }
       if (!member?.id || !member.hasPhoto) continue
       const key = `team-photo:${member.id}`
       const existing = await cacheGetMedia(key)
@@ -544,7 +603,18 @@ async function prefetchSongOriginalsNow(songs, { apiFetch, sets = [], team = [],
 }
 
 export function prefetchSongOriginals(songs, options = {}) {
-  const job = prefetchChain.then(() => prefetchSongOriginalsNow(songs, options), () => prefetchSongOriginalsNow(songs, options))
+  const context = contextGeneration
+  const run = () => {
+    if (context !== contextGeneration) return { cached: 0, failed: 0, total: 0, cancelled: true }
+    const fetchGuard = async (...args) => {
+      if (context !== contextGeneration) throw new Error('Offline context changed')
+      const response = await options.apiFetch(...args)
+      if (context !== contextGeneration) throw new Error('Offline context changed')
+      return response
+    }
+    return prefetchSongOriginalsNow(songs, { ...options, apiFetch: options.apiFetch ? fetchGuard : undefined, context })
+  }
+  const job = prefetchChain.then(run, run)
   prefetchChain = job.then(() => {}, () => {})
   return job
 }

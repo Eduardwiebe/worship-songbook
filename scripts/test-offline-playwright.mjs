@@ -94,6 +94,8 @@ const mockSets = [{
   songIds: ['song-a'],
   leaders: { 'song-a': 'member-ew' },
   songKeys: {},
+  revision: 0,
+  songBriefings: {},
   venue: 'Kirche',
   band: 'Band',
   theme: '',
@@ -114,6 +116,12 @@ function fulfillJson(route, data, status = 200) {
 }
 
 function routeApi(url, route) {
+  if (url.includes('/api/sets/set-sunday') && route.request().method() === 'PUT') {
+    const draft = route.request().postDataJSON()
+    const saved = { ...draft, revision: mockSets[0].revision + 1 }
+    mockSets[0] = saved
+    return fulfillJson(route, saved)
+  }
   if (url.includes('/api/auth/me') || url.includes('/api/auth/native/me')) return fulfillJson(route, { user: mockUser })
   if (url.includes('/api/onboarding')) return fulfillJson(route, mockOnboarding)
   if (url.includes('/api/songs/song-a/pages') || url.includes('/api/songs/song-c/pages')) {
@@ -184,7 +192,7 @@ async function readMedia(page, key) {
       req.onerror = () => reject(req.error)
     })
     const row = await new Promise((resolve) => {
-      const get = db.transaction('media', 'readonly').objectStore('media').get(mediaKey)
+      const get = db.transaction('media', 'readonly').objectStore('media').get(`scope:[\"offline-user\",\"band-1\"]:${mediaKey}`)
       get.onsuccess = () => resolve(get.result || null)
       get.onerror = () => resolve(null)
     })
@@ -301,6 +309,8 @@ async function main() {
 
     const cacheFailures = await page.evaluate(async (origin) => {
       const cache = await import(`${origin}/__test__/offlineCache.js`)
+      cache.setCacheIdentity('offline-user')
+      cache.setCacheBand('band-1')
       const before = await cache.cacheGetMedia('pages:song-a')
       const incomplete = await cache.cachePagesPayload('song-a', [
         { dataUrl: 'data:image/png;base64,AQ==' }, { dataUrl: 'invalid' },
@@ -327,6 +337,15 @@ async function main() {
     }
     if (popups.length) throw new Error(`eye opened a popup: ${popups.join(', ')}`)
     await closeViewer(page)
+
+    // Rehearsal decisions are confirmed online, then survive an offline reload.
+    await page.goto(`${base}/#/sets/set-sunday`, { waitUntil: 'networkidle' })
+    await page.getByRole('textbox', { name: 'Einsatz und Übergang für Großer Gott' }).fill('Gitarre zählt ein · ohne Pause weiter')
+    await page.getByRole('checkbox', { name: 'Diese Originalfassung geprobt' }).check()
+    await page.getByText('Änderungen gespeichert', { exact: true }).waitFor()
+    await page.getByText(/Probenstand: 1 von 1/).waitFor()
+    if (mockSets[0].songBriefings['song-a'].cue !== 'Gitarre zählt ein · ohne Pause weiter') throw new Error('cue was not saved')
+    await page.goto(`${base}/#/songs`, { waitUntil: 'networkidle' })
 
     await context.unroute('**/api/**')
     await context.route('**/api/**', (route) => route.abort('internetdisconnected'))
@@ -356,11 +375,28 @@ async function main() {
     await page.goto(`${base}/#/sets/set-sunday`, { waitUntil: 'domcontentloaded' })
     await page.locator('.leader-select b', { hasText: 'EW' }).waitFor()
     await page.getByText('Alle Notenblätter auf diesem Gerät gespeichert (1)').waitFor()
+    await page.getByText(/Probenstand: 1 von 1/).waitFor()
+    await page.getByRole('button', { name: 'Set starten', exact: true }).click()
+    await page.locator('.stage-cue').getByText('Gitarre zählt ein · ohne Pause weiter', { exact: true }).waitFor()
+    const stage = await page.locator('.pdf-stage').boundingBox()
+    const cue = await page.locator('.stage-cue').boundingBox()
+    if (stage.height < 150 || stage.y < cue.y + cue.height - 1) throw new Error('cue overlaps or collapses the stage sheet')
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.screenshot({ path: join(root, 'stage-cue-phone.png'), fullPage: false })
+    const phoneStage = await page.locator('.pdf-stage').boundingBox()
+    if (phoneStage.height < 150) throw new Error('phone cue collapses the stage sheet')
+    await page.setViewportSize({ width: 834, height: 1112 })
+    await page.locator('.run-tools').getByRole('button', { name: 'Schließen', exact: true }).click()
     if (await page.getByRole('button', { name: 'Dieses Set offline speichern' }).isEnabled()) throw new Error('offline preparation button must be disabled')
     await page.screenshot({ path: join(root, 'stage-readiness-ipad.png'), fullPage: true })
     await page.setViewportSize({ width: 390, height: 844 })
     if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)) throw new Error('mobile set check overflows')
     await page.screenshot({ path: join(root, 'stage-readiness-phone.png'), fullPage: true })
+
+    await page.getByRole('textbox', { name: 'Einsatz und Übergang für Großer Gott' }).fill('Offline-Entwurf bleibt sichtbar')
+    await page.getByText('Nicht gespeichert — deine Änderungen bleiben hier erhalten', { exact: true }).waitFor()
+    if (await page.getByRole('textbox', { name: 'Einsatz und Übergang für Großer Gott' }).inputValue() !== 'Offline-Entwurf bleibt sichtbar') throw new Error('failed draft disappeared')
+    await page.getByRole('button', { name: 'Erneut speichern', exact: true }).waitFor()
 
     await page.goto(`${base}/#/team`, { waitUntil: 'domcontentloaded' })
     await page.getByRole('heading', { name: /Eduard Wiebe/ }).waitFor()

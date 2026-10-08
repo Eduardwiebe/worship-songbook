@@ -1,13 +1,17 @@
 # Changelog
 
-## Unreleased - set readiness and truthful offline storage
+## Unreleased - band rehearsal, reliable set saves and scoped offline storage
 
 - Set details now check every planned song for available original sheets, locally stored page images, outdated cache revisions, and unassigned song leads. Missing library references are reported rather than hidden.
 - Save one set offline from its check panel. The status describes this device only and recommends an airplane-mode check before performing.
 - Failed IndexedDB writes no longer count as successful offline preparation. Incomplete page payloads cannot overwrite a complete cached sheet.
-- Added storage-failure and readiness regression checks plus tablet/phone offline coverage in web CI.
+- Each set song now carries a shared entry/transition cue, displayed on stage and available offline with the set. Rehearsal status is tied to the original sheet revision (filename/size).
+- Set edits are coalesced and serialized, show saving/saved/error/conflict states, retain unsaved drafts in memory and offer an explicit retry. API revision checks reject stale updated clients with HTTP 409. Legacy clients remain compatible; conflict protection requires the updated client.
+- Offline lists and media are scoped to user and band; web logout clears local data. Access/server errors do not fall back to cached lists. Delayed requests/prefetch jobs are invalidated on context changes. Explicit API user/band context prevents shared-cookie tab mixups.
+- Fixed song action indices when missing references precede a visible set song.
+- Added real SQLite/API, native-auth, autosave, IndexedDB isolation and tablet/phone rehearsal-to-stage regression checks in CI.
 
-No production deployment or schema migration is included.
+No production deployment has been performed. The API adds `sets.revision` and `sets.song_briefings` on startup. Deploy the updated API and frontend together after a verified backup. Existing unscoped offline caches are deliberately not reused: users need an online preparation after upgrading. Unsaved edits survive only in the running app, not a browser/device crash.
 
 ## Unreleased — offline banner above the tab bar
 

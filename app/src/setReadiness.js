@@ -7,6 +7,11 @@ export function sheetCacheStatus(song, record) {
   return 'available'
 }
 
+export function songIsRehearsed(song, briefing) {
+  const revision = songRevision(song)
+  return Boolean(revision && briefing?.rehearsedRevision === revision)
+}
+
 /** Keep missing library references visible instead of silently skipping them. */
 export function evaluateSetReadiness(set, songs, team, offlineStatus = {}) {
   const songMap = new Map(songs.map((song) => [song.id, song]))

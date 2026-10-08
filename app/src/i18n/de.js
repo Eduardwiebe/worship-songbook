@@ -620,6 +620,13 @@ export default {
     worship: "Studio",
     songbook: "Songbook Band",
   },
+  briefing: {
+    cue: "Einsatz & Übergang",
+    count: "Probenstand: {count} von {total} Originalfassungen geprobt. Ein geändertes Notenblatt öffnet den Probenstand wieder.",
+    cueFor: "Einsatz und Übergang für {title}",
+    rehearsed: "Diese Originalfassung geprobt",
+    placeholder: "z. B. Gitarre zählt ein · Refrain zweimal · ohne Pause weiter",
+  },
   err: {
     setsLoad: "Sets konnten nicht geladen werden.",
     setsSave: "Set konnte nicht gespeichert werden.",
@@ -655,6 +662,16 @@ export default {
     supportText: "Der Code bleibt frei und Open Source. Deine freiwillige Unterstützung hilft bei Betrieb, Weiterentwicklung und kommenden Updates.",
     ariaWebsites: "Webseiten",
     supportTitle: "Songbook Band unterstützen",
+  },
+  setSave: {
+    idle: "Änderungen werden automatisch gespeichert",
+    error: "Nicht gespeichert — deine Änderungen bleiben hier erhalten",
+    retry: "Erneut speichern",
+    saved: "Änderungen gespeichert",
+    reload: "Gespeicherte Version laden",
+    saving: "Änderungen werden gespeichert …",
+    conflict: "Anderes Gerät hat das Set geändert. Deine Änderungen bleiben hier sichtbar.",
+    confirmReload: "Gespeicherte Version laden und deine noch nicht gespeicherten Änderungen verwerfen?",
   },
   offline: {
     ready: "Offline bereit ({count} Songs)",
