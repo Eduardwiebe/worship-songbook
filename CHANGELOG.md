@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased - deterministic offline CI and isolated auth tests
+
+- Offline browser checks await account/band scoped IndexedDB page images and the set PDF before asserting readiness. Delayed library pages and PDFs exercise asynchronous preparation.
+- The mock API is served by the test origin, so service-worker fetches receive the same responses as page fetches. Async Playwright predicates no longer let the readiness check exit prematurely.
+- Standalone native-auth tests require an explicit local test API and a temporary database copy; production defaults are disabled. Added rejection tests and updated the native test instructions.
+
+Test tooling only; no production runtime change or database migration.
+
 ## Unreleased - band rehearsal, reliable set saves and scoped offline storage
 
 - Set details now check every planned song for available original sheets, locally stored page images, outdated cache revisions, and unassigned song leads. Missing library references are reported rather than hidden.

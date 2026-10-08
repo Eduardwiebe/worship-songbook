@@ -24,7 +24,7 @@ jobs:
       - name: Syntax-check API
         run: node --check server.mjs && node --check auth.mjs
       - name: Check set readiness and offline storage
-        run: node scripts/test-set-readiness.mjs && node scripts/test-offline-cache.mjs && node scripts/test-set-autosave.mjs && node scripts/test-set-api.mjs
+        run: node scripts/test-set-readiness.mjs && node scripts/test-offline-cache.mjs && node scripts/test-set-autosave.mjs && node scripts/test-isolated-test-target.mjs && node scripts/test-set-api.mjs
       - name: Install browser for offline integration test
         working-directory: app
         run: npx playwright install --with-deps chromium
