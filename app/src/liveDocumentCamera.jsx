@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { useI18n } from './i18n'
-import { detectDocumentQuad, jpegFileFromRgba, warpRgba } from './documentDetect'
+import { detectDocumentQuad, jpegFileFromRgba, scanSharpness } from './documentDetect'
+import { ScanCropEditor } from './ScanCropEditor'
 import { LIVE_STABLE_HITS, pushQuadSample, quadToViewPoints } from './liveScanGeometry'
 
 const LIVE_LONG_SIDE = 480
-const CAPTURE_LONG_SIDE = 2000
+const CAPTURE_LONG_SIDE = 4600
 const ARM_MS = 900
 const DETECT_MS = 140
 
@@ -28,34 +29,14 @@ function readAnalysisFrame(video, canvas) {
   return { gray, aw, ah, videoW, videoH }
 }
 
-async function frameToFile(video, quad, analysis) {
-  const videoW = video.videoWidth
-  const videoH = video.videoHeight
-  const scale = Math.min(1, CAPTURE_LONG_SIDE / Math.max(videoW, videoH))
-  const width = Math.max(2, Math.round(videoW * scale))
-  const height = Math.max(2, Math.round(videoH * scale))
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const ctx = canvas.getContext('2d', { willReadFrequently: true })
-  ctx.drawImage(video, 0, 0, width, height)
-  let data = ctx.getImageData(0, 0, width, height).data
-  let outW = width
-  let outH = height
-  let detected = false
-  if (quad && analysis?.aw && analysis?.ah) {
-    const mapped = quad.map(([x, y]) => [x * (width / analysis.aw), y * (height / analysis.ah)])
-    const warped = warpRgba(data, width, height, mapped)
-    if (warped) {
-      data = warped.data
-      outW = warped.width
-      outH = warped.height
-      detected = true
-    }
-  }
-  const name = detected ? `docscan-live-${Date.now()}.jpg` : `scan-live-${Date.now()}.jpg`
-  const file = await jpegFileFromRgba(data, outW, outH, name, 0.92)
-  return { file, detected }
+async function frameToFile(video) {
+  // Freeze an uncut source frame so the user can recover every edge.
+  const scale = Math.min(1, CAPTURE_LONG_SIDE / Math.max(video.videoWidth, video.videoHeight))
+  const width = Math.round(video.videoWidth * scale), height = Math.round(video.videoHeight * scale)
+  const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height
+  const ctx = canvas.getContext('2d'); ctx.drawImage(video, 0, 0, width, height)
+  const file = await jpegFileFromRgba(ctx.getImageData(0, 0, width, height).data, width, height, `scan-live-${Date.now()}.jpg`, .97)
+  return { file, detected: false }
 }
 
 function paintOverlay(canvas, stage, video, quad, analysis, locked) {
@@ -141,6 +122,7 @@ export function LiveDocumentCamera({ stream, canTakeAnother, onAccept, onClose }
   const [preview, setPreview] = useState(null)
   const [flash, setFlash] = useState(false)
   const [localError, setLocalError] = useState('')
+  const [sharp, setSharp] = useState(true)
 
   useEffect(() => {
     const video = videoRef.current
@@ -174,6 +156,8 @@ export function LiveDocumentCamera({ stream, canTakeAnother, onAccept, onClose }
         sampleRef.current = sample
         const quad = detectDocumentQuad(sample.gray, sample.aw, sample.ah)
         quadRef.current = quad
+        const isSharp = scanSharpness(sample.gray, sample.aw, sample.ah, quad) >= 35
+        setSharp(isSharp)
         const history = pushQuadSample(historyRef.current, quad, sample.aw, sample.ah)
         historyRef.current = history
         setHasQuad(Boolean(quad))
@@ -185,7 +169,7 @@ export function LiveDocumentCamera({ stream, canTakeAnother, onAccept, onClose }
           return
         }
         const stable = history.length >= LIVE_STABLE_HITS
-        if (stable && performance.now() >= armedAtRef.current) {
+        if (stable && isSharp && performance.now() >= armedAtRef.current) {
           captureRef.current()
           return
         }
@@ -231,7 +215,7 @@ export function LiveDocumentCamera({ stream, canTakeAnother, onAccept, onClose }
       if (mountedRef.current) setFlash(false)
     }, 200)
     try {
-      const shot = await frameToFile(video, quadRef.current, sampleRef.current)
+      const shot = await frameToFile(video)
       if (!mountedRef.current) return
       const url = URL.createObjectURL(shot.file)
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
@@ -265,18 +249,12 @@ export function LiveDocumentCamera({ stream, canTakeAnother, onAccept, onClose }
     setLocalError('')
   }
 
-  function accept(keepOpen) {
-    if (!preview) return
-    onAccept(preview.file, preview.detected, keepOpen)
-    if (keepOpen) resetLive()
-  }
-
   const status = phase === 'preview'
     ? (preview?.detected ? t('scan.livePreviewTitle') : t('scan.livePreviewPlain'))
     : phase === 'capture' || phase === 'locked'
       ? t('scan.liveLocked')
       : phase === 'hold'
-        ? t('scan.liveHold')
+        ? t(sharp ? 'scan.liveHold' : 'scan.liveBlur')
         : t('scan.liveSearching')
 
   return (
@@ -300,27 +278,20 @@ export function LiveDocumentCamera({ stream, canTakeAnother, onAccept, onClose }
         <div className={`live-scan-flash${flash ? ' is-on' : ''}`} />
       </div>
       <footer className="live-scan-bottom">
-        {phase === 'preview' ? (
-          <div className="live-scan-actions">
-            <button type="button" onClick={resetLive}>{t('scan.liveRetake')}</button>
-            <button type="button" className="primary" onClick={() => accept(false)}>{t('scan.liveUse')}</button>
-            {canTakeAnother && <button type="button" onClick={() => accept(true)}>{t('scan.liveAnother')}</button>}
-          </div>
-        ) : (
+        {phase !== 'preview' && (
           <>
             <p>{t('scan.liveHint')}</p>
-            <button
-              type="button"
-              className="live-scan-shutter"
-              onClick={capture}
-              disabled={phase === 'capture'}
-              aria-label={t('scan.liveShutter')}
-            />
+            <button type="button" className="live-scan-shutter" onClick={capture} disabled={phase === 'capture'} aria-label={t('scan.liveShutter')} />
             <small>{t('scan.liveAutoHint')}</small>
           </>
         )}
         {localError && <p className="form-error">{localError}</p>}
       </footer>
+      {phase === 'preview' && preview && <ScanCropEditor sourceFile={preview.file} canTakeAnother={canTakeAnother}
+        onCancel={resetLive} onConfirm={(file, detected, keepOpen, sourceFile) => {
+          onAccept(file, detected, keepOpen, sourceFile)
+          if (keepOpen) resetLive()
+        }} />}
     </div>
   )
 }

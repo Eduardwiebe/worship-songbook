@@ -141,7 +141,7 @@ function chooseThreshold(gray, width, height) {
   if (!border.length) return null
   border.sort((a, b) => a - b)
   const median = border[border.length >> 1]
-  if (median >= 176) return null
+  if (median >= 235) return null
   const otsu = otsuThreshold(gray)
   let threshold = Math.round(Math.max(median + 22, median * 0.45 + otsu * 0.55))
   threshold = Math.max(median + 16, Math.min(threshold, median + 78, 210))
@@ -461,8 +461,9 @@ export async function inspectScanFile(file) {
   try {
     const scale = Math.min(1, ANALYSIS_LONG_SIDE / Math.max(bitmap.width, bitmap.height))
     const width = Math.round(bitmap.width * scale), height = Math.round(bitmap.height * scale)
-    const quad = detectDocumentQuad(drawGray(bitmap, width, height), width, height)
-    return { width: bitmap.width, height: bitmap.height,
+    const gray = drawGray(bitmap, width, height)
+    const quad = detectDocumentQuad(gray, width, height)
+    return { width: bitmap.width, height: bitmap.height, sharpness: scanSharpness(gray, width, height, quad),
       quad: quad?.map(([x, y]) => [x * bitmap.width / width, y * bitmap.height / height]) || null }
   } finally { bitmap.close?.() }
 }
@@ -491,4 +492,20 @@ export async function cropScanFile(file, quad, rotation = 0) {
     const blob = await new Promise((resolve, reject) => rotated.toBlob(b => b ? resolve(b) : reject(new Error('encode-failed')), 'image/jpeg', 0.97))
     return new File([blob], `docscan-reviewed-${Date.now()}.jpg`, { type: 'image/jpeg' })
   } finally { bitmap.close?.() }
+}
+
+/** Laplacian variance in the interior: page edges cannot disguise blurred text. */
+export function scanSharpness(gray, width, height, quad = null) {
+  const xs = quad ? quad.map(p => p[0]) : [0, width - 1]
+  const ys = quad ? quad.map(p => p[1]) : [0, height - 1]
+  const left = Math.min(...xs), right = Math.max(...xs), top = Math.min(...ys), bottom = Math.max(...ys)
+  let sum = 0, squares = 0, count = 0
+  for (let y = Math.max(1, Math.floor(top + (bottom - top) * .2)); y < Math.min(height - 1, bottom - (bottom - top) * .2); y++) {
+    for (let x = Math.max(1, Math.floor(left + (right - left) * .2)); x < Math.min(width - 1, right - (right - left) * .2); x++) {
+      const i = y * width + x
+      const v = gray[i - 1] + gray[i + 1] + gray[i - width] + gray[i + width] - 4 * gray[i]
+      sum += v; squares += v * v; count++
+    }
+  }
+  return count ? squares / count - (sum / count) ** 2 : 0
 }

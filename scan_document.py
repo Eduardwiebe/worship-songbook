@@ -159,8 +159,8 @@ def _choose_threshold(gray: list[int], width: int, height: int):
         return None
     border.sort()
     median = border[len(border) // 2]
-    # Bright borders mean the sheet already fills the photo (VisionKit / prior crop).
-    if median >= 176:
+    # Very bright borders leave too little contrast for a reliable page boundary.
+    if median >= 235:
         return None
 
     otsu = _otsu(gray)
