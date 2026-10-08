@@ -8,12 +8,12 @@ const ANALYSIS_LONG_SIDE = 640
 const MIN_AREA_RATIO = 0.12
 const MAX_AREA_RATIO = 0.975
 const BORDER_FRAC = 0.06
-const EXPAND = -0.008
+const EXPAND = 0.0
 const MIN_ANGLE = 38
 const MAX_ANGLE = 148
 const MIN_ASPECT = 0.32
 const MAX_ASPECT = 2.9
-const WORK_LONG_SIDE = 2600
+const WORK_LONG_SIDE = 4600
 
 export function detectDocumentQuad(gray, width, height) {
   if (width < 20 || height < 20) return null
@@ -100,7 +100,7 @@ export async function straightenScanFile(file) {
     const warped = warpRgba(src, ww, wh, quadWork)
     if (!warped) return { file, detected: false }
 
-    const blob = await rgbaToJpegBlob(warped.data, warped.width, warped.height, 0.92)
+    const blob = await rgbaToJpegBlob(warped.data, warped.width, warped.height, 0.97)
     const out = new File([blob], `docscan-${Date.now()}.jpg`, { type: 'image/jpeg', lastModified: Date.now() })
     return { file: out, detected: true }
   } catch {
@@ -119,7 +119,7 @@ function detectQuadGray(gray, width, height) {
   const component = largestComponent(mask, width, height)
   if (!component || component.length < MIN_AREA_RATIO * width * height) return null
 
-  const ordered = orderQuad(extremePoints(component, width))
+  const ordered = fitPageQuad(component, width)
   if (!ordered) return null
   const area = polygonArea(ordered)
   if (area < MIN_AREA_RATIO * width * height || area > MAX_AREA_RATIO * width * height) return null
@@ -248,66 +248,53 @@ function largestComponent(mask, width, height) {
   return best
 }
 
-function extremePoints(component, width) {
-  const best = { tl: null, tr: null, br: null, bl: null }
-  const score = { tl: null, tr: null, br: null, bl: null }
-  for (let i = 0; i < component.length; i += 1) {
-    const index = component[i]
-    const x = index % width
-    const y = (index / width) | 0
-    const candidates = {
-      tl: [x + y, x, y],
-      tr: [-(x - y), -x, y],
-      br: [-(x + y), -x, y],
-      bl: [x - y, x, y],
+// Fit the entire outer boundary, not four independent bright outliers.
+// A protruding finger, rounded object or clipped page must not trigger auto-capture.
+function fitPageQuad(component, width) {
+  const rows = new Map()
+  for (const index of component) {
+    const x = index % width, y = Math.floor(index / width)
+    const row = rows.get(y)
+    if (row) { row[0] = Math.min(row[0], x); row[1] = Math.max(row[1], x) }
+    else rows.set(y, [x, x])
+  }
+  const points = []
+  for (const [y, [left, right]] of rows) points.push([left, y], [right, y])
+  points.sort((a, b) => a[0] - b[0] || a[1] - b[1])
+  const half = (sequence) => {
+    const out = []
+    for (const p of sequence) {
+      while (out.length > 1 && cross(out[out.length - 2], out[out.length - 1], p) <= 0) out.pop()
+      out.push(p)
     }
-    for (const key of Object.keys(candidates)) {
-      const value = candidates[key]
-      if (!score[key] || value[0] < score[key][0] || (value[0] === score[key][0] && value[1] < score[key][1]) || (value[0] === score[key][0] && value[1] === score[key][1] && value[2] < score[key][2])) {
-        score[key] = value
-        best[key] = [x, y]
-      }
+    return out.slice(0, -1)
+  }
+  const hull = [...half(points), ...half([...points].reverse())]
+  if (hull.length < 4) return null
+  const quad = [...hull]
+  while (quad.length > 4) {
+    let best = 0, loss = Infinity
+    for (let i = 0; i < quad.length; i++) {
+      const area = Math.abs(cross(quad[(i + quad.length - 1) % quad.length], quad[i], quad[(i + 1) % quad.length]))
+      if (area < loss) { loss = area; best = i }
     }
+    quad.splice(best, 1)
   }
-  return [best.tl, best.tr, best.br, best.bl]
+  const area = polygonArea(quad)
+  if (area / polygonArea(hull) < 0.975 || component.length / area < 0.90) return null
+  const start = quad.reduce((best, p, i) => p[0] + p[1] < quad[best][0] + quad[best][1] ? i : best, 0)
+  return [...quad.slice(start), ...quad.slice(0, start)]
+}
+function cross(a, b, c) {
+  return (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0])
 }
 
-function orderQuad(points) {
-  if (points.some((point) => !point)) return null
-  const unique = []
-  for (const point of points) {
-    if (unique.every((other) => dist(point, other) > 2.5)) unique.push(point)
-  }
-  if (unique.length !== 4) return null
-  const sums = unique.map((p) => p[0] + p[1])
-  const diffs = unique.map((p) => p[0] - p[1])
-  const tl = unique[indexOfMin(sums, unique)]
-  const br = unique[indexOfMax(sums, unique)]
-  const tr = unique[indexOfMax(diffs, unique)]
-  const bl = unique[indexOfMin(diffs, unique)]
-  const ordered = [tl, tr, br, bl]
-  if (new Set(ordered.map((p) => `${p[0]},${p[1]}`)).size < 4) return null
-  return ordered
-}
-
-function indexOfMin(values, points) {
-  let best = 0
-  for (let i = 1; i < values.length; i += 1) {
-    if (values[i] < values[best] || (values[i] === values[best] && points[i][0] < points[best][0])) best = i
-  }
-  return best
-}
-
-function indexOfMax(values, points) {
-  let best = 0
-  for (let i = 1; i < values.length; i += 1) {
-    if (values[i] > values[best] || (values[i] === values[best] && points[i][0] > points[best][0])) best = i
-  }
-  return best
-}
+export function isValidScanQuad(quad, width, height) { return quadOk(quad, width, height) }
 
 function quadOk(quad, width, height) {
   if (!quad || quad.length !== 4) return false
+  if (quad.some(p => !Array.isArray(p) || p.length !== 2 || p.some(v => !Number.isFinite(v)) || p[0] < 0 || p[1] < 0 || p[0] > width - 1 || p[1] > height - 1)) return false
+  if (quad.some((p, i) => cross(p, quad[(i + 1) % 4], quad[(i + 2) % 4]) <= 0)) return false
   if (new Set(quad.map((p) => `${Math.round(p[0] * 100)},${Math.round(p[1] * 100)}`)).size < 4) return false
   const [tl, tr, br, bl] = quad
   const sides = [dist(tl, tr), dist(tr, br), dist(br, bl), dist(bl, tl)]
@@ -425,7 +412,7 @@ function drawRgba(bitmap, width, height) {
   return ctx.getImageData(0, 0, width, height).data
 }
 
-async function loadBitmap(file) {
+export async function loadBitmap(file) {
   if (typeof createImageBitmap === 'function') {
     try {
       return await createImageBitmap(file, { imageOrientation: 'from-image' })
@@ -466,4 +453,42 @@ function rgbaToJpegBlob(data, width, height, quality) {
       else resolve(blob)
     }, 'image/jpeg', quality)
   })
+}
+
+/** Detection coordinates refer to the EXIF-oriented original, never a thumbnail. */
+export async function inspectScanFile(file) {
+  const bitmap = await loadBitmap(file)
+  try {
+    const scale = Math.min(1, ANALYSIS_LONG_SIDE / Math.max(bitmap.width, bitmap.height))
+    const width = Math.round(bitmap.width * scale), height = Math.round(bitmap.height * scale)
+    const quad = detectDocumentQuad(drawGray(bitmap, width, height), width, height)
+    return { width: bitmap.width, height: bitmap.height,
+      quad: quad?.map(([x, y]) => [x * bitmap.width / width, y * bitmap.height / height]) || null }
+  } finally { bitmap.close?.() }
+}
+
+/** Apply a user-reviewed crop once. Keep the source File for later corrections. */
+export async function cropScanFile(file, quad, rotation = 0) {
+  if (!quad && !rotation) return file
+  const bitmap = await loadBitmap(file)
+  try {
+    const scale = Math.min(1, WORK_LONG_SIDE / Math.max(bitmap.width, bitmap.height))
+    const width = Math.round(bitmap.width * scale), height = Math.round(bitmap.height * scale)
+    let pixels = { data: drawRgba(bitmap, width, height), width, height }
+    if (quad) {
+      pixels = warpRgba(pixels.data, width, height, quad.map(([x, y]) => [x * width / bitmap.width, y * height / bitmap.height]))
+      if (!pixels) throw new Error('invalid-crop')
+    }
+    const canvas = document.createElement('canvas')
+    canvas.width = pixels.width; canvas.height = pixels.height
+    const ctx = canvas.getContext('2d')
+    const image = ctx.createImageData(pixels.width, pixels.height); image.data.set(pixels.data); ctx.putImageData(image, 0, 0)
+    const rotated = document.createElement('canvas')
+    rotated.width = rotation % 180 ? canvas.height : canvas.width
+    rotated.height = rotation % 180 ? canvas.width : canvas.height
+    const rc = rotated.getContext('2d'); rc.translate(rotated.width / 2, rotated.height / 2); rc.rotate(rotation * Math.PI / 180)
+    rc.drawImage(canvas, -canvas.width / 2, -canvas.height / 2)
+    const blob = await new Promise((resolve, reject) => rotated.toBlob(b => b ? resolve(b) : reject(new Error('encode-failed')), 'image/jpeg', 0.97))
+    return new File([blob], `docscan-reviewed-${Date.now()}.jpg`, { type: 'image/jpeg' })
+  } finally { bitmap.close?.() }
 }

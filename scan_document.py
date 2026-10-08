@@ -17,8 +17,8 @@ ANALYSIS_LONG_SIDE = 640
 MIN_AREA_RATIO = 0.12
 MAX_AREA_RATIO = 0.975
 BORDER_FRAC = 0.06
-# Pull the quad slightly inward so the antialiased table edge is not kept.
-EXPAND = -0.008
+# Retain ink at the boundary instead of cutting into the page.
+EXPAND = 0.0
 MIN_ANGLE = 38.0
 MAX_ANGLE = 148.0
 MIN_ASPECT = 0.32
@@ -131,8 +131,7 @@ def _detect_quad_gray(gray: list[int], width: int, height: int):
     if len(component) < MIN_AREA_RATIO * width * height:
         return None
 
-    points = _extreme_points(component, width)
-    ordered = _order_quad(points)
+    ordered = _fit_page_quad(component, width)
     if ordered is None:
         return None
 
@@ -278,52 +277,50 @@ def _largest_component(mask: bytearray, width: int, height: int):
     return best
 
 
-def _extreme_points(component, width: int):
-    def xy(index):
-        return (index % width, index // width)
+def _cross(a, b, c):
+    return (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0])
 
-    best = {"tl": None, "tr": None, "br": None, "bl": None}
-    best_score = {"tl": None, "tr": None, "br": None, "bl": None}
+
+def _fit_page_quad(component, width):
+    rows = {}
     for index in component:
-        x, y = xy(index)
-        candidates = {
-            "tl": (x + y, x, y),
-            "tr": (-(x - y), -x, y),
-            "br": (-(x + y), -x, y),
-            "bl": (x - y, x, y),
-        }
-        for key, score in candidates.items():
-            if best_score[key] is None or score < best_score[key]:
-                best_score[key] = score
-                best[key] = (x, y)
-    return [best["tl"], best["tr"], best["br"], best["bl"]]
+        x, y = index % width, index // width
+        if y in rows:
+            rows[y] = (min(rows[y][0], x), max(rows[y][1], x))
+        else:
+            rows[y] = (x, x)
+    points = sorted((x, y) for y, edges in rows.items() for x in edges)
 
+    def half(sequence):
+        out = []
+        for p in sequence:
+            while len(out) > 1 and _cross(out[-2], out[-1], p) <= 0:
+                out.pop()
+            out.append(p)
+        return out[:-1]
 
-def _order_quad(points):
-    if any(point is None for point in points):
+    hull = half(points) + half(reversed(points))
+    if len(hull) < 4:
         return None
-    unique = []
-    for point in points:
-        if all(_dist(point, other) > 2.5 for other in unique):
-            unique.append(point)
-    if len(unique) != 4:
+    quad = list(hull)
+    while len(quad) > 4:
+        best = min(range(len(quad)), key=lambda i: abs(_cross(quad[i-1], quad[i], quad[(i+1) % len(quad)])))
+        quad.pop(best)
+    area = _polygon_area(quad)
+    if area / _polygon_area(hull) < 0.975 or len(component) / area < 0.90:
         return None
-    sums = [p[0] + p[1] for p in unique]
-    diffs = [p[0] - p[1] for p in unique]
-    tl = unique[min(range(4), key=lambda i: (sums[i], unique[i][0]))]
-    br = unique[max(range(4), key=lambda i: (sums[i], unique[i][0]))]
-    tr = unique[max(range(4), key=lambda i: (diffs[i], unique[i][0]))]
-    bl = unique[min(range(4), key=lambda i: (diffs[i], unique[i][0]))]
-    ordered = [tl, tr, br, bl]
-    if len({(p[0], p[1]) for p in ordered}) < 4:
-        return None
-    return ordered
+    start = min(range(4), key=lambda i: sum(quad[i]))
+    return quad[start:] + quad[:start]
 
 
 def _quad_ok(quad, width: int, height: int) -> bool:
     if not quad or len(quad) != 4:
         return False
     if len({(round(p[0], 2), round(p[1], 2)) for p in quad}) < 4:
+        return False
+    if any(not all(math.isfinite(v) for v in p) or p[0] < 0 or p[1] < 0 or p[0] > width-1 or p[1] > height-1 for p in quad):
+        return False
+    if any(_cross(quad[i], quad[(i+1)%4], quad[(i+2)%4]) <= 0 for i in range(4)):
         return False
     tl, tr, br, bl = quad
     sides = (_dist(tl, tr), _dist(tr, br), _dist(br, bl), _dist(bl, tl))
@@ -370,8 +367,8 @@ def _expand_quad(quad, width: int, height: int, amount: float):
 
 
 def _enhance(page: Image.Image, straightened: bool) -> Image.Image:
-    cutoff = 0.35 if straightened else 0.2
-    return ImageOps.autocontrast(page, cutoff=cutoff)
+    # Keep faint pencil marks, coloured ink and paper tone.
+    return page.copy()
 
 
 def _polygon_area(points) -> float:

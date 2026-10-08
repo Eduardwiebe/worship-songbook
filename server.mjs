@@ -430,9 +430,9 @@ function scanConvertErrorMessage(error) {
  * Always OCR_PYTHON (.venv-ocr). /usr/bin/python3 has no Pillow and raises
  * ModuleNotFoundError: No module named 'PIL'.
  */
-async function runScanToPdf(outputPath, inputs) {
+async function runScanToPdf(outputPath, inputs, preserve = false) {
   try {
-    const result = await execFileAsync(OCR_PYTHON, [scanPdfScript(), outputPath, ...inputs], { maxBuffer: 20 * 1024 * 1024, timeout: 90000 })
+    const result = await execFileAsync(OCR_PYTHON, [scanPdfScript(), outputPath, ...(preserve ? ['--preserve'] : []), ...inputs], { maxBuffer: 20 * 1024 * 1024, timeout: 90000 })
     if (result?.stderr) console.log(String(result.stderr).slice(0, 800))
   } catch (error) {
     const wrapped = new Error(scanConvertErrorMessage(error))
@@ -1631,6 +1631,8 @@ http.createServer(async (req,res) => { try {
     const request=new Request(url,{method:'POST',headers:req.headers,body:Readable.toWeb(req),duplex:'half'})
     const form=await request.formData()
     const pages=form.getAll('pages')
+    const pageProcessing=String(form.get('pageProcessing')||'auto')
+    if(!['auto','preserve'].includes(pageProcessing))return json(res,400,{error:'pageProcessing ist ungültig.'})
     // Declare pdf before preferSongTitle. Reading it earlier throws
     // ReferenceError: Cannot access 'pdf' before initialization and the
     // request becomes "Interner Serverfehler." Deskew is not involved.
@@ -1716,8 +1718,8 @@ http.createServer(async (req,res) => { try {
           await writeFile(input,Buffer.from(await pages[index].arrayBuffer()))
           inputs.push(input)
         }
-        // Detect the sheet, deskew, and crop (VisionKit photos already fill the frame and stay full-bleed).
-        await runScanToPdf(path, inputs)
+        // Reviewed previews must remain unchanged; legacy clients keep auto detection.
+        await runScanToPdf(path, inputs, pageProcessing==='preserve')
       }catch(error){
         await unlink(path).catch(()=>{})
         if(error?.statusCode===422) return json(res,422,{error:error.message})

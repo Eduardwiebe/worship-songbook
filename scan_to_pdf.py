@@ -18,11 +18,10 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from scan_document import correct_document_page
 
-MAX_LONG_SIDE = 3600
-MIN_WIDTH = 2200
+MAX_LONG_SIDE = 4600
 
 
-def prepare_page(source: str) -> Image.Image:
+def prepare_page(source: str, preserve: bool = False) -> Image.Image:
     try:
         with Image.open(source) as image:
             page = ImageOps.exif_transpose(image).convert("RGB")
@@ -31,13 +30,13 @@ def prepare_page(source: str) -> Image.Image:
         raise SystemExit("Bildformat wird nicht unterstützt. Bitte JPEG oder PNG verwenden.") from exc
 
     try:
-        corrected, meta = correct_document_page(page)
+        corrected, meta = (page, {"reason": "reviewed-original"}) if preserve else correct_document_page(page)
     except Exception as exc:
         print(f"scan_document: deskew-fallback {source}: {exc}", file=sys.stderr)
         corrected = page
         meta = {"reason": "deskew-fallback"}
 
-    corrected = _fit_page(corrected)
+    corrected = corrected if preserve else _fit_page(corrected)
     print(
         f"scan_document: {meta.get('reason', 'full-frame')} {source} -> {corrected.size[0]}x{corrected.size[1]}",
         file=sys.stderr,
@@ -52,14 +51,6 @@ def _fit_page(page: Image.Image) -> Image.Image:
             (max(2, round(page.width * ratio)), max(2, round(page.height * ratio))),
             Image.Resampling.LANCZOS,
         )
-    if page.width < MIN_WIDTH and page.height > 0:
-        ratio = MIN_WIDTH / page.width
-        if round(page.height * ratio) > MAX_LONG_SIDE:
-            ratio = MAX_LONG_SIDE / page.height
-        page = page.resize(
-            (max(2, round(page.width * ratio)), max(2, round(page.height * ratio))),
-            Image.Resampling.LANCZOS,
-        )
     return page
 
 
@@ -67,7 +58,10 @@ def main(argv: list[str]) -> None:
     if len(argv) < 3:
         raise SystemExit("Keine Scan-Seiten")
     output, *inputs = argv[1:]
-    pages = [prepare_page(source) for source in inputs]
+    preserve = bool(inputs and inputs[0] == "--preserve")
+    if preserve:
+        inputs = inputs[1:]
+    pages = [prepare_page(source, preserve=preserve) for source in inputs]
     if not pages:
         raise SystemExit("Keine Scan-Seiten")
     pages[0].save(
@@ -76,7 +70,8 @@ def main(argv: list[str]) -> None:
         resolution=300,
         save_all=True,
         append_images=pages[1:],
-        quality=95,
+        quality=100,
+        subsampling=0,
         optimize=False,
     )
 

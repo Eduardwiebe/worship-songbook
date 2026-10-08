@@ -3,7 +3,6 @@
  * VisionKit and document-scanner pages are already perspective-corrected.
  */
 
-const MIN_WIDTH = 2000
 const JPEG_QUALITY = 0.95
 
 function loadImageFromFile(file) {
@@ -31,23 +30,16 @@ function canvasToJpegBlob(canvas, quality) {
   })
 }
 
-/** Upscale small phone photos and re-encode as JPEG before upload. */
+/** Preserve actual detail: upscaling cannot recover unreadable chords. */
 export async function prepareScanPageFile(file, index = 0) {
   if (!file?.type?.startsWith('image/')) return file
-  const name = String(file.name || '')
-  if (file.type === 'image/jpeg' && (name.startsWith('visionkit-') || name.startsWith('docscan-'))) {
+  if (file.type === 'image/jpeg' || file.type === 'image/png') {
     return file
   }
 
   try {
     const img = await loadImageFromFile(file)
     let { width, height } = img
-
-    if (width < MIN_WIDTH) {
-      const ratio = MIN_WIDTH / width
-      width = MIN_WIDTH
-      height = Math.round(height * ratio)
-    }
 
     const canvas = document.createElement('canvas')
     canvas.width = width
