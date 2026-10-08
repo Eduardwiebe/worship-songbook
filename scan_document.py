@@ -123,6 +123,17 @@ def _detect_quad_gray(gray: list[int], width: int, height: int):
     if threshold is None:
         return None
 
+    quad = _quad_at_threshold(gray, width, height, threshold)
+    if not quad:
+        return None
+    second = _quad_at_threshold(gray, width, height, min(250, threshold + 18))
+    tolerance = math.hypot(width, height) * 0.025
+    if not second or any(_dist(a, b) > tolerance for a, b in zip(quad, second)):
+        return None
+    return quad
+
+
+def _quad_at_threshold(gray, width, height, threshold):
     mask = bytearray(1 if value >= threshold else 0 for value in gray)
     mask = _fill_holes(mask, width, height)
     component = _largest_component(mask, width, height)

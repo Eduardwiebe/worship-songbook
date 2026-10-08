@@ -1,9 +1,9 @@
 {
   "name": "Songbook Band",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "releasedAt": "2026-10-08",
   "releaseUrl": "https://songbook.lyruma.de",
-  "notes": "Shared pen, finger and text annotations; immutable published performance versions with verified offline preparation.",
+  "notes": "Recoverable document crops, book-page selection, sharper camera capture and unchanged image storage in Original PDFs.",
   "channel": "web",
   "canReload": true
 }

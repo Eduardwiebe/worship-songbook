@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Convert scan images to a multi-page Original PDF.
 
-Each photo is page-detected, deskewed, and cropped when a sheet is visible.
-Photos that already fill the frame (VisionKit or a prior crop) stay full-frame.
+Reviewed browser pages (--preserve) are embedded unchanged. Legacy photos
+are page-detected, deskewed and cropped only for a reliable boundary.
 
 Uses Pillow only. OpenCV is not required. On the server, run this with the
 OCR virtualenv (it already installs Pillow) or any Python that has Pillow.
@@ -25,7 +25,13 @@ MAX_LONG_SIDE = 4600
 def prepare_page(source: str, preserve: bool = False) -> Image.Image:
     try:
         with Image.open(source) as image:
-            page = ImageOps.exif_transpose(image).convert("RGB")
+            oriented = ImageOps.exif_transpose(image)
+            if oriented.mode in ("RGBA", "LA") or "transparency" in oriented.info:
+                rgba = oriented.convert("RGBA")
+                white = Image.new("RGBA", rgba.size, "white")
+                page = Image.alpha_composite(white, rgba).convert("RGB")
+            else:
+                page = oriented.convert("RGB")
     except (UnidentifiedImageError, OSError) as exc:
         print(f"scan_to_pdf: cannot read {source}: {exc}", file=sys.stderr)
         raise SystemExit("Bildformat wird nicht unterstützt. Bitte JPEG oder PNG verwenden.") from exc
@@ -65,13 +71,15 @@ def write_reviewed_pdf(output, sources, pages):
     kids = []
     for source, page in zip(sources, pages):
         width, height = page.size
-        payload = zlib.compress(page.tobytes())
+        payload = None
         encoding, colour = b"/FlateDecode", b"/DeviceRGB"
         with Image.open(source) as original:
             if original.format == "JPEG" and original.mode in ("RGB", "L") and original.getexif().get(274, 1) == 1:
                 payload = Path(source).read_bytes()
                 encoding = b"/DCTDecode"
                 colour = b"/DeviceGray" if original.mode == "L" else b"/DeviceRGB"
+        if payload is None:
+            payload = zlib.compress(page.tobytes())
         page_id = len(objects) + 1
         image_id, content_id = page_id + 1, page_id + 2
         kids.append(f"{page_id} 0 R")

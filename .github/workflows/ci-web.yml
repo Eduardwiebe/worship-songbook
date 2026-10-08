@@ -34,3 +34,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y poppler-utils
       - name: Check shared notes and immutable performance versions
         run: node scripts/test-band-performance-api.mjs && node scripts/test-band-performance-playwright.mjs
+      - name: Install scan image dependency
+        run: python3 -m pip install 'pillow>=10'
+      - name: Check document detection, reviewed PDF fidelity and tablet scanner
+        run: node scripts/test-live-scan-geometry.mjs && node scripts/test-scan-deskew.mjs && node scripts/test-scan-save-guard.mjs && node scripts/test-scan-quality.mjs && node scripts/test-scan-dialog-playwright.mjs

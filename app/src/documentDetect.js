@@ -113,6 +113,15 @@ export async function straightenScanFile(file) {
 function detectQuadGray(gray, width, height) {
   const threshold = chooseThreshold(gray, width, height)
   if (threshold == null) return null
+  const quad = quadAtThreshold(gray, width, height, threshold)
+  if (!quad) return null
+  const second = quadAtThreshold(gray, width, height, Math.min(250, threshold + 18))
+  const tolerance = Math.hypot(width, height) * .025
+  if (!second || quad.some((p, i) => dist(p, second[i]) > tolerance)) return null
+  return quad
+}
+
+function quadAtThreshold(gray, width, height, threshold) {
   let mask = new Uint8Array(width * height)
   for (let i = 0; i < mask.length; i += 1) mask[i] = gray[i] >= threshold ? 1 : 0
   mask = fillHoles(mask, width, height)

@@ -1575,6 +1575,8 @@ function ScanDialog({onClose,onSave}) {
   const straightenStarted=useRef(new Set())
   const [title,setTitle]=useState('')
   const [pages,setPages]=useState([])
+  const pagesRef=useRef([])
+  pagesRef.current=pages
   const [pdfFile,setPdfFile]=useState(null)
   const [pdfPages,setPdfPages]=useState([])
   const [selectedPdfPages,setSelectedPdfPages]=useState([])
@@ -1590,7 +1592,7 @@ function ScanDialog({onClose,onSave}) {
   const liveStreamRef=useRef(null)
 
   useEffect(()=>{let alive=true;import('./documentScanner').then(m=>m.isNativeDocumentScannerAvailable()).then(ok=>{if(alive)setNativeScanner(ok)}).catch(()=>{});return()=>{alive=false}},[])
-  useEffect(()=>()=>{pages.forEach((page)=>URL.revokeObjectURL(page.url))},[])
+  useEffect(()=>()=>{pagesRef.current.forEach((page)=>URL.revokeObjectURL(page.url))},[])
   useEffect(()=>()=>{liveStreamRef.current?.getTracks()?.forEach((track)=>track.stop())},[])
 
   const clearImagePages=()=>setPages((current)=>{current.forEach((page)=>URL.revokeObjectURL(page.url));return []})

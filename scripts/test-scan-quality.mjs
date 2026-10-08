@@ -20,6 +20,9 @@ assert.ok(detectDocumentQuad(gray,width,height),'page on a light grey table must
 const blank=sheet(); for(let y=55;y<265;y++)for(let x=48;x<190;x++)blank[y*width+x]=245
 assert.ok(scanSharpness(gray,width,height)>35)
 assert.ok(scanSharpness(blank,width,height)<35,'a sharp paper edge must not mask a blurred/blank interior')
+const shadow=sheet(30)
+for(let y=35;y<280;y++)for(let x=35;x<90;x++)shadow[y*width+x]=65
+assert.equal(detectDocumentQuad(shadow,width,height),null,'unstable shadow boundaries require manual crop')
 const irregular=new Uint8Array(width*height).fill(30)
 for(let y=40;y<280;y++)for(let x=40;x<200;x++)if(Math.hypot((x-120)/80,(y-160)/120)<1)irregular[y*width+x]=245
 assert.equal(detectDocumentQuad(irregular,width,height),null,'a bright rounded object must not become a twisted sheet')
