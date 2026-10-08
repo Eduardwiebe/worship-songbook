@@ -93,6 +93,12 @@ try{
   const alignment=await page.locator('.run-mode .annotated-page').evaluate(el=>{const i=el.querySelector('img'),s=el.querySelector('svg');const a=i.getBoundingClientRect(),b=s.getBoundingClientRect();return{ratio:a.width/a.height,natural:i.naturalWidth/i.naturalHeight,aligned:Math.abs(a.width-b.width)<1&&Math.abs(a.height-b.height)<1}})
   assert.ok(alignment.aligned);assert.ok(Math.abs(alignment.ratio-alignment.natural)<.02,JSON.stringify(alignment))
   assert.equal(frozen.songs[0].annotations.notes,'Owner newer note')
+  await page.locator('.run-mode').getByRole('button',{name:'Schließen',exact:true}).click()
+  const storedKey=`scope:${JSON.stringify([f.owner.user.id,f.band])}:performance-pages:${frozen.id}:original`
+  await page.evaluate(async key=>{const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('songbook-offline-v1');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});await new Promise((resolve,reject)=>{const tx=db.transaction('media','readwrite');tx.objectStore('media').delete(key);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});db.close()},storedKey)
+  await page.getByRole('button',{name:'Auftrittsfassung starten',exact:true}).click()
+  await page.getByText('Diese Fassung ist auf diesem Gerät nicht vollständig gespeichert.',{exact:true}).waitFor()
+  assert.equal(await page.locator('.run-mode').count(),0,'missing offline bytes must prevent a performance start')
   assert.deepEqual(errors,[])
   console.log('ok: production UI, mouse/touch/text/undo, shared persistence, conflict draft recovery, published notes and sheet, offline reload and phone alignment')
 }finally{await browser.close();server.close();server.closeAllConnections();await f.close()}

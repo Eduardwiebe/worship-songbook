@@ -32,8 +32,13 @@ try {
   assert.equal(pages.data.sourceHash,pub.data.songs[0].sourceHash)
   notes=(await request(path,opts)).data
   await request(path,{...opts,method:'PUT',body:{...notes,notes:'Changed after publication'}})
-  await request(`/api/sets/${set.id}`,{...opts,method:'PUT',body:{...set,title:'New draft',songBriefings:{original:{cue:'Drums start'}}}})
-  await writeFile(f.pdfPath,testPdf('Different original'))
+  const nextDraft=(await request(`/api/sets/${set.id}`,{...opts,method:'PUT',body:{...set,title:'New draft',songBriefings:{original:{cue:'Drums start'}}}})).data
+  const second=await request(pubPath,{...opts,method:'POST',body:{revision:nextDraft.revision}})
+  assert.equal(second.status,201);assert.equal(second.data.version,2)
+  assert.equal(second.data.songs[0].annotations.notes,'Changed after publication')
+  assert.equal((await request(`${pubPath}/${pub.data.id}`,{...opts,method:'PUT',body:{title:'overwrite'}})).status,405)
+  assert.equal(testPdf('New original!').length,f.pdf.length)
+  await writeFile(f.pdfPath,testPdf('New original!'))
   const stillFrozen=(await request(`${pubPath}/${pub.data.id}`,opts)).data
   assert.equal(stillFrozen.set.title,'Frozen concert');assert.equal(stillFrozen.set.songBriefings.original.cue,'Guitar starts')
   assert.equal(stillFrozen.songs[0].annotations.notes,'Revised');assert.deepEqual((await request(stillFrozen.songs[0].pdfUrl,opts)).data,f.pdf)
@@ -44,6 +49,6 @@ try {
   const receipt=(await request(`${pubPath}/${pub.data.id}/receipts`,opts)).data[0];assert.equal(receipt.name,member.user.name);assert.ok(receipt.preparedAt)
   const db=new DatabaseSync(join(f.dataDir,'songbook.sqlite'));db.prepare('DELETE FROM band_songs WHERE song_id=?').run('original');db.prepare('DELETE FROM songs WHERE id=?').run('original');db.close()
   assert.equal((await request(pub.data.songs[0].pagesUrl,{cookie:member.cookie,headers})).status,200,'frozen original survives library deletion')
-  assert.deepEqual(await readFile(f.pdfPath),testPdf('Different original'),'annotation writes never alter original')
+  assert.deepEqual(await readFile(f.pdfPath),testPdf('New original!'),'annotation writes never alter original')
   console.log('ok: shared pen/text annotations, CAS conflicts, scope isolation, immutable sheets/notes/set, content hashes, receipts and archived access after library deletion')
 } finally {await f.close()}

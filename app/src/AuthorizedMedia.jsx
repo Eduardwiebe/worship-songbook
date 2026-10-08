@@ -248,7 +248,7 @@ export function OriginalPagesViewer({ songId, title, className, onViewChange, ed
   return (
     <div className="annotated-viewer">
       {editable && <AnnotationToolbar state={{ ...annotations, change: changeNotes, setTool: setNoteTool, setColor: setNoteColor, undo, canUndo: undoCount > 0 }}/>}
-      {!annotations.editing && annotations.visible?.notes && <aside className="annotation-shared-text" aria-label="Gemeinsame Bandnotizen">{annotations.visible.notes}</aside>}
+      {!annotations.editing && annotations.visible?.notes && <aside className="annotation-shared-text" aria-label={tStatic('notes.bandNotes')}>{annotations.visible.notes}</aside>}
       <div ref={rootRef} className={frameClass}>
         {pages.map((page, index) => <AnnotatedPage key={`${songId}-${index}`} page={page} index={index} title={title} document={annotations.visible} editing={annotations.editing && !annotations.stale} tool={noteTool} color={noteColor} onChange={annotations.change} onBeforeChange={remember}/>)}
       </div>
