@@ -1,12 +1,10 @@
 import { apiFetch, apiUrl, authorizedObjectUrl, isNativeRuntime } from './apiConfig'
 import { tStatic } from './i18n'
 import { prepareScanPages } from './scanImagePrep'
-import { cacheGetList, cachePutList, listCacheKey } from './offlineCache'
-import { getSelectedBandId } from './nativeSession'
+import { cacheGetList, cachePutList, listCacheKey, isNetworkError } from './offlineCache'
 
 export async function getImportedSongs() {
-  const bandId = getSelectedBandId?.() || ''
-  const cacheKey = listCacheKey('songs', bandId)
+  const cacheKey = listCacheKey('songs')
   try {
     const response = await apiFetch('/api/songs')
     if (!response.ok) throw new Error(tStatic('err.songsLoad'))
@@ -14,6 +12,7 @@ export async function getImportedSongs() {
     await cachePutList(cacheKey, data)
     return data
   } catch (error) {
+    if (!isNetworkError(error)) throw error
     const cached = await cacheGetList(cacheKey)
     if (cached) return cached
     throw error

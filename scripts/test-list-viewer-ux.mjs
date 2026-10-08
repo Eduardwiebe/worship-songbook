@@ -249,8 +249,9 @@ async function main() {
     assert(lead.options.some((option) => option.includes('Eduard Wiebe')), 'band member missing from Leiter list')
     assert(lead.options.some((option) => option.includes('Anna Berger')), 'second member missing')
     assert(lead.width >= 140, `Leiter select too narrow: ${lead.width}px`)
+    const stored = page.waitForResponse((response) => response.url().includes('/api/sets/') && response.request().method() === 'PUT')
     await page.locator('.leader-select select').first().selectOption('member-eduard')
-    await page.waitForTimeout(200)
+    await stored
     const saved = savedBodies.at(-1)
     console.log('saved leaders', saved?.leaders)
     assert(saved?.leaders?.['song-28'] === 'member-eduard', `leader was not saved: ${JSON.stringify(saved?.leaders)}`)

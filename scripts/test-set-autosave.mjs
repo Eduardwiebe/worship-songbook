@@ -1,0 +1,57 @@
+import assert from 'node:assert/strict'
+import { createSetAutosave } from '../app/src/setAutosave.js'
+
+const tick = () => new Promise((resolve) => setTimeout(resolve, 10))
+const calls = []
+const releases = []
+const statuses = []
+const queue = createSetAutosave({ delay: 0, initialRevision: 4, save: (draft) => {
+  calls.push(draft)
+  return new Promise((resolve, reject) => releases.push({ resolve, reject }))
+} })
+queue.subscribe((status) => statuses.push(status.state))
+queue.submit({ theme: 'first' })
+await tick()
+queue.submit({ theme: 'second' })
+queue.submit({ theme: 'latest', venue: 'Hall' })
+await tick()
+assert.equal(calls.length, 1, 'only one request may be in flight')
+releases[0].resolve({ revision: 5 })
+await tick()
+assert.deepEqual(calls[1], { theme: 'latest', venue: 'Hall', revision: 5 })
+queue.submit({ theme: 'final' })
+releases[1].reject(new Error('Connection lost'))
+await tick()
+assert.equal(statuses.at(-1), 'error')
+assert.equal(queue.hasPending(), true)
+queue.submit({ theme: 'corrected' })
+await tick()
+assert.equal(calls.length, 2, 'failures must not restart silently')
+queue.retry()
+assert.deepEqual(calls[2], { theme: 'corrected', revision: 5 })
+releases[2].resolve({ revision: 6 })
+await tick()
+assert.equal(statuses.at(-1), 'saved')
+assert.equal(queue.hasPending(), false)
+queue.submit({ theme: 'conflicting' })
+await tick()
+releases[3].reject(Object.assign(new Error('Changed'), { status: 409 }))
+await tick()
+assert.equal(statuses.at(-1), 'conflict')
+queue.retry()
+assert.equal(calls.length, 4, 'retry must never overwrite a conflict')
+queue.reset(8)
+queue.submit({ theme: 'resolved' })
+await tick()
+assert.equal(calls[4].revision, 8)
+releases[4].resolve({ revision: 9 })
+await tick()
+let current = true
+let staleCalls = 0
+const stale = createSetAutosave({ delay: 0, isCurrent: () => current, save: async () => { staleCalls++ } })
+stale.submit({ theme: 'old account' })
+current = false
+await tick()
+assert.equal(staleCalls, 0)
+assert.equal(stale.hasPending(), false)
+console.log('ok: ordered/coalesced saves, retained failures, retry, revision conflicts and session changes')

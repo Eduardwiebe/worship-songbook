@@ -130,7 +130,7 @@ try {
     const login = await api('/api/auth/login', {
       method: 'POST',
       body: { identifier: username, password },
-      headers: { Origin: 'http://127.0.0.1:8791' },
+      headers: { Origin: BASE },
     })
     // Origin host must match Host header (127.0.0.1:8791)
     assert(login.status === 200 && login.data.user?.username === username, 'web login ok')
@@ -140,7 +140,7 @@ try {
     assert(me.status === 200, 'web session cookie works for /api/auth/me')
     await fetch(`${BASE}/api/auth/logout`, {
       method: 'POST',
-      headers: { cookie: cookieHeader, Origin: 'http://127.0.0.1:8791' },
+      headers: { cookie: cookieHeader, Origin: BASE },
     })
   }
 
@@ -153,8 +153,8 @@ try {
       token: access,
       headers: { 'X-Songbook-Band': 'nonexistent-band-id' },
     })
-    // Invalid band id → selectedBand returns falsy → personal scope, still 200
-    assert(fakeBand.status === 200, 'invalid band header ignored safely (no crash)')
+    // An explicit unavailable band must never fall back to private data.
+    assert(fakeBand.status === 403, 'invalid band header rejects access without personal fallback')
     await api('/api/auth/native/logout', { method: 'POST', token: access, body: { refreshToken: refresh } })
   }
 } finally {

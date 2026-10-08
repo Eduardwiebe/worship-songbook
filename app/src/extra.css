@@ -2036,3 +2036,20 @@ body:has(.original-viewer) .app-footer {
   70% { box-shadow: 0 0 0 6px rgba(226, 59, 59, 0); }
   100% { box-shadow: 0 0 0 0 rgba(226, 59, 59, 0); }
 }
+
+/* Shared rehearsal decisions remain visible in the stage view. */
+.song-briefing { grid-column: 1 / -1; display: grid; gap: 10px; padding: 2px 0 16px; min-width: 0; }
+.song-briefing .field { margin: 0; }
+.song-briefing textarea { width: 100%; box-sizing: border-box; min-height: 70px; resize: vertical; border: 1px solid #39495c; border-radius: 12px; padding: 12px; background: #071421; color: #edf2f7; font-family: inherit; font-size: 14px; font-weight: 400; line-height: 1.5; }
+.song-briefing textarea:focus-visible { outline: 2px solid #d7b55f; outline-offset: 2px; }
+.rehearsal-check { display: flex; align-items: center; gap: 9px; color: #bac7d6; font-size: 13px; }
+html[data-theme="light"] .song-briefing .field > span, html[data-theme="light"] .rehearsal-check { color: #53667d; }
+html[data-theme="light"] .song-briefing textarea { background: #f4f7fb; color: #14263b; border-color: #c5d0de; }
+.rehearsal-check input { width: 18px; height: 18px; accent-color: #dfae64; }
+.stage-cue { display: flex; flex: 0 0 auto; gap: 12px; padding: 10px 20px; background: #30271b; color: #f8e9d0; font-size: 15px; line-height: 1.45; max-height: 18vh; overflow-y: auto; overflow-wrap: anywhere; }
+.stage-cue strong { flex-shrink: 0; color: #efc481; }
+.run-mode.has-cue { grid-template-rows: auto auto minmax(0, 1fr) auto; }
+.set-toolbar { flex-wrap: wrap; }
+.set-toolbar span { max-width: 100%; overflow-wrap: anywhere; }
+@media (max-width:1199px) { .planned-song { grid-template-areas: "num main" "lead lead" "acts acts" "brief brief"; } .planned-song > .song-briefing { grid-area: brief; } }
+@media (max-width:700px) { .stage-cue { flex-direction: column; gap: 3px; padding: 8px 14px; font-size: 13px; } }

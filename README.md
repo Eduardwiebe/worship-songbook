@@ -18,7 +18,9 @@ _Screenshots can be added later._
 - Guided onboarding wizard
 - Song library (PDF/scan import as **Original** digital songbook; YouTube Probe, tuner, auto-scroll, BPM)
 - No in-app chord/LeadSheet reconstruction or key transpose (analysis belongs in lyruma.de)
-- Sets and set planning
+- Sets and set planning, shared entry/transition cues on stage, and rehearsal status per original sheet
+- Confirmed autosave with retry and conflict detection; account/band scoped offline storage
+- Per-device set check for stored offline sheets, missing songs, and unassigned song leads
 - Bands, invites, and join requests
 - Team members
 - Appointments / schedule

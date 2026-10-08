@@ -1,17 +1,16 @@
-import { cacheGetList, cachePutList, listCacheKey } from './offlineCache'
-import { getSelectedBandId } from './nativeSession'
+import { cacheGetList, cachePutList, listCacheKey, isNetworkError } from './offlineCache'
 import { apiFetch, apiUrl } from './apiConfig'
 import { tStatic } from './i18n'
 
 export async function getTeam() {
-  const bandId = getSelectedBandId?.() || ''
-  const cacheKey = listCacheKey('team', bandId)
+  const cacheKey = listCacheKey('team')
   try {
     const r=await apiFetch('/api/team');if(!r.ok)throw new Error(tStatic('err.teamLoad'));
     const data = await r.json()
     await cachePutList(cacheKey, data)
     return data
   } catch (error) {
+    if (!isNetworkError(error)) throw error
     const cached = await cacheGetList(cacheKey)
     if (cached) return cached
     throw error

@@ -1,0 +1,13 @@
+.set-readiness { margin-bottom: 20px; }
+.readiness-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.readiness-heading h2 { margin: 0; }
+.readiness-summary { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.readiness-summary.is-ready { color: #168044; }
+.readiness-hint { font-size: 13px; line-height: 1.5; opacity: .8; }
+.readiness-issues { list-style: none; padding: 0; margin: 12px 0 0; }
+.readiness-issues li { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-top: 1px solid #8883; }
+.readiness-issues span { font-size: 13px; line-height: 1.5; }
+@media (max-width: 700px) {
+  .readiness-heading .add-button { width: 100%; justify-content: center; }
+  .readiness-issues li { flex-direction: column; gap: 4px; }
+}
