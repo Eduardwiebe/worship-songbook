@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased - shared sheet notes and published performance versions
+
+- Band members can draw with a pen/finger, add text to individual original pages, undo marks and save shared song notes without modifying the PDF. Revision checks retain conflicting drafts; local drafts can be restored after reload.
+- Publishing a set freezes original PDFs and page images, song order, leads, cues and shared annotations into an immutable version. Later draft or library changes do not change a published performance. Original content is identified by SHA-256.
+- Each device can explicitly prepare a selected performance version offline; readiness checks verify its own scoped bytes and metadata. The band sees timestamped preparation reports, which do not claim a live view of other devices’ storage.
+- Isolated real-API and production-browser tests cover shared persistence, mouse/touch drawing, conflicts, frozen media/notes, offline restart and phone alignment.
+
 ## Unreleased - deterministic offline CI and isolated auth tests
 
 - Offline browser checks await account/band scoped IndexedDB page images and the set PDF before asserting readiness. Delayed library pages and PDFs exercise asynchronous preparation.

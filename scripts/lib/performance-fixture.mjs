@@ -38,6 +38,7 @@ export async function performanceFixture() {
     const owner=await account('bandnotesowner'),member=await account('bandnotesmember'),other=await account('bandnotesother')
     const band=(await request('/api/bands',{cookie:owner.cookie,method:'POST',body:{name:'Performance test band'}})).data.id
     const db=new DatabaseSync(join(dataDir,'songbook.sqlite'))
+    db.prepare('UPDATE onboarding_state SET completed=1,manual_restart=0').run()
     db.prepare('INSERT INTO band_members VALUES (?,?,?,?)').run(band,member.user.id,'member',new Date().toISOString())
     const pdfPath=join(dataDir,'pdfs','original.pdf');const pdf=testPdf();await writeFile(pdfPath,pdf)
     db.prepare('INSERT INTO songs (id,title,artist,owner_id,file_name,file_size,pdf_path,song_key) VALUES (?,?,?,?,?,?,?,?)').run('original','Shared original','Band',owner.user.id,'original.pdf',pdf.length,pdfPath,'C')
