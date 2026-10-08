@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased - persistent stage sheet size
+
+- Stage sheet size is selectable from 50–200% in 1% steps; 100% uses the available screen width. Plus/minus adjust by 5%, and the setting is remembered on the device.
+- Autoscroll moves the selected sheet layout without enlarging it on Play or shrinking it on Pause/end. At the bottom it stops and retains the reading position. Original sheets and note overlays scale together.
+- Enlarged sheets remain horizontally accessible; panning the sheet does not change songs. Browser checks cover pause/end, tablet rotation, saved zoom after offline reload and existing stage safe areas.
+
+## Unreleased - shared sheet notes and published performance versions
+
+- Band members can draw with a pen/finger, add text to individual original pages, undo marks and save shared song notes without modifying the PDF. Revision checks retain conflicting drafts; local drafts can be restored after reload.
+- Publishing a set freezes original PDFs and page images, song order, leads, cues and shared annotations into an immutable version. Later draft or library changes do not change a published performance. Original content is identified by SHA-256.
+- Each device can explicitly prepare a selected performance version offline; readiness checks verify its own scoped bytes and metadata. The band sees timestamped preparation reports, which do not claim a live view of other devices’ storage.
+- Isolated real-API and production-browser tests cover shared persistence, mouse/touch drawing, conflicts, frozen media/notes, offline restart and phone alignment.
+
+## Unreleased - deterministic offline CI and isolated auth tests
+
+- Offline browser checks await account/band scoped IndexedDB page images and the set PDF before asserting readiness. Delayed library pages and PDFs exercise asynchronous preparation.
+- The mock API is served by the test origin, so service-worker fetches receive the same responses as page fetches. Async Playwright predicates no longer let the readiness check exit prematurely.
+- Standalone native-auth tests require an explicit local test API and a temporary database copy; production defaults are disabled. Added rejection tests and updated the native test instructions.
+
+Test tooling only; no production runtime change or database migration.
+
 ## Unreleased - band rehearsal, reliable set saves and scoped offline storage
 
 - Set details now check every planned song for available original sheets, locally stored page images, outdated cache revisions, and unassigned song leads. Missing library references are reported rather than hidden.

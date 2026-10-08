@@ -1,3 +1,5 @@
+import { AnnotatedPage, AnnotationToolbar, useSheetAnnotations } from './SheetAnnotations'
+import { loadPerformancePages } from './bandNotesStore'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronLeft, X } from 'lucide-react'
 import { authorizedObjectUrl, isNativeRuntime, toApiPath, apiFetch } from './apiConfig'
@@ -100,7 +102,17 @@ export function AuthorizedImg({ path, alt = '', className, ...rest }) {
  * The browser PDF plugin (iPad / desktop) lets the player drag the sheet
  * inside the frame. Images scale to the frame and stay fixed.
  */
-export function OriginalPagesViewer({ songId, title, className, onViewChange }) {
+export function OriginalPagesViewer({ songId, title, className, onViewChange, editable = false, performance = null, sheetZoom = null }) {
+  const frozenSong = performance?.songs.find((song) => song.id === songId)
+  const annotations = useSheetAnnotations(songId, editable, frozenSong?.annotations)
+  const [noteTool, setNoteTool] = useState('pen')
+  const [noteColor, setNoteColor] = useState('#d32f2f')
+  const undoRef = useRef([])
+  const [undoCount, setUndoCount] = useState(0)
+  const remember = () => { undoRef.current.push(annotations.doc); if (undoRef.current.length > 30) undoRef.current.shift(); setUndoCount(undoRef.current.length) }
+  const changeNotes = (next) => { remember(); annotations.change(next) }
+  const undo = () => { const prior = undoRef.current.pop(); if (prior) annotations.change({ ...prior, revision: annotations.doc.revision }); setUndoCount(undoRef.current.length) }
+  useEffect(() => { undoRef.current = []; setUndoCount(0) }, [songId, performance?.id])
   const [pages, setPages] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -132,6 +144,12 @@ export function OriginalPagesViewer({ songId, title, className, onViewChange }) 
       setError('')
       let showedCache = false
       try {
+        if (performance) {
+          const result = await loadPerformancePages(performance, frozenSong)
+          if (result.cached) blobUrls.push(...result.pages.map((p) => p.dataUrl))
+          if (!active) { revoke(); return }
+          setPages(result.pages); setLoading(false); return
+        }
         const cached = await loadCachedPageUrls(songId)
         if (!active) {
           cached?.forEach((url) => URL.revokeObjectURL(url))
@@ -168,11 +186,11 @@ export function OriginalPagesViewer({ songId, title, className, onViewChange }) 
       active = false
       revoke()
     }
-  }, [songId, title])
+  }, [songId, title, performance])
 
   useEffect(() => {
     const el = rootRef.current
-    if (!el || multi) return undefined
+    if (!el || multi || sheetZoom !== null) return undefined
     const block = (event) => {
       if (el.classList.contains('is-autoscrolling')) return
       event.preventDefault()
@@ -185,7 +203,7 @@ export function OriginalPagesViewer({ songId, title, className, onViewChange }) 
       el.removeEventListener('touchmove', block)
       el.removeEventListener('gesturestart', block)
     }
-  }, [multi, loading, error, pages.length])
+  }, [multi, loading, error, pages.length, sheetZoom])
 
   useEffect(() => {
     onViewChangeRef.current?.({ index: 0, count: pages.length })
@@ -228,17 +246,12 @@ export function OriginalPagesViewer({ songId, title, className, onViewChange }) 
   }
 
   return (
-    <div ref={rootRef} className={frameClass}>
-      {pages.map((page, index) => (
-        <img
-          key={index}
-          src={page.dataUrl}
-          alt={`${title || 'Seite'} ${index + 1}`}
-          className="original-page-image"
-          draggable={false}
-          onDragStart={(event) => event.preventDefault()}
-        />
-      ))}
+    <div className="annotated-viewer">
+      {editable && <AnnotationToolbar state={{ ...annotations, change: changeNotes, setTool: setNoteTool, setColor: setNoteColor, undo, canUndo: undoCount > 0 }}/>}
+      {!annotations.editing && annotations.visible?.notes && <aside className="annotation-shared-text" aria-label={tStatic('notes.bandNotes')}>{annotations.visible.notes}</aside>}
+      <div ref={rootRef} className={`${frameClass}${sheetZoom !== null ? ' is-manual-zoom' : ''}`} data-sheet-zoom={sheetZoom ?? undefined}>
+        {pages.map((page, index) => <AnnotatedPage key={`${songId}-${index}`} page={page} index={index} title={title} document={annotations.visible} zoom={sheetZoom} editing={annotations.editing && !annotations.stale} tool={noteTool} color={noteColor} onChange={annotations.change} onBeforeChange={remember}/>)}
+      </div>
     </div>
   )
 }
@@ -352,7 +365,7 @@ function PdfNativeViewer({ src, title, className, fitContent = false }) {
  * fitContent: size HTML chart iframes to document height so the stage can scroll
  * while keeping pointer-events none (song swipe stays on the stage).
  */
-export function AuthorizedFrame({ path, title, className, hash = '', songId = '', preferPageImages = false, fitContent = false }) {
+export function AuthorizedFrame({ path, title, className, hash = '', songId = '', preferPageImages = false, fitContent = false, editable = false, performance = null, sheetZoom = null }) {
   const usePages = Boolean(preferPageImages && songId)
   const [frameClassName, setFrameClassName] = useState(className || '')
   const [src, setSrc] = useState('')
@@ -549,7 +562,7 @@ export function AuthorizedFrame({ path, title, className, hash = '', songId = ''
   }
 
   if (usePages) {
-    return <OriginalPagesViewer songId={songId} title={title} className={className} />
+    return <OriginalPagesViewer songId={songId} title={title} className={className} editable={editable} performance={performance} sheetZoom={sheetZoom} />
   }
 
   if (loading) {
@@ -720,6 +733,7 @@ export function OriginalViewerOverlay({ song, onClose }) {
         title={song?.title || t('songs.originalPdf')}
         className="original-viewer-pages"
         onViewChange={onViewChange}
+        editable
       />
     </div>
   )

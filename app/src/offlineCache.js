@@ -190,14 +190,16 @@ function enqueueMedia(fn) {
 
 export async function cachePutList(key, value) {
   key = scopedKey(key)
-  if (!currentKey(key)) return
+  if (!currentKey(key)) return false
   try {
     await withStore(LISTS, 'readwrite', (store) => currentKey(key) && idbReq(store.put({
       value,
       savedAt: Date.now(),
     }, key)))
+    return currentKey(key)
   } catch (error) {
     console.warn('[offlineCache] putList failed', key, error)
+    return false
   }
 }
 

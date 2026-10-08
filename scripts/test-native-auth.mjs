@@ -1,13 +1,18 @@
 #!/usr/bin/env node
 /**
  * Native auth API tests (temporary user, cleaned up).
- * Run: node scripts/test-native-auth.mjs
+ * Requires SONGBOOK_API (local test port, not 8791) and SONGBOOK_DB (an
+ * existing database copy in the system temporary directory). No live defaults.
  */
 import { DatabaseSync } from 'node:sqlite'
 import { createHash, randomBytes, scryptSync } from 'node:crypto'
+import { isolatedTestTarget } from './lib/isolated-test-target.mjs'
 
-const BASE = process.env.SONGBOOK_API || 'http://127.0.0.1:8791'
-const DB_PATH = process.env.SONGBOOK_DB || '/var/www/songbook/data/songbook.sqlite'
+let target
+try { target = isolatedTestTarget(process.env) }
+catch (error) { console.error(`Native auth test refused: ${error.message}`); process.exit(1) }
+const BASE = target.base
+const DB_PATH = target.dbPath
 
 const passwordHash = password => {
   const salt = randomBytes(16).toString('hex')

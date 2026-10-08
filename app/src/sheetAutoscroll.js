@@ -7,7 +7,8 @@ import { useEffect, useRef } from 'react'
  * 1px step back to the page. Neither target moves.
  * While autoscroll is on, size the page images so the stack is taller
  * than the stage, turn snap off, and advance scrollTop. Fit-lock returns
- * when autoscroll stops.
+ * when autoscroll stops in legacy viewers. In the stage viewer, the user
+ * chooses a persistent sheet size; scrolling never changes that layout.
  *
  * Sub-pixel scrollTop is truncated to 0 on several engines, so the pace is
  * applied in whole pixels. The previous default was 1px every 70ms
@@ -61,6 +62,11 @@ export function findSheetScroller(root) {
 export function applyAutoscrollLayout(scroller) {
   const images = [...scroller.querySelectorAll('.original-page-image')]
   if (!images.length || images.some((img) => !img.naturalWidth || !img.naturalHeight)) return false
+  if (scroller.dataset.sheetZoom !== undefined) {
+    // Stage zoom is managed by React and scales the complete page plus notes.
+    scroller.classList.add('is-autoscrolling')
+    return true
+  }
   const viewW = scroller.clientWidth
   const viewH = scroller.clientHeight
   if (!viewW || !viewH) return false
@@ -95,6 +101,7 @@ export function applyAutoscrollLayout(scroller) {
 export function clearAutoscrollLayout(scroller) {
   if (!scroller) return
   scroller.classList.remove('is-autoscrolling')
+  if (scroller.dataset.sheetZoom !== undefined) return
   scroller.style.display = ''
   scroller.style.overflowX = ''
   scroller.style.overflowY = ''

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 import { randomUUID } from 'node:crypto'
 import { createAuth, initializeAuth } from './auth.mjs'
+import { initializeBandPerformance, routeBandPerformance } from './lib/bandPerformance.mjs'
 import { setRevisionMatches } from './lib/setRevision.mjs'
 import { normalizeSetBriefings } from './lib/setBriefings.mjs'
 import { APP_VERSION, URL_APP } from './app/src/appMeta.js'
@@ -106,6 +107,7 @@ for (const column of [
   try { db.exec(`ALTER TABLE songs ADD COLUMN ${column}`) } catch {}
 }
 initializeAuth(db)
+initializeBandPerformance(db)
 db.exec(`CREATE TABLE IF NOT EXISTS bands (id TEXT PRIMARY KEY,name TEXT NOT NULL UNIQUE,description TEXT NOT NULL DEFAULT '',created_by TEXT NOT NULL,created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS band_members (band_id TEXT NOT NULL,user_id TEXT NOT NULL,role TEXT NOT NULL DEFAULT 'member',joined_at TEXT NOT NULL,PRIMARY KEY(band_id,user_id));
 CREATE TABLE IF NOT EXISTS band_songs (band_id TEXT NOT NULL,song_id TEXT NOT NULL,PRIMARY KEY(band_id,song_id));
@@ -893,6 +895,7 @@ http.createServer(async (req,res) => { try {
   if(req.headers['x-songbook-user'] && req.headers['x-songbook-user']!==user.id)return json(res,401,{error:'Das angemeldete Konto hat sich geändert.'})
   const band=selectedBand(req,user);const bandId=band?.id||''
   if(req.headers['x-songbook-band'] && req.headers['x-songbook-band']!=='personal' && !band && /^\/api\/(songs|sets|team|appointments|scans)(\/|$)/.test(url.pathname))return json(res,403,{error:'Kein Zugriff auf diese Band.'})
+  if(await routeBandPerformance({ req,res,url,user,bandId,db,root,json,bodyJson }))return
   if(req.method==='GET'&&url.pathname==='/api/onboarding'){
     return json(res,200,getOnboardingState(user.id))
   }
