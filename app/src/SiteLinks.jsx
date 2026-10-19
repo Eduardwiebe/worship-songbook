@@ -15,6 +15,18 @@ export function SiteLinks({ className = 'site-links-list' }) {
   </nav>
 }
 
+const LYRUMA_PROMO_URL = 'https://lyruma.de/?utm_source=songbook&utm_medium=banner&utm_campaign=eigenwerbung'
+
+/** Dezentes Lyruma-Eigenwerbebanner (kein Tracking, nur UTM-Link). */
+export function LyrumaPromo({ compact = false }) {
+  const { t } = useI18n()
+  return <aside className={`lyruma-promo${compact ? ' lyruma-promo--compact' : ''}`} aria-label={t('promo.aria')}>
+    <span className="lyruma-promo-mark" aria-hidden="true">L</span>
+    <p>{t('promo.text')}</p>
+    <a href={LYRUMA_PROMO_URL} target="_blank" rel="noopener">{t('promo.cta')}</a>
+  </aside>
+}
+
 export function LegalLinks({ className = 'legal-links-list' }) {
   const { t } = useI18n()
   return <nav className={className} aria-label={t('footer.ariaLegal')}>

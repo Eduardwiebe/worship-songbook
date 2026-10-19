@@ -4,7 +4,7 @@ import { login, register, changePassword, logout } from './authStore'
 import { useI18n } from './i18n'
 import { useAvoidMobileAutoFocus } from './useMobileFormFocus'
 import { URL_APP, SUPPORT_EMAIL } from './appMeta'
-import { SiteLinks, LegalLinks } from './SiteLinks'
+import { SiteLinks, LegalLinks, LyrumaPromo } from './SiteLinks'
 import { BrandMark } from './BrandMark'
 
 export function AuthScreen({ onAuthenticated }) {
@@ -127,6 +127,8 @@ export function AuthScreen({ onAuthenticated }) {
           {t('auth.languageSwitch')}
         </button>
       </section>
+
+      <div className="auth-promo-row"><LyrumaPromo/></div>
 
       <footer className="auth-footer">
         <div className="auth-footer-sites">

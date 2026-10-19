@@ -2099,3 +2099,13 @@ html[data-color-scheme="dark"] .auth-lang:hover,html[data-theme="dark"] .auth-la
 .mobile-install-short { display:none; }
 @media (max-width:480px){ .mobile-install-full { display:none; } .mobile-install-short { display:inline; } }
 @media (max-width:900px){ .header-sites { display:none; } }
+
+/* Lyruma-Eigenwerbung 2026-10-19 */
+.lyruma-promo{display:flex;align-items:center;gap:14px;max-width:880px;margin:0 auto;padding:14px 16px;border:1px solid rgba(200,154,62,.45);border-radius:16px;background:linear-gradient(120deg,#1b2430,#121a24);color:#efe6d2;font-size:14px;line-height:1.45}
+.lyruma-promo p{margin:0;flex:1;min-width:0}
+.lyruma-promo-mark{flex:0 0 34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(135deg,#f1d38d,#c89a3e);color:#1b2430;font-weight:900;font-family:Georgia,serif}
+.lyruma-promo a{flex:0 0 auto;padding:9px 15px;border-radius:10px;background:linear-gradient(135deg,#f1d38d,#c89a3e);color:#1b2430!important;font-weight:850;font-size:13px;text-decoration:none;white-space:nowrap}
+.lyruma-promo a:hover,.lyruma-promo a:focus-visible{filter:brightness(1.06);text-decoration:none}
+.lyruma-promo--compact{max-width:none;margin:0 0 22px;padding:11px 14px;font-size:13px}
+.auth-promo-row{grid-column:1/-1;padding:18px clamp(16px,5vw,72px) 22px}
+@media(max-width:600px){.lyruma-promo{flex-wrap:wrap;gap:10px 12px}.lyruma-promo p{flex:1 1 calc(100% - 50px)}.lyruma-promo a{flex:1 1 100%;text-align:center}}
