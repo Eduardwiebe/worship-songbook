@@ -24,6 +24,8 @@ function format(template, vars = {}) {
 }
 
 export function translate(path, vars = {}, locale = 'de') {
+  // Singular form: "{count} Songs" → "1 Song" when a `<key>_one` string exists.
+  if (vars && Number(vars.count) === 1 && lookup(catalogs.de, `${path}_one`) != null) path = `${path}_one`
   const primary = lookup(catalogs[locale] || catalogs.de, path)
   const fallback = lookup(catalogs.de, path)
   const raw = primary != null ? primary : (fallback != null ? fallback : path)

@@ -97,6 +97,7 @@ export const STRINGS = {
   'offline.pagesFailed': { de: 'Seiten konnten nicht geladen werden.', en: 'Pages could not be loaded.' },
   'offline.prepare': { de: 'Für Offline vorbereiten', en: 'Prepare for offline' },
   'offline.preparing': { de: 'Offline-Kopie {done}/{total} …', en: 'Offline copy {done}/{total} …' },
+  'offline.ready_one': { de: 'Offline bereit (1 Song)', en: 'Ready offline (1 song)' },
   'offline.ready': { de: 'Offline bereit ({count} Songs)', en: 'Ready offline ({count} songs)' },
   'offline.partial': { de: '{done} von {total} Songs offline gespeichert', en: '{done} of {total} songs saved offline' },
   'onboardingLoading': { de: 'Einrichtung wird geladen …', en: 'Loading setup …' },
@@ -148,6 +149,7 @@ export const STRINGS = {
   'common.dateOpen': { de: 'Datum offen', en: 'Date TBD' },
   'common.noDate': { de: 'Noch kein Datum', en: 'No date yet' },
   'common.timeSuffix': { de: '{time} Uhr', en: '{time}' },
+  'common.nSongs_one': { de: '1 Song', en: '1 song' },
   'common.nSongs': { de: '{count} Songs', en: '{count} songs' },
 
   // auth (existing)
@@ -258,6 +260,7 @@ export const STRINGS = {
   'footer.paypal': { de: 'Mit PayPal unterstützen', en: 'Support with PayPal' },
   'footer.openSource': { de: 'Songbook Band Open Source · Entwickelt von Eduard Wiebe', en: 'Songbook Band Open Source · Developed by Eduard Wiebe' },
   'footer.terms': { de: 'Nutzungsbedingungen', en: 'Terms of use' },
+  'nav.installShort': { de: 'Installieren', en: 'Install' },
   'footer.moreSites': { de: 'Weitere Seiten von Eduard Wiebe', en: 'More sites by Eduard Wiebe' },
   'footer.siteLyruma': { de: 'Lyruma · Lead Sheets', en: 'Lyruma · Lead sheets' },
   'footer.siteFacilityDesk': { de: 'FacilityDesk · Haustechnik', en: 'FacilityDesk · Facility management' },
@@ -359,6 +362,7 @@ export const STRINGS = {
   'songs.add': { de: 'Song hinzufügen', en: 'Add song' },
   'songs.library': { de: 'Bibliothek', en: 'Library' },
   'songs.recent': { de: 'Zuletzt verwendete Songs', en: 'Recently used songs' },
+  'songs.count_one': { de: '1 Song', en: '1 song' },
   'songs.count': { de: '{count} Songs', en: '{count} songs' },
   'songs.searchPlaceholder': { de: 'Songs durchsuchen…', en: 'Search songs…' },
   'songs.noneFound': { de: 'Keine Songs gefunden.', en: 'No songs found.' },
@@ -468,6 +472,7 @@ export const STRINGS = {
   'import.onlyPdf': { de: '{name}: Bitte nur PDFs bis maximal 20 MB auswählen.', en: '{name}: Please select PDFs up to 20 MB only.' },
   'import.failed': { de: 'Import fehlgeschlagen: {error}', en: 'Import failed: {error}' },
   'import.artistDefault': { de: 'Importierte PDF', en: 'Imported PDF' },
+  'import.nSongs_one': { de: '1 Song importieren', en: 'Import 1 song' },
   'import.nSongs': { de: '{count} Songs importieren', en: 'Import {count} songs' },
   'import.savingN': { de: 'Speichere {count} PDFs…', en: 'Saving {count} PDFs…' },
 
@@ -753,6 +758,7 @@ export const STRINGS = {
   'ob.addMember': { de: 'Mitglied hinzufügen', en: 'Add member' },
   'ob.skipMembers': { de: 'Ohne Mitglieder weiter', en: 'Continue without members' },
   'ob.whatNext': { de: 'Was plant ihr als Nächstes?', en: 'What are you planning next?' },
+  'ob.setsExist_one': { de: '1 Set bereits vorhanden', en: '1 set already exists' },
   'ob.setsExist': { de: '{count} Sets bereits vorhanden', en: '{count} sets already exist' },
   'ob.later': { de: 'Später', en: 'Later' },
   'ob.whenMeet': { de: 'Wann trefft ihr euch?', en: 'When will you meet?' },

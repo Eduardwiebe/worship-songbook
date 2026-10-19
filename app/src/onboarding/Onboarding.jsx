@@ -181,12 +181,14 @@ export default function Onboarding({state,onState}) {
   },[t])
 
   useEffect(()=>{
-    Promise.all([
-      getBands().catch(()=>[]),
+    // Bands first: getBands() pins the active band for this tab. Parallel
+    // reads would otherwise go out as "personal" and miss band sets/team.
+    getBands().catch(()=>[]).then(bandRows=>Promise.all([
+      bandRows,
       getTeam().catch(()=>[]),
       getSets().catch(()=>[]),
       getAppointments().catch(()=>[]),
-    ]).then(([bandRows,teamRows,setRows,appointmentRows])=>{
+    ])).then(([bandRows,teamRows,setRows,appointmentRows])=>{
       setBands(bandRows)
       setTeam(teamRows)
       setSets(setRows)
