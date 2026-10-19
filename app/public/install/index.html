@@ -164,6 +164,11 @@
     .page-footer a { color: var(--text); text-decoration: none; font-weight: 700; }
     .page-footer a:hover, .page-footer a:focus-visible { color: var(--gold); text-decoration: underline; }
     .page-footer .label { color: var(--muted); font-weight: 700; }
+    .lyruma-promo{display:flex;align-items:center;gap:14px;margin:26px 0 8px;padding:14px 16px;border:1px solid rgba(241,211,141,.35);border-radius:16px;background:rgba(241,211,141,.06);color:#efe6d2;font-size:14px;line-height:1.45}
+    .lyruma-promo p{margin:0;flex:1;min-width:0}
+    .lp-mark{flex:0 0 34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(135deg,var(--gold),var(--gold-deep));color:#07111f;font-weight:900;font-family:Georgia,serif}
+    .lyruma-promo a{flex:0 0 auto;padding:9px 15px;border-radius:10px;background:linear-gradient(135deg,var(--gold),var(--gold-deep));color:#07111f;font-weight:850;font-size:13px;text-decoration:none;white-space:nowrap}
+    @media(max-width:600px){.lyruma-promo{flex-wrap:wrap}.lyruma-promo p{flex:1 1 calc(100% - 50px)}.lyruma-promo a{flex:1 1 100%;text-align:center}}
   </style>
   <meta name="description" content="Installiere Songbook Band auf dem Home-Bildschirm oder Desktop — schnell starten, offline Sets spielen, ohne APK oder Store.">
   <link rel="canonical" href="https://songbook.lyruma.de/install/">
@@ -226,6 +231,12 @@
       </p>
     </section>
 
+    <aside class="lyruma-promo" aria-label="Lyruma">
+      <span class="lp-mark" aria-hidden="true">L</span>
+      <p data-i18n="promoText">Aus deinem Song wird ein Lead Sheet. 7 Tage kostenlos testen oder 1 Lead Sheet für 6,99 € ohne Abo.</p>
+      <a href="https://lyruma.de/?utm_source=songbook&utm_medium=banner&utm_campaign=eigenwerbung" rel="noopener" data-i18n="promoCta">Lyruma testen</a>
+    </aside>
+
     <footer class="page-footer">
       <nav aria-label="Weitere Seiten von Eduard Wiebe">
         <span class="label" data-i18n="moreSites">Weitere Seiten:</span>
@@ -285,6 +296,8 @@
         siteLyruma: 'Lyruma · Lead Sheets',
         siteFd: 'FacilityDesk · Haustechnik',
         siteArtist: 'Eduard.W · Musik',
+        promoText: 'Aus deinem Song wird ein Lead Sheet. 7 Tage kostenlos testen oder 1 Lead Sheet für 6,99 € ohne Abo.',
+        promoCta: 'Lyruma testen',
         imprint: 'Impressum',
         privacy: 'Datenschutz',
         terms: 'Nutzungsbedingungen',
@@ -329,6 +342,8 @@
         siteLyruma: 'Lyruma · Lead sheets',
         siteFd: 'FacilityDesk · Facility management',
         siteArtist: 'Eduard.W · Music',
+        promoText: 'Turn your song into a lead sheet. Try it free for 7 days or get 1 lead sheet for €6.99, no subscription.',
+        promoCta: 'Try Lyruma',
         imprint: 'Legal notice',
         privacy: 'Privacy',
         terms: 'Terms of use',

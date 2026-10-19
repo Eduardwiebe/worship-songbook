@@ -449,6 +449,11 @@ export default {
     reloadConfirm: "Discard your draft and load the saved band notes?",
     changedOriginal: "The original changed. Review annotations first.",
   },
+  promo: {
+    cta: "Try Lyruma",
+    aria: "Lyruma – lead sheets",
+    text: "Turn your song into a lead sheet. Try it free for 7 days or get 1 lead sheet for €6.99, no subscription.",
+  },
   songs: {
     add: "Add song",
     bpm: "BPM",

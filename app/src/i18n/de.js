@@ -449,6 +449,11 @@ export default {
     reloadConfirm: "Deinen Entwurf verwerfen und die gespeicherten Bandnotizen laden?",
     changedOriginal: "Das Original wurde geändert. Notizen zuerst prüfen.",
   },
+  promo: {
+    cta: "Lyruma testen",
+    aria: "Lyruma – Lead Sheets",
+    text: "Aus deinem Song wird ein Lead Sheet. 7 Tage kostenlos testen oder 1 Lead Sheet für 6,99 € ohne Abo.",
+  },
   songs: {
     add: "Song hinzufügen",
     bpm: "BPM",
