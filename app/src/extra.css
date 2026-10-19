@@ -2094,3 +2094,8 @@ html[data-color-scheme="dark"] .auth-lang:hover,html[data-theme="dark"] .auth-la
 .footer-sites-list { display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px 16px; }
 @media (max-width:700px){ .footer-sites { justify-items:start;text-align:left; } .footer-sites-list { justify-content:flex-start; } }
 @media (max-width:780px){ .auth-page-form .auth-features,.auth-page-form .auth-lead { display:none; } .auth-page-form .auth-brand>div:last-child { margin-top:18px; } }
+
+/* Mobile header: short install label, sites live in the footer (2026-10-19) */
+.mobile-install-short { display:none; }
+@media (max-width:480px){ .mobile-install-full { display:none; } .mobile-install-short { display:inline; } }
+@media (max-width:900px){ .header-sites { display:none; } }

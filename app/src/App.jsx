@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Home, Music2, ListMusic, Users, CalendarDays, Plus, Settings, Search,
@@ -17,12 +17,12 @@ import { AuthorizedFrame, AuthorizedImg, OriginalViewerOverlay } from './Authori
 import { installNativeExternalLinkHandler, openExternal } from './openExternal'
 import { authorizedObjectUrl, apiFetch } from './apiConfig'
 import { approveBandJoinRequest, bandLogoUrl, createBand, createBandInvite, deleteBand, deleteBandLogo, getBands, getBandInvites, getBandJoinRequests, getBandMembers, getMyJoinRequests, joinBandByCode, rejectBandJoinRequest, requestBandJoin, searchBands, selectBand, selectPersonal, updateBand, uploadBandLogo } from './bandStore'
-import Onboarding from './onboarding/Onboarding'
+const Onboarding = lazy(() => import('./onboarding/Onboarding'))
 import { getOnboarding, resetOnboarding, dismissOnboarding } from './onboardingStore'
 import { useI18n, tStatic } from './i18n'
 import { useTheme } from './theme.jsx'
 import { AuthScreen, PasswordRequired } from './AuthScreen'
-import SettingsPage from './SettingsPage'
+const SettingsPage = lazy(() => import('./SettingsPage'))
 import { AboutDialog, UpdateDialog } from './AboutDialogs'
 import { BrandMark } from './BrandMark'
 import { clampTempoBpm } from '../../lib/leadsheetAnalysis.mjs'
@@ -30,8 +30,8 @@ import { playCajonHit, playCajonHtmlHit, preloadCajonSample, unlockCajonAudio, u
 import { installNativeDesktopChrome } from './nativeDesktop'
 import { ModalBackdrop } from './ModalBackdrop'
 import { straightenScanFile } from './documentDetect'
-import { ScanCropEditor } from './ScanCropEditor'
-import { LiveDocumentCamera } from './liveDocumentCamera'
+const ScanCropEditor = lazy(() => import('./ScanCropEditor').then((m) => ({ default: m.ScanCropEditor })))
+const LiveDocumentCamera = lazy(() => import('./liveDocumentCamera').then((m) => ({ default: m.LiveDocumentCamera })))
 import { openEnvironmentCamera } from './openEnvironmentCamera'
 import { GuitarTunerModal } from './GuitarTunerModal'
 import { useScreenWakeLock } from './screenWakeLock'
@@ -119,6 +119,14 @@ function App() {
   ]
   const [authLoading,setAuthLoading]=useState(true)
   const { offlineMode, offlineHint, setOfflineHint, prep } = useOfflineFlag()
+  const [readyHidden, setReadyHidden] = useState(false)
+  useEffect(() => {
+    // "Offline bereit" is a confirmation, not a permanent bar: hide it after a few seconds.
+    setReadyHidden(false)
+    if (prep?.status !== 'ready') return undefined
+    const id = setTimeout(() => setReadyHidden(true), 4000)
+    return () => clearTimeout(id)
+  }, [prep])
   const [user,setUser]=useState(null)
   const [songs, setSongs] = useState(initialSongs)
   const [sets, setSets] = useState([])
@@ -301,7 +309,7 @@ function App() {
         </button>
       </div>
     }
-    <Onboarding state={onboarding} onState={setOnboarding}/>
+    <Suspense fallback={<div className="auth-loading"><BrandMark /><p>{t('onboardingLoading')}</p></div>}><Onboarding state={onboarding} onState={setOnboarding}/></Suspense>
     {aboutOpen&&<AboutDialog onClose={()=>setAboutOpen(false)}/>}
     {updateOpen&&<UpdateDialog result={updateResult} onClose={()=>{setUpdateOpen(false);setUpdateResult(undefined)}}/>}
   </>
@@ -326,7 +334,7 @@ function App() {
     ? t('offline.preparing', { done: prep.done || 0, total: prep.total || 0 })
     : !offlineMode && prep?.status === 'partial'
       ? t('offline.partial', { done: prep.cached || 0, total: prep.total || 0 })
-      : !offlineMode && prep?.status === 'ready'
+      : !offlineMode && prep?.status === 'ready' && !readyHidden
         ? t('offline.ready', { count: prep.cached || 0 })
         : ''
   const offlineBannerText = offlineMode ? (offlineHint ? t('offline.needsNetwork') : t('offline.banner')) : prepLine
@@ -353,13 +361,15 @@ function App() {
       <div className="mobile-topbar-actions">
         <a
           className="mobile-install-link"
+          aria-label={t('nav.install')}
           href={`${URL_APP}/install/`}
           target="_blank"
           rel="noreferrer"
           onClick={(e)=>{e.preventDefault();openExternal(`${URL_APP}/install/`)}}
         >
           <Download size={18}/>
-          <span>{t('nav.install')}</span>
+          <span className="mobile-install-full">{t('nav.install')}</span>
+          <span className="mobile-install-short" aria-hidden="true">{t('nav.installShort')}</span>
         </a>
         <button
           type="button"
@@ -430,7 +440,7 @@ function App() {
         <Route path="/sets/:setId" element={<SetDetailPage sets={sets} songs={songs} team={team} updateSets={setSets} navigate={navigate}/>}/>
         <Route path="/team" element={<TeamPage team={team} onAdd={openTeamDialog} onDelete={async (member) => { if(!window.confirm(t('team.confirmRemove', { name: member.name })))return;await deleteMember(member.id);setTeam((current)=>current.filter((item)=>item.id!==member.id)) }}/>}/>
         <Route path="/termine" element={<AppointmentsPage sets={sets} appointments={appointments} onAdd={openAppointment} onDelete={async (item)=>{if(!window.confirm(t('appointments.confirmDelete', { title: item.title })))return;await deleteAppointment(item.id);setAppointments((current)=>current.filter((entry)=>entry.id!==item.id))}} navigate={navigate}/>}/>
-        <Route path="/einstellungen" element={<SettingsPage Header={Header} user={user} onUser={setUser} onLogout={handleLogout} onRestartOnboarding={async()=>setOnboarding(await resetOnboarding())}/>}/>
+        <Route path="/einstellungen" element={<Suspense fallback={<p className="empty">{t('loading')}</p>}><SettingsPage Header={Header} user={user} onUser={setUser} onLogout={handleLogout} onRestartOnboarding={async()=>setOnboarding(await resetOnboarding())}/></Suspense>}/>
         <Route path="*" element={<SimplePage eyebrow="404" title={t('pages.notFound')} text={t('pages.notFoundText')}/>}/>
       </Routes>
       <Footer/>
@@ -904,7 +914,7 @@ function BandsPage({bands}) {
       <div>
         <p className="eyebrow">{t('bands.activeWorkspace')}</p>
         <h2>{active?.name||t('nav.personalSongbook')}</h2>
-        <p>{active?.description||t('bands.personalOnly')}</p>
+        <p>{active?(active.description||t('bands.noDescription')):t('bands.personalOnly')}</p>
       </div>
 
       {active&&
@@ -1792,11 +1802,11 @@ function ScanDialog({onClose,onSave}) {
     <div className="scan-processing-note"><CheckCircle2 size={18}/><span><strong>{detecting?t('scan.detecting'):t('scan.autoProcess')}</strong><small>{detecting?t('scan.detectingHint'):t('scan.processHintExtended')}</small></span></div>
     <div className="modal-actions"><button className="cancel-button" onClick={close} disabled={saving}>{t('common.back')}</button><button className="add-button compact" disabled={!canSubmit||saving||previewing} onClick={submit}><Upload size={18}/>{saving?t('scan.processing'):detecting?t('scan.detecting'):t('scan.create')}</button></div>
   </section>
-  {liveStream&&<LiveDocumentCamera stream={liveStream} canTakeAnother={pages.length<7} onAccept={(file,detected,keepOpen,sourceFile)=>{addReady(file,detected,sourceFile);if(!keepOpen)closeLive()}} onClose={closeLive}/>}
-  {cropPage&&<ScanCropEditor sourceFile={cropPage.sourceFile||cropPage.file} onCancel={()=>setCropPage(null)} onConfirm={(file,detected)=>{
+  <Suspense fallback={null}>{liveStream&&<LiveDocumentCamera stream={liveStream} canTakeAnother={pages.length<7} onAccept={(file,detected,keepOpen,sourceFile)=>{addReady(file,detected,sourceFile);if(!keepOpen)closeLive()}} onClose={closeLive}/>}
+  </Suspense><Suspense fallback={null}>{cropPage&&<ScanCropEditor sourceFile={cropPage.sourceFile||cropPage.file} onCancel={()=>setCropPage(null)} onConfirm={(file,detected)=>{
     setPages(current=>current.map(page=>{if(page.id!==cropPage.id)return page;URL.revokeObjectURL(page.url);return {...page,file,url:URL.createObjectURL(file),detect:detected?'straightened':'original'}}))
     setCropPage(null)
-  }}/>}
+  }}/>}</Suspense>
   </ModalBackdrop>
 }
 

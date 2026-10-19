@@ -55,6 +55,16 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rolldownOptions: {
+      output: {
+        // Stable vendor chunk: React rarely changes, so browsers keep it cached across app updates.
+        advancedChunks: {
+          groups: [{ name: 'react-vendor', test: /node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/ }],
+        },
+      },
+    },
+  },
   clearScreen: false,
   envPrefix: ['VITE_', 'TAURI_'],
   server: {

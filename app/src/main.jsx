@@ -9,6 +9,13 @@ import { LocaleProvider } from './i18n'
 import { ThemeProvider } from './theme.jsx'
 import { isNativeRuntime } from './apiConfig'
 
+// The app uses hash routes. Old/shared path links like /sets/<id> would
+// otherwise silently show the home page — rewrite them to /#/sets/<id>.
+if (typeof window !== 'undefined' && !window.location.hash) {
+  const deep = window.location.pathname.match(/^\/(songs|sets|bands|team|termine|einstellungen)(\/[^?#]*)?\/?$/)
+  if (deep) window.history.replaceState(null, '', `/#${window.location.pathname.replace(/\/$/, '')}${window.location.search}`)
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ThemeProvider>
