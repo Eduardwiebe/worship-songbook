@@ -6,13 +6,15 @@ export const APP_COPYRIGHT = 'Copyright 2026 Eduard Wiebe'
 export const APP_IDENTIFIER = 'studio.lyruma.worshipsongbook'
 
 /** Verified from impressum.html — Support / Datenschutz / Technik */
-export const SUPPORT_EMAIL = 'support@lyruma.studio'
+export const SUPPORT_EMAIL = 'kontakt@lyruma.de'
 /** Also published as general contact (impressum) — not used for Support menu */
-export const INFO_EMAIL = 'info@lyruma.studio'
+export const INFO_EMAIL = 'kontakt@lyruma.de'
 
 export const URL_APP = 'https://songbook.lyruma.de'
 export const URL_LYRUMA_STUDIO = 'https://lyruma.de'
 export const URL_EDUARD_WIEBE = 'https://eduardwiebe.lyruma.de'
+export const URL_SOUNDCLOUD = 'https://soundcloud.com/edwiebe77'
+export const URL_FACILITY_DESK = 'https://facility-desk.de'
 export const URL_GITHUB_REPO = 'https://github.com/Eduardwiebe/worship-songbook'
 export const URL_GITHUB_RELEASES = 'https://github.com/Eduardwiebe/worship-songbook/releases'
 export const GITHUB_API_LATEST_RELEASE = 'https://api.github.com/repos/Eduardwiebe/worship-songbook/releases/latest'

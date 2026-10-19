@@ -1,13 +1,14 @@
 import { useState } from 'react'
-import { Music2, LockKeyhole } from 'lucide-react'
+import { Music2, LockKeyhole, Download, Check } from 'lucide-react'
 import { login, register, changePassword, logout } from './authStore'
 import { useI18n } from './i18n'
 import { useAvoidMobileAutoFocus } from './useMobileFormFocus'
-import { URL_APP, URL_EDUARD_WIEBE, URL_LYRUMA_STUDIO } from './appMeta'
+import { URL_APP, SUPPORT_EMAIL } from './appMeta'
+import { SiteLinks, LegalLinks } from './SiteLinks'
 import { BrandMark } from './BrandMark'
 
 export function AuthScreen({ onAuthenticated }) {
-  const { t } = useI18n()
+  const { t, locale, setLocale } = useI18n()
   const avoidAutoFocus = useAvoidMobileAutoFocus()
   const [gate, setGate] = useState('choice') // choice | login | register
   const [values, setValues] = useState({ name: '', username: '', email: '', identifier: '', password: '' })
@@ -38,26 +39,22 @@ export function AuthScreen({ onAuthenticated }) {
   const tagline = t('auth.tagline').split('\n')
 
   return (
-    <main className="auth-page">
+    <main className={`auth-page${gate !== 'choice' ? ' auth-page-form' : ''}`}>
       <section className="auth-brand">
         <div className="brand" aria-label={t('brand.songbook')}>
           <BrandMark />
           <div><strong>{t('brand.songbook')}</strong></div>
         </div>
-        <p className="auth-studio-link">
-          <a href={URL_LYRUMA_STUDIO} target="_blank" rel="noreferrer">Lyruma</a>
-          <span aria-hidden="true"> · </span>
-          <a href={URL_EDUARD_WIEBE} target="_blank" rel="noreferrer">Eduard Wiebe</a>
-          <span aria-hidden="true"> · </span>
-          <a href={`${URL_APP}/install/`} target="_blank" rel="noreferrer">{t('nav.install')}</a>
-        </p>
-        <p className="auth-install-cta">
-          <a className="auth-install-button" href={`${URL_APP}/install/`} target="_blank" rel="noreferrer">{t('nav.install')}</a>
-        </p>
         <div>
-          <p className="eyebrow">{t('auth.title')}</p>
+          <p className="eyebrow">{t('auth.eyebrow')}</p>
           <h1>{tagline[0]}<br/>{tagline[1]}</h1>
-          <p>{t('auth.subtitle')}</p>
+          <p className="auth-lead">{t('auth.subtitle')}</p>
+          <ul className="auth-features">
+            <li><Check size={16} aria-hidden="true"/>{t('auth.featureSongs')}</li>
+            <li><Check size={16} aria-hidden="true"/>{t('auth.featureSets')}</li>
+            <li><Check size={16} aria-hidden="true"/>{t('auth.featureOffline')}</li>
+            <li><Check size={16} aria-hidden="true"/>{t('auth.featureTeam')}</li>
+          </ul>
         </div>
       </section>
 
@@ -65,10 +62,10 @@ export function AuthScreen({ onAuthenticated }) {
         {gate === 'choice' && (
           <div className="auth-choice">
             <div className="auth-card-head">
-              <Music2 size={27}/>
+              <Music2 size={27} aria-hidden="true"/>
               <div>
-                <h2>{t('auth.title')}</h2>
-                <p>{t('auth.subtitle')}</p>
+                <h2>{t('auth.welcomeTitle')}</h2>
+                <p>{t('auth.welcomeText')}</p>
               </div>
             </div>
 
@@ -88,14 +85,9 @@ export function AuthScreen({ onAuthenticated }) {
               </button>
             </div>
 
-            <div className="auth-choice-divider" aria-hidden="true"/>
-
-            <div className="auth-choice-block auth-choice-install">
-              <p className="auth-choice-label">{t('brand.songbook')}</p>
-              <a className="auth-submit auth-install-button" href={`${URL_APP}/install/`} target="_blank" rel="noreferrer">
-                {t('nav.install')}
-              </a>
-            </div>
+            <a className="auth-install-link" href={`${URL_APP}/install/`} target="_blank" rel="noreferrer">
+              <Download size={16} aria-hidden="true"/>{t('auth.installLink')}
+            </a>
           </div>
         )}
 
@@ -131,7 +123,21 @@ export function AuthScreen({ onAuthenticated }) {
             <small>{t('auth.separateHint')}</small>
           </>
         )}
+        <button type="button" className="auth-lang" onClick={() => setLocale(locale === 'de' ? 'en' : 'de')} aria-label={t('auth.languageSwitchAria')} lang={locale === 'de' ? 'en' : 'de'}>
+          {t('auth.languageSwitch')}
+        </button>
       </section>
+
+      <footer className="auth-footer">
+        <div className="auth-footer-sites">
+          <span>{t('footer.moreSites')}</span>
+          <SiteLinks/>
+        </div>
+        <div className="auth-footer-legal">
+          <LegalLinks/>
+          <span>© {new Date().getFullYear()} Eduard Wiebe · <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a></span>
+        </div>
+      </footer>
     </main>
   )
 }
