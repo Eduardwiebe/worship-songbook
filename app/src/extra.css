@@ -2053,3 +2053,44 @@ html[data-theme="light"] .song-briefing textarea { background: #f4f7fb; color: #
 .set-toolbar span { max-width: 100%; overflow-wrap: anywhere; }
 @media (max-width:1199px) { .planned-song { grid-template-areas: "num main" "lead lead" "acts acts" "brief brief"; } .planned-song > .song-briefing { grid-area: brief; } }
 @media (max-width:700px) { .stage-cue { flex-direction: column; gap: 3px; padding: 8px 14px; font-size: 13px; } }
+
+/* ── Login screen + footer polish (2026-10-19) ───────────────────────── */
+.auth-page { grid-template-rows:minmax(0,1fr) auto; }
+.auth-brand .auth-lead { max-width:510px;margin:0;color:rgba(255,255,255,.82);font-size:18px;line-height:1.55; }
+.auth-features { list-style:none;margin:26px 0 0;padding:0;display:grid;gap:10px;max-width:520px; }
+.auth-features li { display:flex;align-items:center;gap:10px;color:rgba(255,255,255,.9);font-size:15px;font-weight:650; }
+.auth-features li svg { flex:0 0 auto;width:22px;height:22px;padding:3px;box-sizing:border-box;border-radius:50%;color:#2a1f0b;background:linear-gradient(135deg,#f1d38d,#c89a3e); }
+.auth-card { align-self:center; }
+.auth-install-link { display:inline-flex;align-items:center;justify-content:center;gap:8px;margin-top:4px;padding:8px;border-radius:10px;color:#7a5c1e;font-size:14px;font-weight:800;text-decoration:none; }
+.auth-install-link:hover,.auth-install-link:focus-visible { color:#5e4612;background:#f7efdc; }
+.auth-lang { display:block;margin:18px auto 0;border:0;padding:6px 10px;border-radius:8px;color:#6d7986;background:transparent;font:inherit;font-size:13px;font-weight:800;cursor:pointer; }
+.auth-lang:hover,.auth-lang:focus-visible { color:#7a5c1e;background:#f7efdc; }
+.auth-footer { grid-column:1 / -1;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 28px;padding:18px clamp(24px,5vw,72px);border-top:1px solid #dfe5ea;color:#5d6b7a;background:#fff;font-size:13px; }
+.auth-footer a { color:#3d4a59;text-decoration:none;font-weight:700; }
+.auth-footer a:hover,.auth-footer a:focus-visible { color:#8b6924;text-decoration:underline; }
+.auth-footer-sites,.auth-footer-legal { display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px; }
+.auth-footer-sites>span { color:#5d6b7a;font-weight:700; }
+.auth-footer nav { display:flex;flex-wrap:wrap;gap:8px 18px; }
+html[data-color-scheme="dark"] .auth-footer,html[data-theme="dark"] .auth-footer { border-color:#1d2b3c;color:#8597aa;background:#0a1626; }
+html[data-color-scheme="dark"] .auth-footer a,html[data-theme="dark"] .auth-footer a { color:#c9d4df; }
+html[data-color-scheme="dark"] .auth-footer a:hover,html[data-theme="dark"] .auth-footer a:hover { color:#e4c574; }
+html[data-color-scheme="dark"] .auth-install-link,html[data-theme="dark"] .auth-install-link,
+html[data-color-scheme="dark"] .auth-lang,html[data-theme="dark"] .auth-lang { color:#e2c57a; }
+html[data-color-scheme="dark"] .auth-install-link:hover,html[data-theme="dark"] .auth-install-link:hover,
+html[data-color-scheme="dark"] .auth-lang:hover,html[data-theme="dark"] .auth-lang:hover { color:#f1d38d;background:rgba(226,197,122,.1); }
+@media (max-width:780px){
+  .auth-page { grid-template-rows:auto auto auto; }
+  .auth-brand { min-height:0;padding:24px 22px 30px; }
+  .auth-brand>div:last-child { margin:30px 0 0; }
+  .auth-brand .auth-lead { font-size:16px; }
+  .auth-features { margin-top:18px;gap:8px; }
+  .auth-features li { font-size:14px; }
+  .auth-card { margin:20px auto 26px; }
+  .auth-footer { flex-direction:column;align-items:flex-start;padding:18px 22px calc(18px + env(safe-area-inset-bottom,0px)); }
+}
+/* App footer: list of Eduard Wiebe's other sites */
+.footer-sites { display:grid;gap:6px;justify-items:end;text-align:right; }
+.footer-sites>span { color:#7f91a6;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase; }
+.footer-sites-list { display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px 16px; }
+@media (max-width:700px){ .footer-sites { justify-items:start;text-align:left; } .footer-sites-list { justify-content:flex-start; } }
+@media (max-width:780px){ .auth-page-form .auth-features,.auth-page-form .auth-lead { display:none; } .auth-page-form .auth-brand>div:last-child { margin-top:18px; } }
