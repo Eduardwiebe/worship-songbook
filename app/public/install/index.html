@@ -48,15 +48,14 @@
       box-shadow: 0 8px 24px rgba(0,0,0,.35);
     }
     .back-app {
-      display: flex; align-items: center; justify-content: center; gap: 10px;
-      width: 100%; min-height: 54px; margin: 0 0 18px; padding: 14px 18px;
-      border-radius: 16px; text-decoration: none; box-sizing: border-box;
-      font-size: 17px; font-weight: 850; color: #29200e;
-      background: linear-gradient(135deg, var(--gold), var(--gold-deep));
-      border: 0;
-      box-shadow: 0 14px 30px rgba(200,154,62,.28);
+      display: inline-flex; align-items: center; gap: 8px;
+      margin: 0 0 16px; padding: 8px 14px;
+      border-radius: 999px; text-decoration: none;
+      font-size: 14px; font-weight: 800; color: var(--text);
+      background: rgba(255,255,255,.06); border: 1px solid var(--line);
     }
-    .back-app .arrow { font-size: 20px; line-height: 1; }
+    .back-app:hover, .back-app:focus-visible { border-color: rgba(241,211,141,.45); color: var(--gold); }
+    .back-app .arrow { font-size: 16px; line-height: 1; }
     .card {
       background: var(--panel);
       border: 1px solid var(--line);
@@ -73,13 +72,14 @@
     }
     .pitch { margin: 0 0 22px; color: var(--muted); font-size: 16px; line-height: 1.55; max-width: 38em; }
     .device {
-      display: inline-flex; align-items: center; gap: 8px;
+      display: flex; width: fit-content; align-items: center; gap: 8px;
       margin-bottom: 18px; padding: 7px 12px; border-radius: 999px;
       background: rgba(241,211,141,.1); color: var(--gold); font-size: 13px; font-weight: 750;
       border: 1px solid rgba(241,211,141,.25);
     }
     .install-btn {
-      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+      text-decoration: none;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
       width: 100%; max-width: 420px; min-height: 56px; padding: 14px 22px;
       border: 0; border-radius: 16px; cursor: pointer;
       font-size: 17px; font-weight: 850; color: #29200e;
@@ -156,6 +156,14 @@
     }
     .site-links a { color: var(--gold); text-decoration: none; }
     .site-links a:hover { text-decoration: underline; }
+    .page-footer {
+      margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--line);
+      color: var(--muted); font-size: 13px; line-height: 1.6;
+    }
+    .page-footer nav { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 8px; }
+    .page-footer a { color: var(--text); text-decoration: none; font-weight: 700; }
+    .page-footer a:hover, .page-footer a:focus-visible { color: var(--gold); text-decoration: underline; }
+    .page-footer .label { color: var(--muted); font-weight: 700; }
   </style>
   <meta name="description" content="Installiere Songbook Band auf dem Home-Bildschirm oder Desktop — schnell starten, offline Sets spielen, ohne APK oder Store.">
   <link rel="canonical" href="https://songbook.lyruma.de/install/">
@@ -180,7 +188,7 @@
       </a>
       <nav class="site-links" aria-label="Webseiten">
         <a href="https://lyruma.de" rel="noreferrer">Lyruma</a>
-        <a href="https://eduardwiebe.lyruma.de" rel="noreferrer">Eduard Wiebe</a>
+        <a href="https://eduardwiebe.lyruma.de" rel="noreferrer">Eduard.W</a>
       </nav>
     </div>
 
@@ -217,6 +225,22 @@
         <button type="button" id="langToggle">English</button>
       </p>
     </section>
+
+    <footer class="page-footer">
+      <nav aria-label="Weitere Seiten von Eduard Wiebe">
+        <span class="label" data-i18n="moreSites">Weitere Seiten:</span>
+        <a href="https://lyruma.de" rel="noopener" data-i18n="siteLyruma">Lyruma · Lead Sheets</a>
+        <a href="https://facility-desk.de" rel="noopener" data-i18n="siteFd">FacilityDesk · Haustechnik</a>
+        <a href="https://eduardwiebe.lyruma.de" rel="noopener" data-i18n="siteArtist">Eduard.W · Musik</a>
+        <a href="https://soundcloud.com/edwiebe77" rel="noopener">SoundCloud · Eduard.W</a>
+      </nav>
+      <nav aria-label="Rechtliches">
+        <a href="/impressum.html" data-i18n="imprint">Impressum</a>
+        <a href="/datenschutz.html" data-i18n="privacy">Datenschutz</a>
+        <a href="/nutzungsbedingungen.html" data-i18n="terms">Nutzungsbedingungen</a>
+      </nav>
+      <span>© 2026 Eduard Wiebe · <a href="mailto:kontakt@lyruma.de">kontakt@lyruma.de</a></span>
+    </footer>
   </div>
 
   <script>
@@ -257,6 +281,13 @@
         joinContinue: 'Weiter zum Beitritt',
         joinAlready: 'App bereits installiert? Dann direkt beitreten.',
         langBtn: 'English',
+        moreSites: 'Weitere Seiten:',
+        siteLyruma: 'Lyruma · Lead Sheets',
+        siteFd: 'FacilityDesk · Haustechnik',
+        siteArtist: 'Eduard.W · Musik',
+        imprint: 'Impressum',
+        privacy: 'Datenschutz',
+        terms: 'Nutzungsbedingungen',
       },
       en: {
         eyebrow: 'Band app',
@@ -294,6 +325,13 @@
         joinContinue: 'Continue to join',
         joinAlready: 'Already installed? Continue to join.',
         langBtn: 'Deutsch',
+        moreSites: 'More sites:',
+        siteLyruma: 'Lyruma · Lead sheets',
+        siteFd: 'FacilityDesk · Facility management',
+        siteArtist: 'Eduard.W · Music',
+        imprint: 'Legal notice',
+        privacy: 'Privacy',
+        terms: 'Terms of use',
       },
     }
 

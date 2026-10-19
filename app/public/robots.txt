@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /songs
+Disallow: /sets
+Disallow: /bands
+Disallow: /team
+Disallow: /termine
+Disallow: /einstellungen
+Disallow: /join
+
+Sitemap: https://songbook.lyruma.de/sitemap.xml
